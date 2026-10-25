@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>GPT Tweaks</title>
+  <style>
+    :root { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #24272e; background: #fff; font-synthesis: none; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    a { color: #215cb1; text-underline-offset: 3px; }
+    a:hover { color: #143e7d; }
+    button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid #96baf5; outline-offset: 3px; }
+    .shell { min-height: 100vh; display: grid; grid-template-columns: 244px minmax(0,1fr); }
+    .sidebar { position: sticky; top: 0; height: 100vh; border-right: 1px solid #e5e7eb; background: #fafafa; padding: 30px 15px 22px; }
+    .brand { display: block; margin: 0 12px 41px; color: #1b1e24; font-size: 19px; font-weight: 670; letter-spacing: -.45px; text-decoration: none; }
+    .navigation { display: grid; gap: 2px; }
+    .nav-link { display: flex; align-items: center; gap: 10px; width: 100%; border-radius: 7px; padding: 10px 12px; color: #555c67; text-decoration: none; font-size: 13.5px; font-weight: 500; }
+    .nav-link:hover { background: #f0f1f3; color: #20252e; }
+    .nav-link.is-current { color: #1b2536; background: #e9edf4; font-weight: 630; }
+    .nav-link svg { flex: 0 0 auto; }
+    .nav-child { margin-left: 17px; padding-left: 16px; border-left: 1px solid #dbdfe5; }
+    .nav-child .nav-link { font-size: 13px; padding: 9px 12px; }
+    .main { padding: 60px clamp(28px, 7vw, 112px) 120px; }
+    .content { max-width: 800px; }
+    h1 { margin: 0 0 49px; font-size: 28px; line-height: 1.23; letter-spacing: -.75px; font-weight: 650; }
+    h2 { margin: 0; font-size: 17px; line-height: 1.4; font-weight: 650; letter-spacing: -.27px; }
+    p { margin: 0; }
+    .section { scroll-margin-top: 35px; }
+    .section + .section { border-top: 1px solid #e6e8eb; margin-top: 49px; padding-top: 39px; }
+    .section-description { font-size: 13.5px; line-height: 1.65; color: #616873; max-width: 650px; margin: 9px 0 25px; }
+    .control-label { display: block; font-weight: 600; font-size: 13px; margin: 0 0 10px; }
+    .token-field { display: flex; align-items: stretch; gap: 10px; max-width: 650px; }
+    .input-wrap { position: relative; min-width: 0; flex: 1; }
+    .input-wrap input { width: 100%; min-width: 0; height: 40px; padding: 0 66px 0 13px; color: #20232a; border: 1px solid #cbd1d9; border-radius: 7px; background: #fff; outline: none; font-size: 13px; }
+    .input-wrap input:focus { border-color: #3769b0; box-shadow: 0 0 0 3px #dce9fc; }
+    .input-wrap input::placeholder { color: #9097a1; }
+    .text-action { position: absolute; right: 7px; top: 4px; height: 32px; padding: 0 8px; color: #545e6b; background: transparent; border: none; border-radius: 5px; font-size: 12px; }
+    .text-action:hover { background: #f0f2f5; }
+    .button { flex-shrink: 0; border: 1px solid #c9cfd8; background: #fff; border-radius: 7px; padding: 0 16px; height: 40px; color: #242b34; font-size: 13px; font-weight: 600; }
+    .button:hover:not(:disabled) { background: #f4f6f8; }
+    .button-primary { background: #242c37; border-color: #242c37; color: #fff; }
+    .button-primary:hover:not(:disabled) { background: #3b4654; }
+    .button:disabled { cursor: not-allowed; background: #f2f3f5; border-color: #e2e5e8; color: #9a9fa7; }
+    .helper { color: #656b75; font-size: 12.5px; line-height: 1.65; margin-top: 13px; max-width: 650px; }
+    .helper a { white-space: nowrap; }
+    .token-saved { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .token-state { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: #364251; flex: 1; min-width: 130px; }
+    .token-state::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #398257; }
+    .feature-header { display: flex; align-items: start; justify-content: space-between; gap: 20px; }
+    .feature-header h2 { padding-top: 4px; }
+    .feature-header .section-description { margin-bottom: 0; max-width: 570px; }
+    .switch { flex: 0 0 auto; display: inline-flex; position: relative; margin-top: 2px; cursor: pointer; }
+    .switch input { position: absolute; opacity: 0; width: 42px; height: 24px; margin: 0; cursor: pointer; }
+    .track { display: block; width: 42px; height: 24px; border-radius: 100px; background: #bcc2cb; transition: background .15s; }
+    .track::before { content: ""; display: block; width: 18px; height: 18px; margin: 3px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px #0002; transition: transform .15s; }
+    .switch input:checked + .track { background: #316aba; }
+    .switch input:checked + .track::before { transform: translateX(18px); }
+    .switch input:focus-visible + .track { outline: 3px solid #96baf5; outline-offset: 3px; }
+    .is-hidden { display: none !important; }
+    @media (max-width: 730px) {
+      .shell { display: block; }
+      .sidebar { position: sticky; z-index: 5; top: 0; height: auto; padding: 14px 18px 12px; border-right: 0; border-bottom: 1px solid #e5e7eb; }
+      .brand { margin: 0 0 10px; font-size: 17px; }
+      .navigation { display: flex; align-items: center; gap: 7px; }
+      .navigation > .nav-link, .nav-child .nav-link { width: auto; }
+      .nav-link { padding: 7px 11px; }
+      .nav-child { padding: 0; margin: 0; border-left: 0; }
+      .nav-child .nav-link { padding: 8px 10px; }
+      .main { padding: 36px 22px 90px; }
+      h1 { font-size: 25px; margin-bottom: 32px; }
+      .section { scroll-margin-top: 115px; }
+    }
+    @media (max-width: 510px) {
+      .token-field { flex-direction: column; }
+      .token-field > .button { width: fit-content; }
+      .feature-header { gap: 12px; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0ms !important; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar" aria-label="Page navigation">
+      <a class="brand" href="#github">GPT Tweaks</a>
+      <nav class="navigation" aria-label="Sections">
+        <a class="nav-link is-current" href="#github" data-nav="github" aria-current="location">
+          <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .8a11.2 11.2 0 0 0-3.54 21.83c.56.11.76-.24.76-.54v-1.94c-3.1.68-3.75-1.31-3.75-1.31-.5-1.29-1.24-1.64-1.24-1.64-1.01-.69.08-.67.08-.67 1.12.08 1.71 1.15 1.71 1.15 1 .1.76 2.06 3.19 1.45.1-.73.39-1.23.7-1.51-2.48-.28-5.09-1.24-5.09-5.54 0-1.22.44-2.22 1.15-3-.12-.28-.5-1.42.11-2.96 0 0 .94-.3 3.08 1.15a10.7 10.7 0 0 1 5.6 0C14.7 5.83 15.64 6.13 15.64 6.13c.61 1.54.23 2.68.11 2.96.72.78 1.14 1.78 1.14 3 0 4.31-2.61 5.26-5.1 5.54.4.34.76 1.02.76 2.06v3.06c0 .3.2.65.77.54A11.2 11.2 0 0 0 12 .8Z" transform="translate(0 0) scale(1.02)"/></svg>
+          <span>GitHub</span>
+        </a>
+        <div class="nav-child"><a class="nav-link" href="#repository-zip" data-nav="repository-zip">Repository ZIP</a></div>
+      </nav>
+    </aside>
+
+    <main class="main" id="main">
+      <div class="content">
+        <section id="github" class="section" aria-labelledby="github-heading">
+          <h1 id="github-heading">GitHub</h1>
+          <h2>Repository access</h2>
+          <p class="section-description">Public repositories work without a token. To access private repositories, add a GitHub personal access token.</p>
+          <label class="control-label" for="token-input">Personal access token (optional)</label>
+          <div id="token-entry" class="token-field">
+            <div class="input-wrap">
+              <input id="token-input" type="password" placeholder="Paste personal access token" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="token-help">
+              <button class="text-action" id="show-token" type="button" aria-label="Show token">Show</button>
+            </div>
+            <button class="button button-primary" type="button" id="save-token" disabled>Save token</button>
+          </div>
+          <div id="token-saved" class="token-saved is-hidden">
+            <span class="token-state">Token added</span>
+            <button type="button" class="button" id="replace-token">Replace</button>
+            <button type="button" class="button" id="remove-token">Remove</button>
+          </div>
+          <p id="token-help" class="helper"><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Create a fine-grained token on GitHub</a>. Select the repositories it can access and set <strong>Contents</strong> to <strong>Read-only</strong> on GitHub.</p>
+        </section>
+
+        <section id="repository-zip" class="section" aria-labelledby="repository-zip-heading">
+          <div class="feature-header">
+            <div>
+              <h2 id="repository-zip-heading">Repository ZIP</h2>
+              <p class="section-description">Add a repository ZIP to the current conversation from ChatGPT's + menu. Choose the repository and branch, or select a specific commit, when attaching.</p>
+            </div>
+            <label class="switch" title="Enable Repository ZIP">
+              <input type="checkbox" id="zip-enabled" checked role="switch" aria-label="Enable Repository ZIP">
+              <span class="track" aria-hidden="true"></span>
+            </label>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script>
+    (() => {
+      'use strict';
+      const $ = id => document.getElementById(id);
+      const tokenInput = $('token-input');
+      const saveToken = $('save-token');
+      const entry = $('token-entry');
+      const saved = $('token-saved');
+      const showToken = $('show-token');
+      tokenInput.addEventListener('input', () => { saveToken.disabled = tokenInput.value.trim().length === 0; });
+      showToken.addEventListener('click', () => {
+        const show = tokenInput.type === 'password';
+        tokenInput.type = show ? 'text' : 'password';
+        showToken.textContent = show ? 'Hide' : 'Show';
+        showToken.setAttribute('aria-label', show ? 'Hide token' : 'Show token');
+      });
+      saveToken.addEventListener('click', () => {
+        if (!tokenInput.value.trim()) return;
+        tokenInput.value = '';
+        tokenInput.type = 'password';
+        showToken.textContent = 'Show';
+        showToken.setAttribute('aria-label', 'Show token');
+        saveToken.disabled = true;
+        entry.classList.add('is-hidden');
+        saved.classList.remove('is-hidden');
+        $('replace-token').focus();
+      });
+      $('replace-token').addEventListener('click', () => {
+        saved.classList.add('is-hidden');
+        entry.classList.remove('is-hidden');
+        tokenInput.focus();
+      });
+      $('remove-token').addEventListener('click', () => {
+        tokenInput.value = '';
+        saveToken.disabled = true;
+        saved.classList.add('is-hidden');
+        entry.classList.remove('is-hidden');
+        tokenInput.focus();
+      });
+      const toggle = $('zip-enabled');
+      const stored = localStorage.getItem('gpt-tweaks.repository-zip');
+      if (stored === 'on' || stored === 'off') toggle.checked = stored === 'on';
+      toggle.addEventListener('change', () => localStorage.setItem('gpt-tweaks.repository-zip', toggle.checked ? 'on' : 'off'));
+      const links = Array.from(document.querySelectorAll('[data-nav]'));
+      const sections = links.map(link => $(link.dataset.nav));
+      const setActive = id => links.forEach(link => {
+        const current = link.dataset.nav === id;
+        link.classList.toggle('is-current', current);
+        if (current) link.setAttribute('aria-current', 'location');
+        else link.removeAttribute('aria-current');
+      });
+      const updateActive = () => {
+        const threshold = window.innerWidth <= 730 ? 145 : 110;
+        let current = sections[0].id;
+        for (const section of sections) {
+          if (section.getBoundingClientRect().top <= threshold) current = section.id;
+        }
+        setActive(current);
+      };
+      window.addEventListener('scroll', updateActive, { passive: true });
+      window.addEventListener('resize', updateActive);
+      links.forEach(link => link.addEventListener('click', () => setActive(link.dataset.nav)));
+      updateActive();
+    })();
+  </script>
+</body>
+</html>
