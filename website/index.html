@@ -5,516 +5,8 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="color-scheme" content="light" />
 		<title>GPT Tweaks</title>
-		<style>
-			:root {
-				font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-				color: #24272e;
-				background: #fff;
-				font-synthesis: none;
-			}
-			* {
-				box-sizing: border-box;
-			}
-			html {
-				scroll-behavior: smooth;
-			}
-			body {
-				margin: 0;
-				min-width: 900px;
-			}
-			button,
-			input {
-				font: inherit;
-			}
-			button {
-				cursor: pointer;
-			}
-			a {
-				color: #2164b6;
-				text-decoration: none;
-			}
-			a:hover {
-				text-decoration: underline;
-			}
-			:focus-visible {
-				outline: 3px solid #9cbdff;
-				outline-offset: 3px;
-			}
-			.layout {
-				display: grid;
-				grid-template-columns: 290px minmax(0, 1fr);
-				min-height: 100vh;
-			}
-			.sidebar {
-				height: 100vh;
-				position: sticky;
-				top: 0;
-				background: #fafbfc;
-				border-right: 1px solid #e7e9ed;
-				padding: 33px 16px 24px;
-				display: flex;
-				flex-direction: column;
-			}
-			.brand {
-				font-weight: 710;
-				font-size: 19px;
-				letter-spacing: -0.5px;
-				margin: 0 14px 37px;
-				color: #20242a;
-			}
-			.nav {
-				display: flex;
-				flex-direction: column;
-				gap: 3px;
-			}
-			.nav-item {
-				display: flex;
-				align-items: center;
-				gap: 10px;
-				padding: 10px 12px;
-				border-radius: 7px;
-				color: #505963;
-				font-size: 14px;
-				line-height: 1.45;
-				min-height: 41px;
-				transition: background 0.15s;
-			}
-			.nav-item:hover {
-				background: #edf0f3;
-				text-decoration: none;
-			}
-			.nav-item[aria-current="location"] {
-				background: #e8eef7;
-				color: #17487b;
-				font-weight: 600;
-			}
-			.nav-item svg {
-				flex: none;
-			}
-			.nav-child {
-				margin-left: 21px;
-				padding-left: 12px;
-				border-left: 1px solid #e0e4e8;
-			}
-			.nav-child .nav-item {
-				font-size: 13.5px;
-				padding: 9px 10px;
-				min-height: 38px;
-			}
-			.nav-child .nav-item + .nav-item {
-				margin-top: 2px;
-			}
-			.main {
-				width: min(100%, 1070px);
-				padding: 57px 74px max(410px, 52vh);
-			}
-			.page-heading {
-				display: flex;
-				gap: 14px;
-				align-items: center;
-				margin-bottom: 57px;
-				scroll-margin-top: 44px;
-			}
-			.github-mark {
-				height: 37px;
-				width: 37px;
-				color: #24292f;
-				flex: none;
-			}
-			h1 {
-				font-size: 27px;
-				letter-spacing: -0.7px;
-				margin: 0;
-				line-height: 1.25;
-				font-weight: 675;
-			}
-			h2 {
-				font-size: 20px;
-				line-height: 1.35;
-				letter-spacing: -0.38px;
-				font-weight: 655;
-				margin: 0;
-			}
-			.feature {
-				scroll-margin-top: 50px;
-			}
-			.feature-heading {
-				display: flex;
-				align-items: flex-start;
-				justify-content: space-between;
-				gap: 34px;
-			}
-			.feature-heading h2 {
-				max-width: 615px;
-			}
-			.description {
-				font-size: 14px;
-				color: #626a74;
-				line-height: 1.62;
-				max-width: 660px;
-				margin: 12px 0 0;
-			}
-			.feature-body {
-				margin-top: 39px;
-				transition: opacity 0.16s;
-			}
-			.feature-body.inactive {
-				opacity: 0.46;
-			}
-			.subheading {
-				font-size: 12px;
-				text-transform: uppercase;
-				color: #707780;
-				font-weight: 680;
-				letter-spacing: 0.07em;
-				margin: 0 0 7px;
-			}
-			.setting-row {
-				display: flex;
-				align-items: center;
-				justify-content: space-between;
-				gap: 26px;
-				border-bottom: 1px solid #edf0f2;
-				padding: 21px 0;
-			}
-			.setting-row:last-of-type {
-				border-bottom: 0;
-			}
-			.setting-title {
-				font-size: 14px;
-				font-weight: 610;
-				color: #282d34;
-			}
-			.setting-description {
-				color: #707782;
-				font-size: 13px;
-				line-height: 1.5;
-				margin-top: 5px;
-			}
-			.switch {
-				position: relative;
-				display: inline-flex;
-				align-items: center;
-				width: 41px;
-				height: 24px;
-				flex: none;
-				cursor: pointer;
-			}
-			.switch input {
-				position: absolute;
-				opacity: 0;
-				width: 100%;
-				height: 100%;
-				margin: 0;
-				cursor: inherit;
-			}
-			.switch .track {
-				display: block;
-				width: 41px;
-				height: 24px;
-				border-radius: 20px;
-				background: #c6cbd1;
-				transition: background 0.15s;
-			}
-			.switch .track::after {
-				content: "";
-				display: block;
-				width: 18px;
-				height: 18px;
-				border-radius: 50%;
-				background: #fff;
-				box-shadow: 0 1px 2px #0002;
-				position: absolute;
-				top: 3px;
-				left: 3px;
-				transition: transform 0.15s;
-			}
-			.switch input:checked + .track {
-				background: #287a55;
-			}
-			.switch input:checked + .track::after {
-				transform: translateX(17px);
-			}
-			.switch input:focus-visible + .track {
-				outline: 3px solid #9cbdff;
-				outline-offset: 3px;
-			}
-			.switch input:disabled {
-				cursor: not-allowed;
-			}
-			.switch:has(input:disabled) {
-				cursor: not-allowed;
-			}
-			.feedback {
-				min-height: 22px;
-				margin: 9px 0 0;
-				font-size: 12.5px;
-				color: #9b501e;
-			}
-			.private-section {
-				border-top: 1px solid #e4e7eb;
-				margin-top: 56px;
-				padding-top: 24px;
-				scroll-margin-top: 45px;
-			}
-			.private-panel {
-				border: 0;
-				margin: 0;
-				padding: 0;
-			}
-			.private-panel summary {
-				list-style: none;
-				cursor: pointer;
-				display: flex;
-				align-items: center;
-				gap: 14px;
-				justify-content: space-between;
-				padding: 4px 0;
-			}
-			.private-panel summary::-webkit-details-marker {
-				display: none;
-			}
-			.private-panel summary:focus-visible {
-				border-radius: 5px;
-			}
-			.private-label {
-				display: flex;
-				align-items: center;
-				gap: 10px;
-				min-width: 0;
-			}
-			.chevron {
-				color: #777f87;
-				flex: none;
-				transition: transform 0.18s;
-			}
-			details[open] .chevron {
-				transform: rotate(90deg);
-			}
-			.private-status {
-				font-size: 12px;
-				font-weight: 550;
-				white-space: nowrap;
-				color: #6f7780;
-				background: #f3f4f6;
-				border: 1px solid #e8eaed;
-				border-radius: 5px;
-				padding: 5px 9px;
-			}
-			.private-status.configured {
-				color: #23583f;
-				background: #eff8f2;
-				border-color: #d4e8dc;
-			}
-			.private-body {
-				padding: 20px 0 0 28px;
-				max-width: 670px;
-			}
-			.private-body p {
-				font-size: 14px;
-				line-height: 1.6;
-				color: #5b646e;
-				margin: 0 0 21px;
-			}
-			.field-label {
-				font-size: 13px;
-				font-weight: 610;
-				display: block;
-				margin-bottom: 9px;
-			}
-			.input-wrap {
-				display: flex;
-				align-items: stretch;
-				width: 100%;
-				max-width: 560px;
-				border: 1px solid #cfd5dc;
-				border-radius: 7px;
-				overflow: hidden;
-				background: white;
-			}
-			.input-wrap:focus-within {
-				border-color: #5884ba;
-				box-shadow: 0 0 0 3px #dbe9ff;
-			}
-			.token-input {
-				background: transparent;
-				border: 0;
-				outline: 0;
-				min-width: 0;
-				flex: 1;
-				padding: 12px 13px;
-				color: #24272e;
-				font-size: 13.5px;
-				letter-spacing: 0.1px;
-			}
-			.token-input:focus-visible {
-				outline: 0;
-			}
-			.token-input::placeholder {
-				color: #949aa2;
-			}
-			.reveal {
-				background: none;
-				border: 0;
-				border-left: 1px solid #e6e9ed;
-				padding: 0 14px;
-				color: #4f5964;
-				font-size: 12.5px;
-			}
-			.reveal:hover {
-				background: #f6f8fb;
-			}
-			.token-actions {
-				min-height: 26px;
-				display: flex;
-				align-items: center;
-				gap: 14px;
-				margin-top: 10px;
-			}
-			.token-message {
-				font-size: 12.5px;
-				color: #65707b;
-			}
-			.clear {
-				font-size: 12.5px;
-				background: none;
-				border: 0;
-				padding: 0;
-				color: #ad3d37;
-				text-decoration: underline;
-				text-underline-offset: 2px;
-			}
-			.help {
-				border-top: 1px solid #edf0f2;
-				margin-top: 22px;
-				padding-top: 19px;
-				color: #69717b;
-				font-size: 13px;
-				line-height: 1.65;
-			}
-			.help a {
-				font-weight: 560;
-			}
-			@media (prefers-reduced-motion: reduce) {
-				html {
-					scroll-behavior: auto;
-				}
-				*,
-				*::before,
-				*::after {
-					transition: none !important;
-				}
-			}
-
-			/* Conversation settings */
-			.conversation-category {
-				margin-top: 82px;
-				border-top: 1px solid #e4e7eb;
-				padding-top: 56px;
-			}
-			.conversation-category .page-heading {
-				margin-bottom: 49px;
-			}
-			.conversation-category .feature-body {
-				margin-top: 36px;
-			}
-			.group-heading {
-				margin-top: 38px;
-			}
-			.setting-row .setting-text {
-				min-width: 0;
-				max-width: 620px;
-			}
-			.token-target {
-				width: 170px;
-				flex: none;
-				padding: 10px 12px;
-				border: 1px solid #cfd5dc;
-				border-radius: 7px;
-				background: #fff;
-				color: #282d34;
-				text-align: right;
-				font-variant-numeric: tabular-nums;
-			}
-			.token-target:focus {
-				border-color: #5884ba;
-			}
-			.token-target:invalid {
-				border-color: #b54740;
-			}
-			
-
-			/* Additional conversation and navigation features */
-			.conversation-category .feature + .feature {
-				border-top: 1px solid #e4e7eb;
-				margin-top: 58px;
-				padding-top: 30px;
-			}
-			.navigation-category {
-				margin-top: 82px;
-				padding-top: 56px;
-				border-top: 1px solid #e4e7eb;
-			}
-			.navigation-category .page-heading {
-				margin-bottom: 49px;
-			}
-			.navigation-category .feature-body {
-				margin-top: 36px;
-			}
-			.controls-right {
-				display: flex;
-				align-items: center;
-				gap: 10px;
-				flex: none;
-			}
-			.compact-select {
-				width: 175px;
-				padding: 10px 12px;
-				border: 1px solid #cfd5dc;
-				border-radius: 7px;
-				color: #282d34;
-				background: #fff;
-			}
-			.shortcut-button {
-				min-width: 154px;
-				padding: 10px 14px;
-				border: 1px solid #cfd5dc;
-				border-radius: 7px;
-				color: #282d34;
-				background: #fff;
-				text-align: center;
-			}
-			.shortcut-button:hover:not(:disabled) {
-				background: #f4f6f8;
-			}
-			.shortcut-button.is-recording {
-				border-color: #366aa6;
-				box-shadow: 0 0 0 3px #dbe9ff;
-			}
-			.shortcut-clear {
-				background: transparent;
-				border: 0;
-				color: #57616e;
-				padding: 7px 2px;
-				font-size: 13px;
-			}
-			.shortcut-clear:hover:not(:disabled) {
-				text-decoration: underline;
-			}
-			.shortcut-button:disabled,
-			.shortcut-clear:disabled,
-			.compact-select:disabled {
-				cursor: not-allowed;
-				opacity: 0.55;
-			}
-			.shortcut-status {
-				margin: 9px 0 0;
-				min-height: 19px;
-				color: #9b501e;
-				font-size: 12.5px;
-			}
-
-		</style>
+		<link rel="stylesheet" href="style.css" />
+		<script src="index.js" defer></script>
 	</head>
 	<body>
 		<div class="layout">
@@ -534,7 +26,16 @@
 					</div>
 
 					<a href="#conversation" class="nav-item" data-section="conversation">
-						<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+						<svg
+							width="18"
+							height="18"
+							viewBox="0 0 24 24"
+							aria-hidden="true"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.8"
+							stroke-linecap="round"
+							stroke-linejoin="round">
 							<path d="M21 11.5a8.4 8.4 0 0 1-9 8.5 9 9 0 0 1-4-.9L3 21l1.9-4.7A8.8 8.8 0 0 1 3 11.5a9 9 0 0 1 18 0Z" />
 						</svg>
 						Conversation
@@ -547,7 +48,16 @@
 					</div>
 
 					<a href="#navigation" class="nav-item" data-section="navigation">
-						<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+						<svg
+							width="18"
+							height="18"
+							viewBox="0 0 24 24"
+							aria-hidden="true"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.8"
+							stroke-linecap="round"
+							stroke-linejoin="round">
 							<rect x="3" y="4" width="18" height="16" rx="2"></rect>
 							<path d="M3 9h18M8 4v5M12 13h5M14.5 10.5v5"></path>
 						</svg>
@@ -657,7 +167,15 @@
 
 				<div class="conversation-category">
 					<header id="conversation" class="page-heading">
-						<svg class="github-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+						<svg
+							class="github-mark"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.7"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							aria-hidden="true">
 							<path d="M21 11.5a8.4 8.4 0 0 1-9 8.5 9 9 0 0 1-4-.9L3 21l1.9-4.7A8.8 8.8 0 0 1 3 11.5a9 9 0 0 1 18 0Z" />
 						</svg>
 						<h1>Conversation</h1>
@@ -670,16 +188,26 @@
 								<span class="track"></span>
 							</label>
 						</div>
-						<p class="description">Show a progress bar above the ChatGPT message composer with estimated token usage and the number of messages in the current conversation.</p>
+						<p class="description">
+							Show a progress bar above the ChatGPT message composer with estimated token usage and the number of
+							messages in the current conversation.
+						</p>
 						<div class="feature-body" id="context-controls">
 							<h3 class="subheading">Visibility</h3>
 							<div class="setting-row">
 								<div class="setting-text">
 									<div class="setting-title">Show by default</div>
-									<div class="setting-description">Display the tracker when opening a conversation. When off, open it from the + menu or with <code>/status</code>.</div>
+									<div class="setting-description">
+										Display the tracker when opening a conversation. When off, open it from the + menu or with
+										<code>/status</code>.
+									</div>
 								</div>
 								<label class="switch" title="Show context tracker by default">
-									<input type="checkbox" id="context-default-visible" checked aria-label="Show context tracker by default" />
+									<input
+										type="checkbox"
+										id="context-default-visible"
+										checked
+										aria-label="Show context tracker by default" />
 									<span class="track"></span>
 								</label>
 							</div>
@@ -711,7 +239,11 @@
 									<div class="setting-description">Show the percentage of the token target used.</div>
 								</div>
 								<label class="switch" title="Show estimated percentage">
-									<input type="checkbox" id="context-show-percent" checked aria-label="Show estimated percentage used" />
+									<input
+										type="checkbox"
+										id="context-show-percent"
+										checked
+										aria-label="Show estimated percentage used" />
 									<span class="track"></span>
 								</label>
 							</div>
@@ -728,7 +260,9 @@
 							<div class="setting-row">
 								<div class="setting-text">
 									<div class="setting-title">Configured token target</div>
-									<div class="setting-description">Show the target token count alongside the estimated tokens used.</div>
+									<div class="setting-description">
+										Show the target token count alongside the estimated tokens used.
+									</div>
 								</div>
 								<label class="switch" title="Show configured token target">
 									<input type="checkbox" id="context-show-limit" checked aria-label="Show configured token target" />
@@ -749,9 +283,20 @@
 							<div class="setting-row">
 								<div class="setting-text">
 									<label class="setting-title" for="context-target">Target tokens</label>
-									<div class="setting-description">Used to calculate the progress bar and percentage. This does not limit ChatGPT's actual context window.</div>
+									<div class="setting-description">
+										Used to calculate the progress bar and percentage. This does not limit ChatGPT's actual context
+										window.
+									</div>
 								</div>
-								<input id="context-target" class="token-target" type="number" min="1" step="1" value="128000" required aria-label="Target tokens" />
+								<input
+									id="context-target"
+									class="token-target"
+									type="number"
+									min="1"
+									step="1"
+									value="512000"
+									required
+									aria-label="Target tokens" />
 							</div>
 						</div>
 					</section>
@@ -764,7 +309,10 @@
 								<span class="track"></span>
 							</label>
 						</div>
-						<p class="description">Use <code>/handoff</code> to summarize the current conversation, save the summary as a Markdown file, then open a new chat with the handoff. Conversations in a project continue within that project.</p>
+						<p class="description">
+							Use <code>/handoff</code> to summarize the current conversation, save the summary as a Markdown file, then
+							open a new chat with the handoff. Conversations in a project continue within that project.
+						</p>
 					</section>
 					<section id="enhanced-copy" class="feature" aria-labelledby="copy-title">
 						<div class="feature-heading">
@@ -774,13 +322,24 @@
 								<span class="track"></span>
 							</label>
 						</div>
-						<p class="description">Add options to copy the selected message, everything before it, everything after it, or the entire conversation. “Before” and “after” include the selected message.</p>
+						<p class="description">
+							Add options to copy the selected message, everything before it, everything after it, or the entire
+							conversation. “Before” and “after” include the selected message.
+						</p>
 					</section>
 				</div>
 
 				<section class="navigation-category" aria-label="Navigation features">
 					<header id="navigation" class="page-heading">
-						<svg class="github-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+						<svg
+							class="github-mark"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.7"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							aria-hidden="true">
 							<rect x="3" y="4" width="18" height="16" rx="2"></rect>
 							<path d="M3 9h18M8 4v5M12 13h5M14.5 10.5v5"></path>
 						</svg>
@@ -788,39 +347,48 @@
 					</header>
 					<section id="new-chat" class="feature" aria-labelledby="new-chat-title">
 						<div class="feature-heading">
-							<h2 id="new-chat-title">New chat</h2>
+							<h2 id="new-chat-title">New chat enhancements</h2>
 							<label class="switch" title="Enable new chat shortcuts">
 								<input type="checkbox" id="new-chat-enabled" checked aria-label="Enable new chat shortcuts" />
 								<span class="track"></span>
 							</label>
 						</div>
-						<p class="description">Open a new ChatGPT conversation without leaving the current one.</p>
+						<p class="description">More convenient ways to open a new chat session.</p>
 						<div class="feature-body" id="new-chat-controls">
 							<div class="setting-row">
 								<div class="setting-text">
-									<div class="setting-title">Middle-click</div>
-									<div class="setting-description">Open a new chat by middle-clicking the New chat button in the sidebar.</div>
+									<div class="setting-title">Middle-click navigation button</div>
+									<div class="setting-description">
+										Open a new chat by middle-clicking the New chat button in the sidebar.
+									</div>
 								</div>
 								<label class="switch" title="Enable middle-click">
-									<input type="checkbox" id="new-chat-middle-click" checked aria-label="Enable middle-click to open new chat" />
+									<input
+										type="checkbox"
+										id="new-chat-middle-click"
+										checked
+										aria-label="Enable middle-click to open new chat" />
 									<span class="track"></span>
 								</label>
 							</div>
 							<div class="setting-row">
 								<div class="setting-text">
-									<div class="setting-title">Keyboard shortcut</div>
-									<div class="setting-description">Assign a key combination to open a new chat while ChatGPT is focused.</div>
+									<div class="setting-title">Slash command</div>
+									<div class="setting-description">Open a new chat with <code>/new-chat</code>.</div>
 								</div>
-								<div class="controls-right">
-									<button type="button" id="new-chat-shortcut" class="shortcut-button" aria-label="Set keyboard shortcut">Set shortcut</button>
-									<button type="button" id="new-chat-shortcut-clear" class="shortcut-clear" hidden>Clear</button>
-								</div>
+								<label class="switch" title="Show context tracker by default">
+									<input
+										type="checkbox"
+										id="context-default-visible"
+										checked
+										aria-label="Show context tracker by default" />
+									<span class="track"></span>
+								</label>
 							</div>
-							<p class="shortcut-status" id="new-chat-shortcut-status" role="status" aria-live="polite"></p>
 							<div class="setting-row">
 								<div class="setting-text">
 									<label for="new-chat-destination" class="setting-title">Open in</label>
-									<div class="setting-description">Choose where middle-clicking or the keyboard shortcut opens the new chat.</div>
+									<div class="setting-description">Choose how the new chat opens.</div>
 								</div>
 								<select id="new-chat-destination" class="compact-select">
 									<option value="tab" selected>New tab</option>
@@ -830,334 +398,7 @@
 						</div>
 					</section>
 				</section>
-
 			</main>
 		</div>
-		<script>
-			;(() => {
-				"use strict"
-				const $ = id => document.getElementById(id)
-				const enabled = $("archive-enabled")
-				const menu = $("method-menu")
-				const slash = $("method-slash")
-				const methods = $("attachment-methods")
-				const feedback = $("method-feedback")
-				const panel = $("private-panel")
-				const token = $("token")
-				const reveal = $("reveal-token")
-				const removeToken = $("remove-token")
-				const tokenMessage = $("token-message")
-				const privateStatus = $("private-status")
-				const preferences = {
-					enabled: localStorage.getItem("gpt-tweaks.archives.enabled") !== "false",
-					menu: localStorage.getItem("gpt-tweaks.archives.menu") !== "false",
-					slash: localStorage.getItem("gpt-tweaks.archives.slash") !== "false"
-				}
-				// Credentials remain in this tab session; the finished extension will need a separate credential-storage design.
-				token.value = sessionStorage.getItem("gpt-tweaks.github.token") || ""
-				enabled.checked = preferences.enabled
-				menu.checked = preferences.menu
-				slash.checked = preferences.slash
-				if (!menu.checked && !slash.checked) menu.checked = true
-
-				function syncFeature() {
-					methods.classList.toggle("inactive", !enabled.checked)
-					menu.disabled = !enabled.checked
-					slash.disabled = !enabled.checked
-					localStorage.setItem("gpt-tweaks.archives.enabled", enabled.checked)
-					localStorage.setItem("gpt-tweaks.archives.menu", menu.checked)
-					localStorage.setItem("gpt-tweaks.archives.slash", slash.checked)
-				}
-				enabled.addEventListener("change", () => {
-					feedback.textContent = ""
-					syncFeature()
-				})
-				;[menu, slash].forEach(control =>
-					control.addEventListener("change", () => {
-						if (!menu.checked && !slash.checked) {
-							control.checked = true
-							feedback.textContent = "Keep at least one attachment method enabled, or turn off the feature."
-						} else feedback.textContent = ""
-						syncFeature()
-					})
-				)
-				syncFeature()
-
-				let saveTimeout
-				function syncTokenStatus() {
-					const hasToken = Boolean(token.value.trim())
-					privateStatus.textContent = hasToken ? "Token added" : "Not configured"
-					privateStatus.classList.toggle("configured", hasToken)
-					removeToken.hidden = !hasToken
-				}
-				function saveToken() {
-					clearTimeout(saveTimeout)
-					const value = token.value.trim()
-					if (value) sessionStorage.setItem("gpt-tweaks.github.token", value)
-					else sessionStorage.removeItem("gpt-tweaks.github.token")
-					syncTokenStatus()
-					tokenMessage.textContent = value ? "Saved" : ""
-				}
-				token.addEventListener("input", () => {
-					tokenMessage.textContent = ""
-					clearTimeout(saveTimeout)
-					syncTokenStatus()
-					saveTimeout = setTimeout(saveToken, 450)
-				})
-				token.addEventListener("blur", saveToken)
-				reveal.addEventListener("click", () => {
-					const exposed = token.type === "password"
-					token.type = exposed ? "text" : "password"
-					reveal.textContent = exposed ? "Hide" : "Show"
-					reveal.setAttribute("aria-label", exposed ? "Hide token" : "Show token")
-				})
-				removeToken.addEventListener("click", () => {
-					clearTimeout(saveTimeout)
-					token.value = ""
-					sessionStorage.removeItem("gpt-tweaks.github.token")
-					tokenMessage.textContent = "Removed"
-					syncTokenStatus()
-					token.focus()
-				})
-				syncTokenStatus()
-
-
-				// Conversation context-tracker preferences
-				const contextKeys = {
-					enabled: "gpt-tweaks.context.enabled",
-					defaultVisible: "gpt-tweaks.context.default-visible",
-					menu: "gpt-tweaks.context.menu",
-					slash: "gpt-tweaks.context.slash",
-					percent: "gpt-tweaks.context.percent",
-					tokens: "gpt-tweaks.context.tokens",
-					limit: "gpt-tweaks.context.limit",
-					messages: "gpt-tweaks.context.messages"
-				}
-				const contextElements = {
-					enabled: $("context-enabled"),
-					defaultVisible: $("context-default-visible"),
-					menu: $("context-menu"),
-					slash: $("context-slash"),
-					percent: $("context-show-percent"),
-					tokens: $("context-show-tokens"),
-					limit: $("context-show-limit"),
-					messages: $("context-show-messages")
-				}
-				const contextControls = $("context-controls")
-				const contextFeedback = $("context-feedback")
-				for (const [name, control] of Object.entries(contextElements)) {
-					control.checked = localStorage.getItem(contextKeys[name]) !== "false"
-				}
-				// Keep at least one way to toggle visibility whenever the tracker is enabled.
-				if (!contextElements.menu.checked && !contextElements.slash.checked) {
-					contextElements.menu.checked = true
-				}
-				function syncContext() {
-					const active = contextElements.enabled.checked
-					contextControls.classList.toggle("inactive", !active)
-					for (const [name, control] of Object.entries(contextElements)) {
-						localStorage.setItem(contextKeys[name], String(control.checked))
-						if (name !== "enabled") control.disabled = !active
-					}
-				}
-				for (const [name, control] of Object.entries(contextElements)) {
-					control.addEventListener("change", () => {
-						if (name === "menu" || name === "slash") {
-							if (!contextElements.menu.checked && !contextElements.slash.checked) {
-								control.checked = true
-								contextFeedback.textContent = "Keep at least one way to toggle the tracker enabled, or turn off the feature."
-							} else contextFeedback.textContent = ""
-						}
-						syncContext()
-					})
-				}
-				syncContext()
-				const contextTarget = $("context-target")
-				const contextTargetKey = "gpt-tweaks.context.target-tokens"
-				const savedTarget = Number(localStorage.getItem(contextTargetKey))
-				let lastValidTarget = Number.isSafeInteger(savedTarget) && savedTarget > 0 ? savedTarget : 128000
-				contextTarget.value = String(lastValidTarget)
-				function saveContextTarget() {
-					const value = Number(contextTarget.value)
-					if (contextTarget.value.trim() !== "" && Number.isSafeInteger(value) && value > 0) {
-						lastValidTarget = value
-						localStorage.setItem(contextTargetKey, String(value))
-						contextTarget.setCustomValidity("")
-					} else {
-						contextTarget.setCustomValidity("Enter a positive whole number.")
-					}
-				}
-				contextTarget.addEventListener("input", saveContextTarget)
-				contextTarget.addEventListener("blur", () => {
-					if (!contextTarget.validity.valid) {
-						contextTarget.value = String(lastValidTarget)
-						contextTarget.setCustomValidity("")
-					}
-				})
-				contextElements.enabled.addEventListener("change", () => {
-					contextTarget.disabled = !contextElements.enabled.checked
-				})
-				contextTarget.disabled = !contextElements.enabled.checked
-
-
-				// Session handoff and enhanced message copy
-				const featureFlags = [
-					["handoff-enabled", "gpt-tweaks.handoff.enabled"],
-					["copy-enabled", "gpt-tweaks.copy.enabled"]
-				]
-				for (const [id, key] of featureFlags) {
-					const checkbox = $(id)
-					checkbox.checked = localStorage.getItem(key) !== "false"
-					checkbox.addEventListener("change", () => localStorage.setItem(key, String(checkbox.checked)))
-				}
-
-				// New chat controls
-				const newChatEnabled = $("new-chat-enabled")
-				const newChatMiddle = $("new-chat-middle-click")
-				const newChatShortcut = $("new-chat-shortcut")
-				const newChatShortcutClear = $("new-chat-shortcut-clear")
-				const newChatStatus = $("new-chat-shortcut-status")
-				const newChatDestination = $("new-chat-destination")
-				const newChatControls = $("new-chat-controls")
-				const newChatKeys = {
-					enabled: "gpt-tweaks.new-chat.enabled",
-					middle: "gpt-tweaks.new-chat.middle-click",
-					shortcut: "gpt-tweaks.new-chat.shortcut",
-					destination: "gpt-tweaks.new-chat.destination"
-				}
-				let savedShortcut = localStorage.getItem(newChatKeys.shortcut) || ""
-				let recordingShortcut = false
-				newChatEnabled.checked = localStorage.getItem(newChatKeys.enabled) !== "false"
-				newChatMiddle.checked = localStorage.getItem(newChatKeys.middle) !== "false"
-				newChatDestination.value = localStorage.getItem(newChatKeys.destination) === "window" ? "window" : "tab"
-				if (!newChatMiddle.checked && !savedShortcut) newChatMiddle.checked = true
-
-				function updateShortcutDisplay() {
-					newChatShortcut.textContent = recordingShortcut ? "Press keys…" : (savedShortcut || "Set shortcut")
-					newChatShortcut.classList.toggle("is-recording", recordingShortcut)
-					newChatShortcut.setAttribute("aria-label", recordingShortcut ? "Press shortcut keys, or Escape to cancel" : (savedShortcut ? "Change keyboard shortcut" : "Set keyboard shortcut"))
-					newChatShortcutClear.hidden = !savedShortcut
-				}
-				function syncNewChat() {
-					newChatControls.classList.toggle("inactive", !newChatEnabled.checked)
-					newChatMiddle.disabled = !newChatEnabled.checked
-					newChatShortcut.disabled = !newChatEnabled.checked
-					newChatShortcutClear.disabled = !newChatEnabled.checked
-					newChatDestination.disabled = !newChatEnabled.checked
-					localStorage.setItem(newChatKeys.enabled, String(newChatEnabled.checked))
-					localStorage.setItem(newChatKeys.middle, String(newChatMiddle.checked))
-					localStorage.setItem(newChatKeys.destination, newChatDestination.value)
-				}
-				function stopShortcutRecording() {
-					recordingShortcut = false
-					window.removeEventListener("keydown", captureNewChatShortcut, true)
-					updateShortcutDisplay()
-				}
-				newChatEnabled.addEventListener("change", () => {
-					if (!newChatEnabled.checked && recordingShortcut) stopShortcutRecording()
-					newChatStatus.textContent = ""
-					syncNewChat()
-				})
-				newChatMiddle.addEventListener("change", () => {
-					if (!newChatMiddle.checked && !savedShortcut) {
-						newChatMiddle.checked = true
-						newChatStatus.textContent = "Set a keyboard shortcut before disabling middle-click."
-					} else newChatStatus.textContent = ""
-					syncNewChat()
-				})
-				newChatDestination.addEventListener("change", () => syncNewChat())
-				// Browser- and operating-system-reserved shortcuts cannot be safely reassigned.
-				const reservedNewChatShortcuts = new Set([
-					"Ctrl+T","Ctrl+N","Ctrl+W","Ctrl+R","Ctrl+L","Ctrl+F","Ctrl+P",
-					"Ctrl+S","Ctrl+D","Ctrl+O","Ctrl+H","Ctrl+J","Ctrl+U",
-					"Ctrl+Shift+T","Ctrl+Shift+N","Ctrl+Shift+W",
-					"Meta+T","Meta+N","Meta+W","Meta+R","Meta+L","Meta+F",
-					"Meta+Shift+T","Meta+Shift+N"
-				])
-				function captureNewChatShortcut(event) {
-					if (!recordingShortcut) return
-					if (event.key === "Escape") {
-						event.preventDefault()
-						stopShortcutRecording()
-						newChatStatus.textContent = ""
-						return
-					}
-					if (["Control", "Alt", "Shift", "Meta"].includes(event.key)) return
-					const letter = event.key.length === 1 ? event.key.toUpperCase() : event.key.toUpperCase()
-					if (!/^[A-Z0-9]$/.test(letter) && !/^F([1-9]|1[0-2])$/.test(letter)) {
-						event.preventDefault()
-						newChatStatus.textContent = "Choose a letter, number, or function key with a modifier."
-						return
-					}
-					if (!event.ctrlKey && !event.altKey && !event.metaKey) {
-						event.preventDefault()
-						newChatStatus.textContent = "Include Ctrl, Alt, or Meta in the shortcut."
-						return
-					}
-					const chord = [...(event.ctrlKey ? ["Ctrl"] : []), ...(event.altKey ? ["Alt"] : []), ...(event.shiftKey ? ["Shift"] : []), ...(event.metaKey ? ["Meta"] : []), letter].join("+")
-					event.preventDefault()
-					event.stopPropagation()
-					if (reservedNewChatShortcuts.has(chord)) {
-						newChatStatus.textContent = "This shortcut is reserved by the browser. Choose another."
-						return
-					}
-					savedShortcut = chord
-					localStorage.setItem(newChatKeys.shortcut, savedShortcut)
-					stopShortcutRecording()
-					newChatStatus.textContent = ""
-				}
-				newChatShortcut.addEventListener("click", () => {
-					if (recordingShortcut) {
-						stopShortcutRecording()
-						return
-					}
-					recordingShortcut = true
-					newChatStatus.textContent = "Press a key combination. Escape cancels."
-					updateShortcutDisplay()
-					window.addEventListener("keydown", captureNewChatShortcut, true)
-				})
-				newChatShortcutClear.addEventListener("click", () => {
-					savedShortcut = ""
-					localStorage.removeItem(newChatKeys.shortcut)
-					if (!newChatMiddle.checked) {
-						newChatMiddle.checked = true
-						newChatStatus.textContent = "Middle-click enabled because no shortcut is assigned."
-					} else newChatStatus.textContent = ""
-					updateShortcutDisplay()
-					syncNewChat()
-				})
-				updateShortcutDisplay()
-				syncNewChat()
-
-				const links = [...document.querySelectorAll("[data-section]")]
-				const targets = links.map(link => $(link.dataset.section))
-				let explicitNavigateUntil = 0
-				function setActive(id) {
-					links.forEach(link => {
-						if (link.dataset.section === id) link.setAttribute("aria-current", "location")
-						else link.removeAttribute("aria-current")
-					})
-				}
-				function updateActive() {
-					if (performance.now() < explicitNavigateUntil) return
-					const threshold = 130
-					let active = targets[0].id
-					for (const section of targets) {
-						if (section.getBoundingClientRect().top <= threshold) active = section.id
-					}
-					setActive(active)
-				}
-				links.forEach(link =>
-					link.addEventListener("click", () => {
-						if (link.dataset.section === "private-access") panel.open = true
-						setActive(link.dataset.section)
-						explicitNavigateUntil = performance.now() + 650
-					})
-				)
-				window.addEventListener("scroll", updateActive, { passive: true })
-				window.addEventListener("resize", updateActive)
-				updateActive()
-			})()
-		</script>
 	</body>
 </html>
