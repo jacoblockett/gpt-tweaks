@@ -173,154 +173,45 @@
 		checkbox.addEventListener("change", () => localStorage.setItem(key, String(checkbox.checked)))
 	}
 
-	// New chat controls
+	// New chat settings
 	const newChatEnabled = $("new-chat-enabled")
 	const newChatMiddle = $("new-chat-middle-click")
-	const newChatShortcut = $("new-chat-shortcut")
-	const newChatShortcutClear = $("new-chat-shortcut-clear")
-	const newChatStatus = $("new-chat-shortcut-status")
+	const newChatSlash = $("new-chat-slash")
 	const newChatDestination = $("new-chat-destination")
 	const newChatControls = $("new-chat-controls")
 	const newChatKeys = {
 		enabled: "gpt-tweaks.new-chat.enabled",
 		middle: "gpt-tweaks.new-chat.middle-click",
-		shortcut: "gpt-tweaks.new-chat.shortcut",
+		slash: "gpt-tweaks.new-chat.slash",
 		destination: "gpt-tweaks.new-chat.destination"
 	}
-	let savedShortcut = localStorage.getItem(newChatKeys.shortcut) || ""
-	let recordingShortcut = false
 	newChatEnabled.checked = localStorage.getItem(newChatKeys.enabled) !== "false"
 	newChatMiddle.checked = localStorage.getItem(newChatKeys.middle) !== "false"
+	newChatSlash.checked = localStorage.getItem(newChatKeys.slash) !== "false"
 	newChatDestination.value = localStorage.getItem(newChatKeys.destination) === "window" ? "window" : "tab"
-	if (!newChatMiddle.checked && !savedShortcut) newChatMiddle.checked = true
+	if (!newChatMiddle.checked && !newChatSlash.checked) newChatMiddle.checked = true
 
-	function updateShortcutDisplay() {
-		newChatShortcut.textContent = recordingShortcut ? "Press keys…" : savedShortcut || "Set shortcut"
-		newChatShortcut.classList.toggle("is-recording", recordingShortcut)
-		newChatShortcut.setAttribute(
-			"aria-label",
-			recordingShortcut
-				? "Press shortcut keys, or Escape to cancel"
-				: savedShortcut
-					? "Change keyboard shortcut"
-					: "Set keyboard shortcut"
-		)
-		newChatShortcutClear.hidden = !savedShortcut
-	}
 	function syncNewChat() {
-		newChatControls.classList.toggle("inactive", !newChatEnabled.checked)
-		newChatMiddle.disabled = !newChatEnabled.checked
-		newChatShortcut.disabled = !newChatEnabled.checked
-		newChatShortcutClear.disabled = !newChatEnabled.checked
-		newChatDestination.disabled = !newChatEnabled.checked
-		localStorage.setItem(newChatKeys.enabled, String(newChatEnabled.checked))
+		const active = newChatEnabled.checked
+		newChatControls.classList.toggle("inactive", !active)
+		newChatMiddle.disabled = !active
+		newChatSlash.disabled = !active
+		newChatDestination.disabled = !active
+		localStorage.setItem(newChatKeys.enabled, String(active))
 		localStorage.setItem(newChatKeys.middle, String(newChatMiddle.checked))
+		localStorage.setItem(newChatKeys.slash, String(newChatSlash.checked))
 		localStorage.setItem(newChatKeys.destination, newChatDestination.value)
 	}
-	function stopShortcutRecording() {
-		recordingShortcut = false
-		window.removeEventListener("keydown", captureNewChatShortcut, true)
-		updateShortcutDisplay()
+	newChatEnabled.addEventListener("change", syncNewChat)
+	for (const control of [newChatMiddle, newChatSlash]) {
+		control.addEventListener("change", () => {
+			if (!newChatMiddle.checked && !newChatSlash.checked) {
+				control.checked = true
+			}
+			syncNewChat()
+		})
 	}
-	newChatEnabled.addEventListener("change", () => {
-		if (!newChatEnabled.checked && recordingShortcut) stopShortcutRecording()
-		newChatStatus.textContent = ""
-		syncNewChat()
-	})
-	newChatMiddle.addEventListener("change", () => {
-		if (!newChatMiddle.checked && !savedShortcut) {
-			newChatMiddle.checked = true
-			newChatStatus.textContent = "Set a keyboard shortcut before disabling middle-click."
-		} else newChatStatus.textContent = ""
-		syncNewChat()
-	})
-	newChatDestination.addEventListener("change", () => syncNewChat())
-	// Browser- and operating-system-reserved shortcuts cannot be safely reassigned.
-	const reservedNewChatShortcuts = new Set([
-		"Ctrl+T",
-		"Ctrl+N",
-		"Ctrl+W",
-		"Ctrl+R",
-		"Ctrl+L",
-		"Ctrl+F",
-		"Ctrl+P",
-		"Ctrl+S",
-		"Ctrl+D",
-		"Ctrl+O",
-		"Ctrl+H",
-		"Ctrl+J",
-		"Ctrl+U",
-		"Ctrl+Shift+T",
-		"Ctrl+Shift+N",
-		"Ctrl+Shift+W",
-		"Meta+T",
-		"Meta+N",
-		"Meta+W",
-		"Meta+R",
-		"Meta+L",
-		"Meta+F",
-		"Meta+Shift+T",
-		"Meta+Shift+N"
-	])
-	function captureNewChatShortcut(event) {
-		if (!recordingShortcut) return
-		if (event.key === "Escape") {
-			event.preventDefault()
-			stopShortcutRecording()
-			newChatStatus.textContent = ""
-			return
-		}
-		if (["Control", "Alt", "Shift", "Meta"].includes(event.key)) return
-		const letter = event.key.length === 1 ? event.key.toUpperCase() : event.key.toUpperCase()
-		if (!/^[A-Z0-9]$/.test(letter) && !/^F([1-9]|1[0-2])$/.test(letter)) {
-			event.preventDefault()
-			newChatStatus.textContent = "Choose a letter, number, or function key with a modifier."
-			return
-		}
-		if (!event.ctrlKey && !event.altKey && !event.metaKey) {
-			event.preventDefault()
-			newChatStatus.textContent = "Include Ctrl, Alt, or Meta in the shortcut."
-			return
-		}
-		const chord = [
-			...(event.ctrlKey ? ["Ctrl"] : []),
-			...(event.altKey ? ["Alt"] : []),
-			...(event.shiftKey ? ["Shift"] : []),
-			...(event.metaKey ? ["Meta"] : []),
-			letter
-		].join("+")
-		event.preventDefault()
-		event.stopPropagation()
-		if (reservedNewChatShortcuts.has(chord)) {
-			newChatStatus.textContent = "This shortcut is reserved by the browser. Choose another."
-			return
-		}
-		savedShortcut = chord
-		localStorage.setItem(newChatKeys.shortcut, savedShortcut)
-		stopShortcutRecording()
-		newChatStatus.textContent = ""
-	}
-	newChatShortcut.addEventListener("click", () => {
-		if (recordingShortcut) {
-			stopShortcutRecording()
-			return
-		}
-		recordingShortcut = true
-		newChatStatus.textContent = "Press a key combination. Escape cancels."
-		updateShortcutDisplay()
-		window.addEventListener("keydown", captureNewChatShortcut, true)
-	})
-	newChatShortcutClear.addEventListener("click", () => {
-		savedShortcut = ""
-		localStorage.removeItem(newChatKeys.shortcut)
-		if (!newChatMiddle.checked) {
-			newChatMiddle.checked = true
-			newChatStatus.textContent = "Middle-click enabled because no shortcut is assigned."
-		} else newChatStatus.textContent = ""
-		updateShortcutDisplay()
-		syncNewChat()
-	})
-	updateShortcutDisplay()
+	newChatDestination.addEventListener("change", syncNewChat)
 	syncNewChat()
 
 	const links = [...document.querySelectorAll("[data-section]")]

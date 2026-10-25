@@ -399,6 +399,19 @@ details[open] .chevron {
 }
 
 /* Conversation settings */
+.conversation-category:first-child {
+	margin-top: 0;
+	border-top: 0;
+	padding-top: 0;
+}
+.github-category {
+	margin-top: 82px;
+	border-top: 1px solid #e4e7eb;
+	padding-top: 56px;
+}
+.github-category .page-heading {
+	margin-bottom: 57px;
+}
 .conversation-category {
 	margin-top: 82px;
 	border-top: 1px solid #e4e7eb;
