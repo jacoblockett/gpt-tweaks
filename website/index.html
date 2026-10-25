@@ -405,6 +405,44 @@
 					transition: none !important;
 				}
 			}
+
+			/* Conversation settings */
+			.conversation-category {
+				margin-top: 82px;
+				border-top: 1px solid #e4e7eb;
+				padding-top: 56px;
+			}
+			.conversation-category .page-heading {
+				margin-bottom: 49px;
+			}
+			.conversation-category .feature-body {
+				margin-top: 36px;
+			}
+			.group-heading {
+				margin-top: 38px;
+			}
+			.setting-row .setting-text {
+				min-width: 0;
+				max-width: 620px;
+			}
+			.token-target {
+				width: 170px;
+				flex: none;
+				padding: 10px 12px;
+				border: 1px solid #cfd5dc;
+				border-radius: 7px;
+				background: #fff;
+				color: #282d34;
+				text-align: right;
+				font-variant-numeric: tabular-nums;
+			}
+			.token-target:focus {
+				border-color: #5884ba;
+			}
+			.token-target:invalid {
+				border-color: #b54740;
+			}
+			
 		</style>
 	</head>
 	<body>
@@ -422,6 +460,16 @@
 					<div class="nav-child">
 						<a href="#archive" class="nav-item" data-section="archive">Attach source code as an archive</a>
 						<a href="#private-access" class="nav-item" data-section="private-access">Private repository access</a>
+					</div>
+
+					<a href="#conversation" class="nav-item" data-section="conversation">
+						<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M21 11.5a8.4 8.4 0 0 1-9 8.5 9 9 0 0 1-4-.9L3 21l1.9-4.7A8.8 8.8 0 0 1 3 11.5a9 9 0 0 1 18 0Z" />
+						</svg>
+						Conversation
+					</a>
+					<div class="nav-child">
+						<a href="#context-tracker" class="nav-item" data-section="context-tracker">Context tracker</a>
 					</div>
 				</nav>
 			</aside>
@@ -521,6 +569,109 @@
 						</div>
 					</details>
 				</section>
+
+				<div class="conversation-category">
+					<header id="conversation" class="page-heading">
+						<svg class="github-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+							<path d="M21 11.5a8.4 8.4 0 0 1-9 8.5 9 9 0 0 1-4-.9L3 21l1.9-4.7A8.8 8.8 0 0 1 3 11.5a9 9 0 0 1 18 0Z" />
+						</svg>
+						<h1>Conversation</h1>
+					</header>
+					<section id="context-tracker" class="feature" aria-labelledby="context-title">
+						<div class="feature-heading">
+							<h2 id="context-title">Context tracker</h2>
+							<label class="switch" title="Enable context tracker">
+								<input type="checkbox" id="context-enabled" checked aria-label="Enable context tracker" />
+								<span class="track"></span>
+							</label>
+						</div>
+						<p class="description">Show a progress bar above the ChatGPT message composer with estimated token usage and the number of messages in the current conversation.</p>
+						<div class="feature-body" id="context-controls">
+							<h3 class="subheading">Visibility</h3>
+							<div class="setting-row">
+								<div class="setting-text">
+									<div class="setting-title">Show by default</div>
+									<div class="setting-description">Display the tracker when opening a conversation. When off, open it from the + menu or with <code>/status</code>.</div>
+								</div>
+								<label class="switch" title="Show context tracker by default">
+									<input type="checkbox" id="context-default-visible" checked aria-label="Show context tracker by default" />
+									<span class="track"></span>
+								</label>
+							</div>
+							<div class="setting-row">
+								<div class="setting-text">
+									<div class="setting-title">Attachment menu</div>
+									<div class="setting-description">Add a Status option to the + menu next to the message composer.</div>
+								</div>
+								<label class="switch" title="Show Status in attachment menu">
+									<input type="checkbox" id="context-menu" checked aria-label="Show Status in attachment menu" />
+									<span class="track"></span>
+								</label>
+							</div>
+							<div class="setting-row">
+								<div class="setting-text">
+									<div class="setting-title">Slash command</div>
+									<div class="setting-description">Use <code>/status</code> to show or hide the tracker.</div>
+								</div>
+								<label class="switch" title="Enable status slash command">
+									<input type="checkbox" id="context-slash" checked aria-label="Enable slash status command" />
+									<span class="track"></span>
+								</label>
+							</div>
+							<div class="feedback" id="context-feedback" role="status" aria-live="polite"></div>
+							<h3 class="subheading group-heading">Information shown</h3>
+							<div class="setting-row">
+								<div class="setting-text">
+									<div class="setting-title">Estimated percentage used</div>
+									<div class="setting-description">Show the percentage of the token target used.</div>
+								</div>
+								<label class="switch" title="Show estimated percentage">
+									<input type="checkbox" id="context-show-percent" checked aria-label="Show estimated percentage used" />
+									<span class="track"></span>
+								</label>
+							</div>
+							<div class="setting-row">
+								<div class="setting-text">
+									<div class="setting-title">Estimated tokens used</div>
+									<div class="setting-description">Show the estimated token count for the current conversation.</div>
+								</div>
+								<label class="switch" title="Show estimated tokens used">
+									<input type="checkbox" id="context-show-tokens" checked aria-label="Show estimated tokens used" />
+									<span class="track"></span>
+								</label>
+							</div>
+							<div class="setting-row">
+								<div class="setting-text">
+									<div class="setting-title">Configured token target</div>
+									<div class="setting-description">Show the target token count alongside the estimated tokens used.</div>
+								</div>
+								<label class="switch" title="Show configured token target">
+									<input type="checkbox" id="context-show-limit" checked aria-label="Show configured token target" />
+									<span class="track"></span>
+								</label>
+							</div>
+							<div class="setting-row">
+								<div class="setting-text">
+									<div class="setting-title">Message count</div>
+									<div class="setting-description">Show the number of messages in the current conversation.</div>
+								</div>
+								<label class="switch" title="Show message count">
+									<input type="checkbox" id="context-show-messages" checked aria-label="Show message count" />
+									<span class="track"></span>
+								</label>
+							</div>
+							<h3 class="subheading group-heading">Token usage target</h3>
+							<div class="setting-row">
+								<div class="setting-text">
+									<label class="setting-title" for="context-target">Target tokens</label>
+									<div class="setting-description">Used to calculate the progress bar and percentage. This does not limit ChatGPT's actual context window.</div>
+								</div>
+								<input id="context-target" class="token-target" type="number" min="1" step="1" value="128000" required aria-label="Target tokens" />
+							</div>
+						</div>
+					</section>
+				</div>
+
 			</main>
 		</div>
 		<script>
@@ -610,6 +761,84 @@
 					token.focus()
 				})
 				syncTokenStatus()
+
+
+				// Conversation context-tracker preferences
+				const contextKeys = {
+					enabled: "gpt-tweaks.context.enabled",
+					defaultVisible: "gpt-tweaks.context.default-visible",
+					menu: "gpt-tweaks.context.menu",
+					slash: "gpt-tweaks.context.slash",
+					percent: "gpt-tweaks.context.percent",
+					tokens: "gpt-tweaks.context.tokens",
+					limit: "gpt-tweaks.context.limit",
+					messages: "gpt-tweaks.context.messages"
+				}
+				const contextElements = {
+					enabled: $("context-enabled"),
+					defaultVisible: $("context-default-visible"),
+					menu: $("context-menu"),
+					slash: $("context-slash"),
+					percent: $("context-show-percent"),
+					tokens: $("context-show-tokens"),
+					limit: $("context-show-limit"),
+					messages: $("context-show-messages")
+				}
+				const contextControls = $("context-controls")
+				const contextFeedback = $("context-feedback")
+				for (const [name, control] of Object.entries(contextElements)) {
+					control.checked = localStorage.getItem(contextKeys[name]) !== "false"
+				}
+				// Keep at least one way to toggle visibility whenever the tracker is enabled.
+				if (!contextElements.menu.checked && !contextElements.slash.checked) {
+					contextElements.menu.checked = true
+				}
+				function syncContext() {
+					const active = contextElements.enabled.checked
+					contextControls.classList.toggle("inactive", !active)
+					for (const [name, control] of Object.entries(contextElements)) {
+						localStorage.setItem(contextKeys[name], String(control.checked))
+						if (name !== "enabled") control.disabled = !active
+					}
+				}
+				for (const [name, control] of Object.entries(contextElements)) {
+					control.addEventListener("change", () => {
+						if (name === "menu" || name === "slash") {
+							if (!contextElements.menu.checked && !contextElements.slash.checked) {
+								control.checked = true
+								contextFeedback.textContent = "Keep at least one way to toggle the tracker enabled, or turn off the feature."
+							} else contextFeedback.textContent = ""
+						}
+						syncContext()
+					})
+				}
+				syncContext()
+				const contextTarget = $("context-target")
+				const contextTargetKey = "gpt-tweaks.context.target-tokens"
+				const savedTarget = Number(localStorage.getItem(contextTargetKey))
+				let lastValidTarget = Number.isSafeInteger(savedTarget) && savedTarget > 0 ? savedTarget : 128000
+				contextTarget.value = String(lastValidTarget)
+				function saveContextTarget() {
+					const value = Number(contextTarget.value)
+					if (contextTarget.value.trim() !== "" && Number.isSafeInteger(value) && value > 0) {
+						lastValidTarget = value
+						localStorage.setItem(contextTargetKey, String(value))
+						contextTarget.setCustomValidity("")
+					} else {
+						contextTarget.setCustomValidity("Enter a positive whole number.")
+					}
+				}
+				contextTarget.addEventListener("input", saveContextTarget)
+				contextTarget.addEventListener("blur", () => {
+					if (!contextTarget.validity.valid) {
+						contextTarget.value = String(lastValidTarget)
+						contextTarget.setCustomValidity("")
+					}
+				})
+				contextElements.enabled.addEventListener("change", () => {
+					contextTarget.disabled = !contextElements.enabled.checked
+				})
+				contextTarget.disabled = !contextElements.enabled.checked
 
 				const links = [...document.querySelectorAll("[data-section]")]
 				const targets = links.map(link => $(link.dataset.section))
