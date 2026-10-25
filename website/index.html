@@ -443,6 +443,77 @@
 				border-color: #b54740;
 			}
 			
+
+			/* Additional conversation and navigation features */
+			.conversation-category .feature + .feature {
+				border-top: 1px solid #e4e7eb;
+				margin-top: 58px;
+				padding-top: 30px;
+			}
+			.navigation-category {
+				margin-top: 82px;
+				padding-top: 56px;
+				border-top: 1px solid #e4e7eb;
+			}
+			.navigation-category .page-heading {
+				margin-bottom: 49px;
+			}
+			.navigation-category .feature-body {
+				margin-top: 36px;
+			}
+			.controls-right {
+				display: flex;
+				align-items: center;
+				gap: 10px;
+				flex: none;
+			}
+			.compact-select {
+				width: 175px;
+				padding: 10px 12px;
+				border: 1px solid #cfd5dc;
+				border-radius: 7px;
+				color: #282d34;
+				background: #fff;
+			}
+			.shortcut-button {
+				min-width: 154px;
+				padding: 10px 14px;
+				border: 1px solid #cfd5dc;
+				border-radius: 7px;
+				color: #282d34;
+				background: #fff;
+				text-align: center;
+			}
+			.shortcut-button:hover:not(:disabled) {
+				background: #f4f6f8;
+			}
+			.shortcut-button.is-recording {
+				border-color: #366aa6;
+				box-shadow: 0 0 0 3px #dbe9ff;
+			}
+			.shortcut-clear {
+				background: transparent;
+				border: 0;
+				color: #57616e;
+				padding: 7px 2px;
+				font-size: 13px;
+			}
+			.shortcut-clear:hover:not(:disabled) {
+				text-decoration: underline;
+			}
+			.shortcut-button:disabled,
+			.shortcut-clear:disabled,
+			.compact-select:disabled {
+				cursor: not-allowed;
+				opacity: 0.55;
+			}
+			.shortcut-status {
+				margin: 9px 0 0;
+				min-height: 19px;
+				color: #9b501e;
+				font-size: 12.5px;
+			}
+
 		</style>
 	</head>
 	<body>
@@ -470,6 +541,20 @@
 					</a>
 					<div class="nav-child">
 						<a href="#context-tracker" class="nav-item" data-section="context-tracker">Context tracker</a>
+
+						<a href="#session-handoff" class="nav-item" data-section="session-handoff">Session handoff</a>
+						<a href="#enhanced-copy" class="nav-item" data-section="enhanced-copy">Enhanced message copy</a>
+					</div>
+
+					<a href="#navigation" class="nav-item" data-section="navigation">
+						<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+							<rect x="3" y="4" width="18" height="16" rx="2"></rect>
+							<path d="M3 9h18M8 4v5M12 13h5M14.5 10.5v5"></path>
+						</svg>
+						Navigation
+					</a>
+					<div class="nav-child">
+						<a href="#new-chat" class="nav-item" data-section="new-chat">New chat</a>
 					</div>
 				</nav>
 			</aside>
@@ -670,7 +755,81 @@
 							</div>
 						</div>
 					</section>
+
+					<section id="session-handoff" class="feature" aria-labelledby="handoff-title">
+						<div class="feature-heading">
+							<h2 id="handoff-title">Session handoff</h2>
+							<label class="switch" title="Enable session handoff">
+								<input type="checkbox" id="handoff-enabled" checked aria-label="Enable session handoff" />
+								<span class="track"></span>
+							</label>
+						</div>
+						<p class="description">Use <code>/handoff</code> to summarize the current conversation, save the summary as a Markdown file, then open a new chat with the handoff. Conversations in a project continue within that project.</p>
+					</section>
+					<section id="enhanced-copy" class="feature" aria-labelledby="copy-title">
+						<div class="feature-heading">
+							<h2 id="copy-title">Enhanced message copy</h2>
+							<label class="switch" title="Enable enhanced message copy">
+								<input type="checkbox" id="copy-enabled" checked aria-label="Enable enhanced message copy" />
+								<span class="track"></span>
+							</label>
+						</div>
+						<p class="description">Add options to copy the selected message, everything before it, everything after it, or the entire conversation. “Before” and “after” include the selected message.</p>
+					</section>
 				</div>
+
+				<section class="navigation-category" aria-label="Navigation features">
+					<header id="navigation" class="page-heading">
+						<svg class="github-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+							<rect x="3" y="4" width="18" height="16" rx="2"></rect>
+							<path d="M3 9h18M8 4v5M12 13h5M14.5 10.5v5"></path>
+						</svg>
+						<h1>Navigation</h1>
+					</header>
+					<section id="new-chat" class="feature" aria-labelledby="new-chat-title">
+						<div class="feature-heading">
+							<h2 id="new-chat-title">New chat</h2>
+							<label class="switch" title="Enable new chat shortcuts">
+								<input type="checkbox" id="new-chat-enabled" checked aria-label="Enable new chat shortcuts" />
+								<span class="track"></span>
+							</label>
+						</div>
+						<p class="description">Open a new ChatGPT conversation without leaving the current one.</p>
+						<div class="feature-body" id="new-chat-controls">
+							<div class="setting-row">
+								<div class="setting-text">
+									<div class="setting-title">Middle-click</div>
+									<div class="setting-description">Open a new chat by middle-clicking the New chat button in the sidebar.</div>
+								</div>
+								<label class="switch" title="Enable middle-click">
+									<input type="checkbox" id="new-chat-middle-click" checked aria-label="Enable middle-click to open new chat" />
+									<span class="track"></span>
+								</label>
+							</div>
+							<div class="setting-row">
+								<div class="setting-text">
+									<div class="setting-title">Keyboard shortcut</div>
+									<div class="setting-description">Assign a key combination to open a new chat while ChatGPT is focused.</div>
+								</div>
+								<div class="controls-right">
+									<button type="button" id="new-chat-shortcut" class="shortcut-button" aria-label="Set keyboard shortcut">Set shortcut</button>
+									<button type="button" id="new-chat-shortcut-clear" class="shortcut-clear" hidden>Clear</button>
+								</div>
+							</div>
+							<p class="shortcut-status" id="new-chat-shortcut-status" role="status" aria-live="polite"></p>
+							<div class="setting-row">
+								<div class="setting-text">
+									<label for="new-chat-destination" class="setting-title">Open in</label>
+									<div class="setting-description">Choose where middle-clicking or the keyboard shortcut opens the new chat.</div>
+								</div>
+								<select id="new-chat-destination" class="compact-select">
+									<option value="tab" selected>New tab</option>
+									<option value="window">New window</option>
+								</select>
+							</div>
+						</div>
+					</section>
+				</section>
 
 			</main>
 		</div>
@@ -839,6 +998,136 @@
 					contextTarget.disabled = !contextElements.enabled.checked
 				})
 				contextTarget.disabled = !contextElements.enabled.checked
+
+
+				// Session handoff and enhanced message copy
+				const featureFlags = [
+					["handoff-enabled", "gpt-tweaks.handoff.enabled"],
+					["copy-enabled", "gpt-tweaks.copy.enabled"]
+				]
+				for (const [id, key] of featureFlags) {
+					const checkbox = $(id)
+					checkbox.checked = localStorage.getItem(key) !== "false"
+					checkbox.addEventListener("change", () => localStorage.setItem(key, String(checkbox.checked)))
+				}
+
+				// New chat controls
+				const newChatEnabled = $("new-chat-enabled")
+				const newChatMiddle = $("new-chat-middle-click")
+				const newChatShortcut = $("new-chat-shortcut")
+				const newChatShortcutClear = $("new-chat-shortcut-clear")
+				const newChatStatus = $("new-chat-shortcut-status")
+				const newChatDestination = $("new-chat-destination")
+				const newChatControls = $("new-chat-controls")
+				const newChatKeys = {
+					enabled: "gpt-tweaks.new-chat.enabled",
+					middle: "gpt-tweaks.new-chat.middle-click",
+					shortcut: "gpt-tweaks.new-chat.shortcut",
+					destination: "gpt-tweaks.new-chat.destination"
+				}
+				let savedShortcut = localStorage.getItem(newChatKeys.shortcut) || ""
+				let recordingShortcut = false
+				newChatEnabled.checked = localStorage.getItem(newChatKeys.enabled) !== "false"
+				newChatMiddle.checked = localStorage.getItem(newChatKeys.middle) !== "false"
+				newChatDestination.value = localStorage.getItem(newChatKeys.destination) === "window" ? "window" : "tab"
+				if (!newChatMiddle.checked && !savedShortcut) newChatMiddle.checked = true
+
+				function updateShortcutDisplay() {
+					newChatShortcut.textContent = recordingShortcut ? "Press keys…" : (savedShortcut || "Set shortcut")
+					newChatShortcut.classList.toggle("is-recording", recordingShortcut)
+					newChatShortcut.setAttribute("aria-label", recordingShortcut ? "Press shortcut keys, or Escape to cancel" : (savedShortcut ? "Change keyboard shortcut" : "Set keyboard shortcut"))
+					newChatShortcutClear.hidden = !savedShortcut
+				}
+				function syncNewChat() {
+					newChatControls.classList.toggle("inactive", !newChatEnabled.checked)
+					newChatMiddle.disabled = !newChatEnabled.checked
+					newChatShortcut.disabled = !newChatEnabled.checked
+					newChatShortcutClear.disabled = !newChatEnabled.checked
+					newChatDestination.disabled = !newChatEnabled.checked
+					localStorage.setItem(newChatKeys.enabled, String(newChatEnabled.checked))
+					localStorage.setItem(newChatKeys.middle, String(newChatMiddle.checked))
+					localStorage.setItem(newChatKeys.destination, newChatDestination.value)
+				}
+				function stopShortcutRecording() {
+					recordingShortcut = false
+					window.removeEventListener("keydown", captureNewChatShortcut, true)
+					updateShortcutDisplay()
+				}
+				newChatEnabled.addEventListener("change", () => {
+					if (!newChatEnabled.checked && recordingShortcut) stopShortcutRecording()
+					newChatStatus.textContent = ""
+					syncNewChat()
+				})
+				newChatMiddle.addEventListener("change", () => {
+					if (!newChatMiddle.checked && !savedShortcut) {
+						newChatMiddle.checked = true
+						newChatStatus.textContent = "Set a keyboard shortcut before disabling middle-click."
+					} else newChatStatus.textContent = ""
+					syncNewChat()
+				})
+				newChatDestination.addEventListener("change", () => syncNewChat())
+				// Browser- and operating-system-reserved shortcuts cannot be safely reassigned.
+				const reservedNewChatShortcuts = new Set([
+					"Ctrl+T","Ctrl+N","Ctrl+W","Ctrl+R","Ctrl+L","Ctrl+F","Ctrl+P",
+					"Ctrl+S","Ctrl+D","Ctrl+O","Ctrl+H","Ctrl+J","Ctrl+U",
+					"Ctrl+Shift+T","Ctrl+Shift+N","Ctrl+Shift+W",
+					"Meta+T","Meta+N","Meta+W","Meta+R","Meta+L","Meta+F",
+					"Meta+Shift+T","Meta+Shift+N"
+				])
+				function captureNewChatShortcut(event) {
+					if (!recordingShortcut) return
+					if (event.key === "Escape") {
+						event.preventDefault()
+						stopShortcutRecording()
+						newChatStatus.textContent = ""
+						return
+					}
+					if (["Control", "Alt", "Shift", "Meta"].includes(event.key)) return
+					const letter = event.key.length === 1 ? event.key.toUpperCase() : event.key.toUpperCase()
+					if (!/^[A-Z0-9]$/.test(letter) && !/^F([1-9]|1[0-2])$/.test(letter)) {
+						event.preventDefault()
+						newChatStatus.textContent = "Choose a letter, number, or function key with a modifier."
+						return
+					}
+					if (!event.ctrlKey && !event.altKey && !event.metaKey) {
+						event.preventDefault()
+						newChatStatus.textContent = "Include Ctrl, Alt, or Meta in the shortcut."
+						return
+					}
+					const chord = [...(event.ctrlKey ? ["Ctrl"] : []), ...(event.altKey ? ["Alt"] : []), ...(event.shiftKey ? ["Shift"] : []), ...(event.metaKey ? ["Meta"] : []), letter].join("+")
+					event.preventDefault()
+					event.stopPropagation()
+					if (reservedNewChatShortcuts.has(chord)) {
+						newChatStatus.textContent = "This shortcut is reserved by the browser. Choose another."
+						return
+					}
+					savedShortcut = chord
+					localStorage.setItem(newChatKeys.shortcut, savedShortcut)
+					stopShortcutRecording()
+					newChatStatus.textContent = ""
+				}
+				newChatShortcut.addEventListener("click", () => {
+					if (recordingShortcut) {
+						stopShortcutRecording()
+						return
+					}
+					recordingShortcut = true
+					newChatStatus.textContent = "Press a key combination. Escape cancels."
+					updateShortcutDisplay()
+					window.addEventListener("keydown", captureNewChatShortcut, true)
+				})
+				newChatShortcutClear.addEventListener("click", () => {
+					savedShortcut = ""
+					localStorage.removeItem(newChatKeys.shortcut)
+					if (!newChatMiddle.checked) {
+						newChatMiddle.checked = true
+						newChatStatus.textContent = "Middle-click enabled because no shortcut is assigned."
+					} else newChatStatus.textContent = ""
+					updateShortcutDisplay()
+					syncNewChat()
+				})
+				updateShortcutDisplay()
+				syncNewChat()
 
 				const links = [...document.querySelectorAll("[data-section]")]
 				const targets = links.map(link => $(link.dataset.section))
