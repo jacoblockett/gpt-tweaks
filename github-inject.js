@@ -9,8 +9,8 @@
   const ARCHIVE_DESCRIPTION="Attach a GitHub repository source code.";
   const REPO=/^[a-z0-9](?:[a-z0-9-]{0,38})\/[a-z0-9._-]{1,100}$/i;
   let modal=null, busy=false, verified="", branchPage=0,commitPage=0,tip="",repoGen=0,commitGen=0;
-  let history=[],mine=[],signedIn=false,authReady=false,accountName="",accountStatusPromise=null,slashAllowed=false;
-  let observer=null,scanQueued=false,scanTimer=null,slashSuggestion=null,lookupTimer=null,lookupVisualTimer=null;
+  let history=[],mine=[],signedIn=false,authReady=false,accountName="",accountStatusPromise=null,slashAllowed=false,slashFeatureEnabled=null;
+  let observer=null,scanQueued=false,scanTimer=null,slashSuggestion=null,lookupTimer=null;
   const id=id=>modal?.querySelector("#"+id);
   const option=(label,value)=>{const e=document.createElement("option");e.textContent=label;e.value=value;return e;};
   const escapeHTML=value=>String(value).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -59,7 +59,7 @@
   }
   function clearUi() {
     if(modal){modal.remove();modal=null;}
-    busy=false;clearTimeout(lookupTimer);clearTimeout(lookupVisualTimer);
+    busy=false;clearTimeout(lookupTimer);
     repoGen++;commitGen++;
     accountStatusPromise=null;
   }
@@ -115,14 +115,10 @@
     });
     id("gtg-repo").addEventListener("input",()=>{
       clearTimeout(lookupTimer);
-      clearTimeout(lookupVisualTimer);
       resetRepo();showSuggestions();
       const name=repoFrom(id("gtg-repo").value);
       if(name){
-        lookupVisualTimer=setTimeout(()=>{
-          if(modal&&!verified&&repoFrom(id("gtg-repo").value)===name)
-            id("gtg-lookup-progress").hidden=false;
-        },250);
+        id("gtg-lookup-progress").hidden=false;
         lookupTimer=setTimeout(()=>choose(name),850);
       }
     });
@@ -240,7 +236,6 @@
     status("");
   }
   function hideLoading(){
-    clearTimeout(lookupVisualTimer);
     if(id("gtg-lookup-progress"))id("gtg-lookup-progress").hidden=true;
   }
   function resetRepo(){
@@ -607,11 +602,12 @@
     removeMenuGroup("slash");
     slashRange=null;
   }
+  // Search the visible title, never the slash command identifier.
+  // A query is a case-insensitive in-order subsequence of the visible name.
   const fuzzyText=COMMAND_TITLE.toLowerCase();
   function fuzzyPositions(value){
-    if(!value?.startsWith("/"))return null;
-    const letters=value.slice(1).toLowerCase().replace(/[^a-z]/g,"");
-    if(letters.length>fuzzyText.replace(/[^a-z]/g,"").length)return null;
+    if(typeof value!=="string"||!/^\/[a-z-]*$/i.test(value))return null;
+    const letters=value.slice(1).toLowerCase().replace(/-/g,"");
     const positions=[];
     let cursor=0;
     for(const char of letters){
@@ -735,7 +731,12 @@
       displayFuzzyTitle(slashSuggestion,match.value);
       return;
     }
-    try{if(!(await isEnabled("slash"))){resetSlash();return;}slashAllowed=true;}catch{slashAllowed=false;return;}
+    try{
+      const enabled=await isEnabled("slash");
+      slashFeatureEnabled=enabled;
+      if(!enabled){resetSlash();return;}
+      slashAllowed=true;
+    }catch{slashAllowed=false;return;}
     const current=composerSlashMatch();
     if(!current||slashSuggestion?.isConnected)return;
     slashRange=current.range.cloneRange();
@@ -873,27 +874,41 @@
     if(hovered)clearVirtualRow();
   },true);
   window.addEventListener("keydown",event=>{
+    if(event.key!=="Enter"||event.shiftKey||event.isComposing||
+       event.ctrlKey||event.metaKey||event.altKey||event.defaultPrevented)return;
     const composer=localComposer();
     if(!composer||!composer.contains(event.target))return;
     const match=composerSlashMatch(composer);
-    if(event.key==="Enter"&&!event.shiftKey&&!event.isComposing&&
-       !event.ctrlKey&&!event.metaKey&&!event.altKey&&
-       match?.value.toLowerCase()===COMMAND.toLowerCase()){
-      // Intercept the literal command before ChatGPT's send handler even if
-      // the feature-status response has not completed yet.
-      event.preventDefault();event.stopImmediatePropagation();
-      slashRange=match.range.cloneRange();
-      if(slashAllowed){
-        clearComposerCommand();launch("slash");
-      }else{
-        isEnabled("slash").then(enabled=>{
-          if(!enabled||localComposer()!==composer||slashRange?.toString().toLowerCase()!==COMMAND.toLowerCase())return;
-          clearComposerCommand();launch("slash");
-        }).catch(()=>{});
-      }
+    if(!match||slashFeatureEnabled===false)return;
+    // The displayed title determines matching and activation, so /attach is
+    // actionable even if React has filtered away its own commands popup.
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const expected=match.value;
+    const captured=match.range.cloneRange();
+    const activate=()=>{
+      if(localComposer()!==composer||!composer.contains(captured.commonAncestorContainer)||
+         captured.toString()!==expected)return;
+      slashRange=captured.cloneRange();
+      clearComposerCommand();
+      launch("slash");
+    };
+    if(slashFeatureEnabled===true){
+      activate();
+    }else{
+      isEnabled("slash").then(enabled=>{
+        slashFeatureEnabled=enabled;
+        if(enabled)activate();
+      }).catch(()=>{});
     }
   },true);
   document.addEventListener("input",event=>{
+    const composer=localComposer();
+    if(composer&&(composer===event.target||composer.contains(event.target)))updateSlash();
+  },true);
+  // Native command filtering runs after keystrokes; recheck after its menu
+  // closes so the extension-owned match remains available for long queries.
+  document.addEventListener("keyup",event=>{
     const composer=localComposer();
     if(composer&&(composer===event.target||composer.contains(event.target)))updateSlash();
   },true);
