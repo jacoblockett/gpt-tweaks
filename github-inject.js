@@ -6,7 +6,7 @@
   const COMMAND="/attach-github-source";
   const REPO=/^[a-z0-9](?:[a-z0-9-]{0,38})\/[a-z0-9._-]{1,100}$/i;
   let modal=null, busy=false, verified="", branchPage=0,commitPage=0,tip="",repoGen=0,commitGen=0;
-  let history=[],mine=[],signedIn=false;
+  let history=[],mine=[],signedIn=false,slashAllowed=false;
   let observer=null,scanQueued=false,scanTimer=null,slashSuggestion=null,lookupTimer=null;
   const id=id=>modal?.querySelector("#"+id);
   const option=(label,value)=>{const e=document.createElement("option");e.textContent=label;e.value=value;return e;};
@@ -405,7 +405,7 @@
       else existing?.remove();
     }catch{}
   }
-  function resetSlash(){if(slashSuggestion){slashSuggestion.remove();slashSuggestion=null;}}
+  function resetSlash(){slashAllowed=false;if(slashSuggestion){slashSuggestion.remove();slashSuggestion=null;}}
   async function updateSlash(){
     const composer=localComposer();
     const typed=editableText(composer);
@@ -413,7 +413,7 @@
       resetSlash();return;
     }
     if(slashSuggestion?.isConnected)return;
-    try{if(!(await isEnabled("slash"))){resetSlash();return;}}catch{return;}
+    try{if(!(await isEnabled("slash"))){resetSlash();return;}slashAllowed=true;}catch{slashAllowed=false;return;}
     const current=editableText(localComposer());
     if(!current.startsWith("/")||!COMMAND.startsWith(current)||slashSuggestion?.isConnected)return;
     const rows=[...document.querySelectorAll('[data-mention-section-id="commands"] [data-mention-section-items="true"] > button[data-list-navigation-item="true"]')]
@@ -481,7 +481,7 @@
   document.addEventListener("keydown",event=>{
     const composer=localComposer();
     if(!composer||!composer.contains(event.target))return;
-    if(event.key==="Enter"&&!event.shiftKey&&!event.isComposing&&editableText(composer)===COMMAND){
+    if(slashAllowed&&event.key==="Enter"&&!event.shiftKey&&!event.isComposing&&editableText(composer)===COMMAND){
       event.preventDefault();event.stopImmediatePropagation();clearComposerCommand();launch("slash");
     }
   },true);
