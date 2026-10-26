@@ -86,6 +86,7 @@
       '<span class="gtg-verified" id="gtg-verified" hidden>',checkIcon,'</span>',
       '<button id="gtg-toggle" class="gtg-icon" type="button" aria-label="Show repositories" aria-expanded="false">',caret,'</button></div>',
       '<div id="gtg-options" class="gtg-options" hidden></div>',
+      '<div id="gtg-loading" class="gtg-loading" role="status" aria-live="polite" hidden><span class="gtg-spinner" aria-hidden="true"></span><span>Loading</span></div>',
       '<div id="gtg-revisions" class="gtg-revisions" hidden>',
       '<div><label class="gtg-label" for="gtg-branch">Branch</label><div class="gtg-select-wrap"><select id="gtg-branch"></select>',caret,'</div><button type="button" id="gtg-more-branches" class="gtg-more" hidden>Load more branches</button></div>',
       '<div><label class="gtg-label" for="gtg-commit">Commit</label><div class="gtg-select-wrap"><select id="gtg-commit"></select>',caret,'</div><button type="button" id="gtg-more-commits" class="gtg-more" hidden>Load older commits</button></div>',
@@ -94,7 +95,7 @@
       '<div id="gtg-device" hidden><div>Enter this code on GitHub:</div><strong id="gtg-device-code"></strong><button type="button" class="gtg-aux" id="gtg-open-device">Open GitHub verification</button></div></div>',
       '<div id="gtg-status" class="gtg-status" role="status" aria-live="polite" hidden></div>',
       '</div><div class="gtg-footer"><button type="button" class="gtg-btn gtg-cancel" id="gtg-cancel">Cancel</button>',
-      '<button type="button" class="gtg-btn gtg-attach" id="gtg-attach" disabled>Attach</button></div>'
+      '<button type="button" class="gtg-btn gtg-attach" id="gtg-attach" disabled><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-8.49 8.49a5.5 5.5 0 0 1-7.78-7.78l8.49-8.49a3.67 3.67 0 0 1 5.19 5.19l-8.49 8.49a1.83 1.83 0 0 1-2.6-2.59l7.78-7.78"/></svg><span>Attach</span></button></div>'
     ].join("");
     document.body.append(dialog);
     dialog.addEventListener("close",clearUi,{once:true});
@@ -114,7 +115,7 @@
     id("gtg-repo").addEventListener("input",()=>{
       clearTimeout(lookupTimer);resetRepo();showSuggestions();
       const name=repoFrom(id("gtg-repo").value);
-      if(name)lookupTimer=setTimeout(()=>choose(name),450);
+      if(name)lookupTimer=setTimeout(()=>choose(name),850);
     });
     id("gtg-repo").addEventListener("keydown",event=>{
       if(event.key==="Enter"){
@@ -221,8 +222,19 @@
     id("gtg-repo").setAttribute("aria-expanded",String(expanded));
     id("gtg-toggle").setAttribute("aria-expanded",String(expanded));
   }
+  function showLoading(){
+    if(!modal)return;
+    id("gtg-revisions").hidden=true;
+    id("gtg-loading").hidden=false;
+    id("gtg-attach").disabled=true;
+    status("");
+  }
+  function hideLoading(){
+    if(id("gtg-loading"))id("gtg-loading").hidden=true;
+  }
   function resetRepo(){
     repoGen++;commitGen++;verified="";branchPage=0;commitPage=0;tip="";
+    hideLoading();
     id("gtg-revisions").hidden=true;
     id("gtg-verified").hidden=true;
     id("gtg-attach").disabled=true;
@@ -230,13 +242,9 @@
     status("");
   }
   function prepareRevisionLoading(){
-    id("gtg-revisions").hidden=false;
-    id("gtg-branch").replaceChildren(option("Loading branches…",""));
-    id("gtg-commit").replaceChildren(option("Waiting for branch…",""));
-    id("gtg-branch").disabled=true;
-    id("gtg-commit").disabled=true;
     id("gtg-more-branches").hidden=true;
     id("gtg-more-commits").hidden=true;
+    showLoading();
   }
   async function choose(name){
     if(!modal||!repoFrom(name))return;
@@ -245,14 +253,13 @@
     id("gtg-repo").value=name;
     hideSuggestions();
     prepareRevisionLoading();
-    status("Checking repository…");
     try{
       await loadBranches(1,gen);
     }catch(err){
       if(gen!==repoGen||modal!==dialog)return;
+      hideLoading();
       id("gtg-revisions").hidden=true;
       id("gtg-verified").hidden=true;
-      status(err.message,true);
       if(err.code==="REPOSITORY_UNAVAILABLE"){
         if(accountStatusPromise)await accountStatusPromise;
         if(gen!==repoGen||modal!==dialog)return;
@@ -260,49 +267,54 @@
           id("gtg-auth-prompt").textContent="This repository couldn't be found. If it's private, sign in with GitHub to check your access.";
           id("gtg-auth").hidden=false;
           status("");
+          return;
         }
       }
+      status(err.message,true);
     }
   }
   async function loadBranches(page,generation=repoGen){
     const repo=repoFrom(id("gtg-repo")?.value);
     if(!repo)return;
-    const data=await request("branches",{repo,page});
-    if(generation!==repoGen||!modal)return;
-    if(page===1){
-      verified=data.repo;
+    if(page>1)showLoading();
+    try{
+      const data=await request("branches",{repo,page});
+      if(generation!==repoGen||!modal)return;
+      if(page===1){
+        verified=data.repo;
+        const branch=id("gtg-branch");
+        branch.replaceChildren();
+        if(data.defaultBranch)branch.append(option(data.defaultBranch,data.defaultBranch));
+      }
       const branch=id("gtg-branch");
-      branch.replaceChildren();
-      if(data.defaultBranch)branch.append(option(data.defaultBranch,data.defaultBranch));
-      id("gtg-revisions").hidden=false;
-      id("gtg-verified").hidden=false;
-    }
-    const branch=id("gtg-branch");
-    const existing=new Set([...branch.options].map(x=>x.value));
-    for(const name of data.branches){
-      if(!existing.has(name)){branch.append(option(name,name));existing.add(name);}
-    }
-    branchPage=page;
-    branch.disabled=false;
-    id("gtg-more-branches").hidden=!data.hasMore;
-    if(page===1){
-      if(!branch.value)throw Error("Repository has no branches.");
-      id("gtg-commit").replaceChildren(option("Loading commits…",""));
-      id("gtg-commit").disabled=true;
-      status("Loading commits…");
-      await loadCommits(1,generation);
+      const existing=new Set([...branch.options].map(x=>x.value));
+      for(const name of data.branches){
+        if(!existing.has(name)){branch.append(option(name,name));existing.add(name);}
+      }
+      branchPage=page;
+      branch.disabled=false;
+      id("gtg-more-branches").hidden=!data.hasMore;
+      if(page===1){
+        if(!branch.value)throw Error("Repository has no branches.");
+        await loadCommits(1,generation);
+      }else{
+        hideLoading();
+        id("gtg-revisions").hidden=false;
+        id("gtg-attach").disabled=false;
+      }
+    }catch(err){
+      if(generation===repoGen&&modal){
+        hideLoading();
+        if(page>1){id("gtg-revisions").hidden=false;id("gtg-attach").disabled=false;}
+      }
+      throw err;
     }
   }
   async function loadCommits(page,generation=repoGen){
     const branch=id("gtg-branch")?.value,repo=verified;
     if(!repo||!branch)return;
     const commitRequest=++commitGen;
-    if(page===1){
-      id("gtg-attach").disabled=true;
-      id("gtg-commit").replaceChildren(option("Loading commits…",""));
-      id("gtg-commit").disabled=true;
-    }
-    status(page===1?"Loading commits…":"Loading more commits…");
+    showLoading();
     try{
       const data=await request("commits",{repo,branch,page,...(page>1?{tip}:{})});
       if(generation!==repoGen||commitRequest!==commitGen||!modal||id("gtg-branch").value!==branch)return;
@@ -321,10 +333,16 @@
       commitPage=page;
       commit.disabled=false;
       id("gtg-more-commits").hidden=!data.hasMore;
+      id("gtg-verified").hidden=false;
+      hideLoading();
+      id("gtg-revisions").hidden=false;
       id("gtg-attach").disabled=false;
-      status("");
     }catch(err){
-      if(generation===repoGen&&commitRequest===commitGen)status(err.message,true);
+      if(generation===repoGen&&commitRequest===commitGen&&modal){
+        hideLoading();
+        if(page>1){id("gtg-revisions").hidden=false;id("gtg-attach").disabled=false;}
+        status(err.message,true);
+      }
     }
   }
   async function startLogin(){
