@@ -147,7 +147,6 @@
     id("gtg-more-branches").addEventListener("click",()=>loadBranches(branchPage+1,repoGen).catch(err=>status(err.message,true)));
     id("gtg-more-commits").addEventListener("click",()=>loadCommits(commitPage+1,repoGen));
     id("gtg-login").addEventListener("click",startLogin);
-    id("gtg-open-device").addEventListener("click",()=>request("auth-open").catch(err=>status(err.message,true)));
     id("gtg-attach").addEventListener("click",attach);
     dialog.showModal();
     id("gtg-repo").focus();
