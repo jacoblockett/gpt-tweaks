@@ -24,9 +24,11 @@
         "https://chatgpt.com/*"
       ],
       "js": [
+        "chatgpt-menus.js",
         "github-inject.js"
       ],
       "css": [
+        "chatgpt-menus.css",
         "github-inject.css"
       ],
       "run_at": "document_start"

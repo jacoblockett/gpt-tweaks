@@ -1,0 +1,76 @@
+/* Shared ChatGPT plus-menu and slash-command appearance. */
+[data-gtg-menu-option="true"]:focus-visible,#gtg-slash:focus-visible {
+  outline:2px solid currentColor;outline-offset:-2px;
+}
+/* GPT Tweaks sits above native commands without pretending to be a
+   React-managed navigation item. The separator is outside the selectable rows. */
+.gtg-menu-heading {
+  color:var(--text-tertiary,#a9a9a9);
+  font-size:12px;
+  font-weight:600;
+  line-height:18px;
+  padding:9px 12px 5px;
+  pointer-events:none;
+}
+.gtg-menu-divider {
+  height:1px;
+  background:var(--border-light,#484848);
+  margin:7px 9px 8px;
+  pointer-events:none;
+}
+
+/* ChatGPT highlights only React-managed items. Hide its retained native
+   highlight while the externally injected row is hovered or focused. */
+[data-mention-section-items="true"]:has(> [data-gtg-menu-option="true"]:is(:hover,:focus)) > button:not([data-gtg-menu-option="true"]).bg-primary-ghost-hover,
+[data-mention-section-items="true"]:has(> #gtg-slash:is(:hover,:focus)) > button:not(#gtg-slash).bg-primary-ghost-hover {
+  background-color: transparent!important;
+  opacity: var(--opacity-menu-row,.75)!important;
+}
+
+/* Mask React's retained active item while the extension's virtual slot
+   is selected by keyboard, without altering any native item state. */
+[data-mention-section-items="true"]:has(> [data-gtg-virtual-highlight="true"]) > button:not([data-gtg-virtual-highlight="true"]).bg-primary-ghost-hover {
+  background-color:transparent!important;
+  opacity:var(--opacity-menu-row,.75)!important;
+}
+
+
+/* Direct slash matches can outlive ChatGPT's own filtered command menu. */
+.gtg-command-fallback {
+  position:fixed;z-index:2147483000;max-height:min(240px,40vh);overflow-y:auto;
+  border:1px solid var(--border-default,#505050);border-radius:20px;
+  background:var(--bg-surface-elevated-secondary,#2e2e2e);
+  color:var(--text-primary,#eee);
+  box-shadow:0 12px 36px #0006;padding:6px 10px 10px;
+  font-family:var(--font-sans,"OpenAI Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);
+  font-size:14px;
+}
+.gtg-command-fallback .gtg-menu-heading {padding:7px 11px 6px;}
+.gtg-fallback-row {
+  display:flex;align-items:center;gap:12px;width:100%;
+  min-height:42px;padding:9px 12px;border-radius:12px;border:0;
+  background:transparent;color:inherit;cursor:pointer;text-align:left;font:inherit;
+}
+.gtg-fallback-row:hover,
+.gtg-fallback-row.bg-primary-ghost-hover,
+.gtg-fallback-row:focus-visible {
+  background:var(--bg-primary-ghost-hover,#444);
+}
+.gtg-fallback-row:focus-visible {outline:2px solid currentColor;outline-offset:-2px;}
+.gtg-fallback-icon {display:grid;place-items:center;flex:none;color:inherit;width:20px;height:20px;}
+.gtg-fallback-text {display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0;}
+/* Fallback row uses the same description text size as the native slash row. */
+.gtg-fallback-description {color:var(--text-secondary,#bababa);font-size:inherit;}
+/* A lone slash leaves the title untouched. Only a typed search dims
+   the unmatched characters; matched characters retain native color/weight. */
+#gtg-slash[data-gtg-fuzzy-active="true"] [data-gtg-slash-title="true"] {
+  color:var(--text-tertiary,#999);
+}
+#gtg-slash[data-gtg-fuzzy-active="true"] [data-gtg-slash-title="true"] > span {
+  color:var(--text-tertiary,#999);
+  font-weight:inherit;
+}
+#gtg-slash[data-gtg-fuzzy-active="true"] [data-gtg-slash-title="true"] > span.gtg-fuzzy-match {
+  color:var(--text-primary,#ededed);
+  font-weight:inherit;
+}
