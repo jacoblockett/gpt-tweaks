@@ -96,6 +96,64 @@
     busy=false;clearTimeout(lookupTimer);
     repoGen++;commitGen++;
   }
+  function setupDropdownScrollbars(dialog) {
+    const panels=[...dialog.querySelectorAll(".gtg-options,.gtg-revision-list")];
+    const states=panels.map(panel=>({panel,hover:false,dragging:false,scrolling:false,timer:null}));
+    const controller=new AbortController();
+    const refresh=state=>{
+      state.panel.classList.toggle("gtg-scrollbar-visible",
+        state.hover||state.dragging||state.scrolling);
+    };
+    const overGutter=(panel,event)=>{
+      if(!panel.getClientRects().length||panel.scrollHeight<=panel.clientHeight+1)return false;
+      const rect=panel.getBoundingClientRect();
+      return event.clientX>=rect.right-12&&event.clientX<=rect.right&&
+        event.clientY>=rect.top&&event.clientY<=rect.bottom;
+    };
+    // Listen above the individual rows so the invisible native scrollbar gutter
+    // responds without showing the thumb when hovering the rest of the list.
+    const trackPointer=event=>{
+      for(const state of states){
+        state.hover=event.pointerType==="mouse"&&overGutter(state.panel,event);
+        refresh(state);
+      }
+    };
+    document.addEventListener("pointermove",trackPointer,
+      {capture:true,passive:true,signal:controller.signal});
+    document.addEventListener("pointerdown",event=>{
+      trackPointer(event);
+      if(event.button!==0)return;
+      for(const state of states){
+        if(state.hover){state.dragging=true;refresh(state);}
+      }
+    },{capture:true,passive:true,signal:controller.signal});
+    const release=event=>{
+      for(const state of states)state.dragging=false;
+      trackPointer(event);
+    };
+    document.addEventListener("pointerup",release,
+      {capture:true,passive:true,signal:controller.signal});
+    document.addEventListener("pointercancel",release,
+      {capture:true,passive:true,signal:controller.signal});
+    window.addEventListener("blur",()=>{
+      for(const state of states){
+        state.dragging=false;state.hover=false;refresh(state);
+      }
+    },{signal:controller.signal});
+    for(const state of states){
+      state.panel.addEventListener("scroll",()=>{
+        state.scrolling=true;refresh(state);
+        clearTimeout(state.timer);
+        state.timer=setTimeout(()=>{
+          state.scrolling=false;refresh(state);
+        },800);
+      },{passive:true,signal:controller.signal});
+    }
+    dialog.addEventListener("close",()=>{
+      controller.abort();
+      for(const state of states)clearTimeout(state.timer);
+    },{once:true});
+  }
   const caret='<svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="m5 7.5 5 5 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const searchIcon='<svg class="gtg-input-leading" aria-hidden="true" width="19" height="19" viewBox="0 0 20 20" fill="none"><circle cx="8.75" cy="8.75" r="6" stroke="currentColor" stroke-width="1.7"/><path d="m13.2 13.2 4.4 4.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
   const checkIcon='<svg aria-hidden="true" width="19" height="19" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7.3" stroke="currentColor" stroke-width="1.6"/><path d="m6.6 10 2.2 2.2 4.6-4.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -178,6 +236,7 @@
     id("gtg-more-branches").addEventListener("click",()=>loadBranches(branchPage+1,repoGen).catch(()=>{if(modal)status("Could not load branches.",true);}));
     id("gtg-attach").addEventListener("click",attach);
     dialog.showModal();
+    setupDropdownScrollbars(dialog);
     id("gtg-repo").focus();
     const recentPromise=request("history").then(recent=>{
       if(modal!==dialog)return;

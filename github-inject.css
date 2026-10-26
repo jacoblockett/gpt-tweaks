@@ -56,9 +56,9 @@
   margin:0;padding:10px;max-height:min(300px,39vh);
   overflow-y:auto;box-shadow:0 14px 40px #0007;
 }
-/* Keep the modal's track and thumb, but remove native scrollbar arrows.
-   ChatGPT can supply inherited scrollbar-color/width values that take precedence
-   over ::-webkit-scrollbar-* rules unless reset on the scrollable element. */
+/* The 12 px scrollbar gutter remains an invisible hit area. Only a
+   7 px thumb is painted, and only during scrolling or gutter interaction.
+   Reset inherited standard scrollbar colors so Chromium honors these rules. */
 #gtg-dialog .gtg-options,
 #gtg-dialog .gtg-revision-list {
   scrollbar-color:auto !important;
@@ -68,16 +68,28 @@
 #gtg-dialog .gtg-revision-list::-webkit-scrollbar {
   width:12px;
   height:12px;
+  background:transparent;
 }
 #gtg-dialog .gtg-options::-webkit-scrollbar-track,
-#gtg-dialog .gtg-revision-list::-webkit-scrollbar-track {
-  background:#2b2b2b;
+#gtg-dialog .gtg-revision-list::-webkit-scrollbar-track,
+#gtg-dialog .gtg-options::-webkit-scrollbar-corner,
+#gtg-dialog .gtg-revision-list::-webkit-scrollbar-corner {
+  background:transparent;
 }
 #gtg-dialog .gtg-options::-webkit-scrollbar-thumb,
 #gtg-dialog .gtg-revision-list::-webkit-scrollbar-thumb {
-  background:#696969;
-  border:2px solid #2b2b2b;
+  background:transparent;
+  border:2.5px solid transparent;
   border-radius:12px;
+  background-clip:padding-box;
+}
+#gtg-dialog .gtg-options.gtg-scrollbar-visible::-webkit-scrollbar-thumb,
+#gtg-dialog .gtg-revision-list.gtg-scrollbar-visible::-webkit-scrollbar-thumb,
+#gtg-dialog .gtg-options::-webkit-scrollbar-thumb:hover,
+#gtg-dialog .gtg-revision-list::-webkit-scrollbar-thumb:hover,
+#gtg-dialog .gtg-options::-webkit-scrollbar-thumb:active,
+#gtg-dialog .gtg-revision-list::-webkit-scrollbar-thumb:active {
+  background-color:#696969;
 }
 #gtg-dialog .gtg-options::-webkit-scrollbar-button,
 #gtg-dialog .gtg-revision-list::-webkit-scrollbar-button {
