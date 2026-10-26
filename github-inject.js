@@ -4,12 +4,13 @@
   globalThis.__gptTweaksGitHubLoaded = true;
 
   const COMMAND="/attach-github-source";
+  const COMMAND_TITLE="Attach GitHub Source";
   // Match the feature description in website/index.html; do not modify settings copy.
   const ARCHIVE_DESCRIPTION="Attach a GitHub repository source code.";
   const REPO=/^[a-z0-9](?:[a-z0-9-]{0,38})\/[a-z0-9._-]{1,100}$/i;
   let modal=null, busy=false, verified="", branchPage=0,commitPage=0,tip="",repoGen=0,commitGen=0;
   let history=[],mine=[],signedIn=false,authReady=false,accountName="",accountStatusPromise=null,slashAllowed=false;
-  let observer=null,scanQueued=false,scanTimer=null,slashSuggestion=null,lookupTimer=null;
+  let observer=null,scanQueued=false,scanTimer=null,slashSuggestion=null,lookupTimer=null,lookupVisualTimer=null;
   const id=id=>modal?.querySelector("#"+id);
   const option=(label,value)=>{const e=document.createElement("option");e.textContent=label;e.value=value;return e;};
   const escapeHTML=value=>String(value).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -58,7 +59,7 @@
   }
   function clearUi() {
     if(modal){modal.remove();modal=null;}
-    busy=false;clearTimeout(lookupTimer);
+    busy=false;clearTimeout(lookupTimer);clearTimeout(lookupVisualTimer);
     repoGen++;commitGen++;
     accountStatusPromise=null;
   }
@@ -84,9 +85,9 @@
       '<label class="gtg-label" for="gtg-repo">Repository</label>',
       '<div class="gtg-input-wrap">',searchIcon,'<input id="gtg-repo" type="text" autocomplete="off" spellcheck="false" placeholder="Search repositories or paste a GitHub URL" aria-controls="gtg-options" aria-expanded="false" />',
       '<span class="gtg-verified" id="gtg-verified" hidden>',checkIcon,'</span>',
+      '<span class="gtg-lookup-progress" id="gtg-lookup-progress" role="status" aria-label="Loading" hidden><span class="gtg-spinner" aria-hidden="true"></span></span>',
       '<button id="gtg-toggle" class="gtg-icon" type="button" aria-label="Show repositories" aria-expanded="false">',caret,'</button></div>',
       '<div id="gtg-options" class="gtg-options" hidden></div>',
-      '<div id="gtg-loading" class="gtg-loading" role="status" aria-live="polite" hidden><span class="gtg-spinner" aria-hidden="true"></span><span>Loading</span></div>',
       '<div id="gtg-revisions" class="gtg-revisions" hidden>',
       '<div><label class="gtg-label" for="gtg-branch">Branch</label><div class="gtg-select-wrap"><select id="gtg-branch"></select>',caret,'</div><button type="button" id="gtg-more-branches" class="gtg-more" hidden>Load more branches</button></div>',
       '<div><label class="gtg-label" for="gtg-commit">Commit</label><div class="gtg-select-wrap"><select id="gtg-commit"></select>',caret,'</div><button type="button" id="gtg-more-commits" class="gtg-more" hidden>Load older commits</button></div>',
@@ -113,9 +114,17 @@
       else hideSuggestions();
     });
     id("gtg-repo").addEventListener("input",()=>{
-      clearTimeout(lookupTimer);resetRepo();showSuggestions();
+      clearTimeout(lookupTimer);
+      clearTimeout(lookupVisualTimer);
+      resetRepo();showSuggestions();
       const name=repoFrom(id("gtg-repo").value);
-      if(name)lookupTimer=setTimeout(()=>choose(name),850);
+      if(name){
+        lookupVisualTimer=setTimeout(()=>{
+          if(modal&&!verified&&repoFrom(id("gtg-repo").value)===name)
+            id("gtg-lookup-progress").hidden=false;
+        },250);
+        lookupTimer=setTimeout(()=>choose(name),850);
+      }
     });
     id("gtg-repo").addEventListener("keydown",event=>{
       if(event.key==="Enter"){
@@ -225,12 +234,14 @@
   function showLoading(){
     if(!modal)return;
     id("gtg-revisions").hidden=true;
-    id("gtg-loading").hidden=false;
+    id("gtg-verified").hidden=true;
+    id("gtg-lookup-progress").hidden=false;
     id("gtg-attach").disabled=true;
     status("");
   }
   function hideLoading(){
-    if(id("gtg-loading"))id("gtg-loading").hidden=true;
+    clearTimeout(lookupVisualTimer);
+    if(id("gtg-lookup-progress"))id("gtg-lookup-progress").hidden=true;
   }
   function resetRepo(){
     repoGen++;commitGen++;verified="";branchPage=0;commitPage=0;tip="";
@@ -552,7 +563,7 @@
     const detail=content?.querySelector(':scope > span:last-child > span > span:last-child');
     const iconSlot=content?.querySelector('[data-leading-icon-slot="menu"]');
     if(!label||!detail||!iconSlot)return;
-    label.textContent="Attach GitHub Source";
+    label.textContent=COMMAND_TITLE;
     detail.textContent=ARCHIVE_DESCRIPTION;
 
     setGitHubIcon(iconSlot);
@@ -568,6 +579,7 @@
       launch("menu");
     });
     mountMenuGroup(section,button,"menu");
+    setVirtualRow(button);
   }
   async function scanMenu(){
     const labels=document.querySelectorAll('[data-mention-section-items="true"] > button[data-list-navigation-item="true"]');
@@ -591,8 +603,74 @@
       if(virtualRow===slashSuggestion)clearVirtualRow();
       slashSuggestion.remove();slashSuggestion=null;
     }
+    document.getElementById("gtg-command-fallback")?.remove();
     removeMenuGroup("slash");
     slashRange=null;
+  }
+  const fuzzyText=COMMAND_TITLE.toLowerCase();
+  function fuzzyPositions(value){
+    if(!value?.startsWith("/"))return null;
+    const letters=value.slice(1).toLowerCase().replace(/[^a-z]/g,"");
+    if(letters.length>fuzzyText.replace(/[^a-z]/g,"").length)return null;
+    const positions=[];
+    let cursor=0;
+    for(const char of letters){
+      const next=fuzzyText.indexOf(char,cursor);
+      if(next<0)return null;
+      positions.push(next);
+      cursor=next+1;
+    }
+    return positions;
+  }
+  function displayFuzzyTitle(row,value){
+    const label=row?.querySelector('[data-gtg-slash-title="true"]');
+    if(!label||label.dataset.gtgFuzzyQuery===value)return;
+    label.dataset.gtgFuzzyQuery=value;
+    const active=new Set(fuzzyPositions(value)||[]);
+    const parts=[];
+    for(let i=0;i<COMMAND_TITLE.length;i++){
+      const letter=document.createElement("span");
+      if(active.has(i))letter.className="gtg-fuzzy-match";
+      letter.textContent=COMMAND_TITLE[i];
+      parts.push(letter);
+    }
+    label.replaceChildren(...parts);
+  }
+  function makeFallbackSuggestion(){
+    const container=document.createElement("div");
+    container.id="gtg-command-fallback";
+    container.className="gtg-command-fallback";
+    container.setAttribute("role","presentation");
+    const heading=document.createElement("div");
+    heading.className="gtg-menu-heading";
+    heading.textContent="GPT Tweaks";
+    const row=document.createElement("button");
+    row.id="gtg-slash";
+    row.type="button";
+    row.dataset.gtgSlash="true";
+    row.className="gtg-fallback-row";
+    const icon=document.createElement("span");
+    icon.className="gtg-fallback-icon";
+    icon.append(githubIcon(20));
+    const textBox=document.createElement("span");
+    textBox.className="gtg-fallback-text";
+    const title=document.createElement("span");
+    title.dataset.gtgSlashTitle="true";
+    const detail=document.createElement("span");
+    detail.className="gtg-fallback-description";
+    detail.textContent=ARCHIVE_DESCRIPTION;
+    textBox.append(title,detail);
+    row.append(icon,textBox);
+    container.append(heading,row);
+    document.body.append(container);
+    const composer=localComposer();
+    if(composer){
+      const rect=composer.closest("form")?.getBoundingClientRect()||composer.getBoundingClientRect();
+      container.style.left=Math.max(8,rect.left)+"px";
+      container.style.width=Math.min(rect.width,window.innerWidth-16)+"px";
+      container.style.bottom=Math.max(8,window.innerHeight-rect.top+8)+"px";
+    }
+    return row;
   }
   let slashRange=null;
   // Match only a slash token directly before the caret, not the whole composer.
@@ -607,7 +685,7 @@
     prefix.setEnd(caret.endContainer,caret.endOffset);
     const text=prefix.toString();
     const match=text.match(/(?:^|[\s\u00a0])(\/[a-z-]*)$/i);
-    if(!match||!COMMAND.toLowerCase().startsWith(match[1].toLowerCase()))return null;
+    if(!match||fuzzyPositions(match[1])===null)return null;
     const target=text.length-match[1].length;
     const walker=document.createTreeWalker(composer,NodeFilter.SHOW_TEXT);
     const probe=document.createRange();
@@ -640,7 +718,10 @@
       resetSlash();return;
     }
     slashRange=match.range.cloneRange();
-    if(slashSuggestion?.isConnected)return;
+    if(slashSuggestion?.isConnected){
+      displayFuzzyTitle(slashSuggestion,match.value);
+      return;
+    }
     try{if(!(await isEnabled("slash"))){resetSlash();return;}slashAllowed=true;}catch{slashAllowed=false;return;}
     const current=composerSlashMatch();
     if(!current||slashSuggestion?.isConnected)return;
@@ -648,29 +729,28 @@
     const rows=[...document.querySelectorAll('[data-mention-section-id="commands"] [data-mention-section-items="true"] > button[data-list-navigation-item="true"]')]
       .filter(el=>visible(el)&&!el.dataset.gtgSlash);
     const native=rows.find(el=>!el.hasAttribute("aria-current"))||rows[0];
-    if(!native)return; // Never place an out-of-menu fallback inside the composer.
-    slashSuggestion=native.cloneNode(true);
+    slashSuggestion=native?native.cloneNode(true):makeFallbackSuggestion();
     slashSuggestion.type="button";
     slashSuggestion.id="gtg-slash";
     slashSuggestion.dataset.gtgSlash="true";
     // Do not shift native React's scroll indexes with an unregistered row.
     slashSuggestion.removeAttribute("data-list-navigation-item");
     styleInjectedMenuRow(slashSuggestion);
-    const menuLabel=slashSuggestion.querySelector(':scope > div > div > div > div');
-    const menuDesc=slashSuggestion.querySelector(':scope > div > div > div > span');
-    if(menuLabel&&menuDesc){
-      menuLabel.textContent="Attach GitHub Source";
+    if(native){
+      const menuLabel=slashSuggestion.querySelector(':scope > div > div > div > div');
+      const menuDesc=slashSuggestion.querySelector(':scope > div > div > div > span');
+      if(!menuLabel||!menuDesc){
+        slashSuggestion=null;
+        return;
+      }
+      menuLabel.dataset.gtgSlashTitle="true";
       menuDesc.textContent=ARCHIVE_DESCRIPTION;
       const icon=slashSuggestion.querySelector('[data-leading-icon-slot="menu"]');
-      if(icon){
-        setGitHubIcon(icon);
-      }
-      // Keep the button's native layout and menu navigation attributes.
+      if(icon)setGitHubIcon(icon);
       mountMenuGroup(native.parentElement,slashSuggestion,"slash");
-    }else{
-      slashSuggestion=null;
-      return; // Captured layout no longer matches: do not create a misleading button.
     }
+    displayFuzzyTitle(slashSuggestion,current.value);
+    setVirtualRow(slashSuggestion);
     slashSuggestion.addEventListener("mousedown",event=>event.preventDefault());
     slashSuggestion.addEventListener("keydown",event=>{
       if(event.key==="Enter"||event.key===" "){
@@ -735,7 +815,8 @@
     if(virtualRow&&virtualRow!==row)clearVirtualRow();
     const parent=row.parentElement;
     const prev=nativeNeighbor(row,-1),next=nativeNeighbor(row,1);
-    if(!parent||(!prev&&!next))return;
+    if(!parent)return;
+    if(!prev&&!next&&row.id!=="gtg-slash")return;
     const nativeRows=[...parent.querySelectorAll(':scope > button[data-list-navigation-item="true"]')];
     const nativeSelected=nativeRows.find(node=>node.getAttribute("aria-current")==="true") ||
       nativeRows.find(node=>node.classList.contains("bg-primary-ghost-hover"));
@@ -746,6 +827,10 @@
         clearVirtualRow();row.click();return;
       }
       if(event.key==="ArrowDown"||event.key==="ArrowUp"){
+        if(!nativeRows.length){
+          event.preventDefault();event.stopImmediatePropagation();
+          return;
+        }
         const direction=event.key==="ArrowDown"?1:-1;
         // React is still highlighting the adjacent item from which we entered.
         // Let its original handler advance across the boundary in that direction.
@@ -774,7 +859,7 @@
       event.target.closest('button[data-list-navigation-item="true"]'):null;
     if(hovered)clearVirtualRow();
   },true);
-  document.addEventListener("keydown",event=>{
+  window.addEventListener("keydown",event=>{
     const composer=localComposer();
     if(!composer||!composer.contains(event.target))return;
     const match=composerSlashMatch(composer);
