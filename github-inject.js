@@ -338,24 +338,28 @@
     button.addEventListener("click",event=>{event.preventDefault();event.stopImmediatePropagation();launch("menu");});
     element.after(button);
   }
-  function scanMenu(){
-    // Look for the visible native Add from Library item, not hashed React classes.
+  async function scanMenu(){
+    // Only display the injected option while the corresponding preference is enabled.
     const labels=[...document.querySelectorAll("button,[role='menuitem']")];
-    for(const el of labels){
-      if(!visible(el)||el.dataset.gtgMenuOption)continue;
-      const label=(el.innerText||"").trim().toLowerCase();
-      if(label.startsWith("add from library")||label.startsWith("add from library ")){
-        createMenuOption(el);break;
-      }
-    }
+    const native=labels.find(el=>visible(el)&&!el.dataset.gtgMenuOption &&
+      (el.innerText||"").trim().toLowerCase().startsWith("add from library"));
+    if(!native)return;
+    try{
+      const enabled=await isEnabled("menu");
+      if(!native.isConnected)return;
+      if(enabled)createMenuOption(native);
+      else document.querySelector('[data-gtg-menu-option="true"]')?.remove();
+    }catch{}
   }
   function resetSlash(){if(slashSuggestion){slashSuggestion.remove();slashSuggestion=null;}}
-  function updateSlash(){
+  async function updateSlash(){
     const composer=localComposer();
     const typed=editableText(composer);
     const matching=typed.startsWith("/")&&COMMAND.startsWith(typed);
     if(!matching||typed.length<2){resetSlash();return;}
     if(slashSuggestion?.isConnected)return;
+    try{if(!(await isEnabled("slash"))) {resetSlash();return;}}catch{return;}
+    if(slashSuggestion?.isConnected || !COMMAND.startsWith(editableText(localComposer())))return;
     slashSuggestion=document.createElement("button");
     slashSuggestion.type="button";
     slashSuggestion.id="gtg-slash";
