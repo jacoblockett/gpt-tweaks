@@ -9,7 +9,7 @@
   const ARCHIVE_DESCRIPTION="Attach a GitHub repository source code.";
   const REPO=/^[a-z0-9](?:[a-z0-9-]{0,38})\/[a-z0-9._-]{1,100}$/i;
   let modal=null, busy=false, verified="", branchPage=0,commitPage=0,tip="",repoGen=0,commitGen=0;
-  let history=[],mine=[],slashAllowed=false,slashFeatureEnabled=null;
+  let history=[],mine=[],repositoriesLoading=false,repositoriesFailed=false,slashAllowed=false,slashFeatureEnabled=null;
   let observer=null,scanQueued=false,scanTimer=null,slashSuggestion=null,lookupTimer=null;
   const id=id=>modal?.querySelector("#"+id);
   const option=(label,value)=>{const e=document.createElement("option");e.textContent=label;e.value=value;return e;};
@@ -35,6 +35,19 @@
       value=path.join("/").replace(/\.git$/i,"");
       return REPO.test(value)?value:"";
     } catch {return "";}
+  }
+  // Match in-order like slash commands; ignore separators only for matching.
+  // The user's repository input is never rewritten.
+  function repositoryMatches(name,query) {
+    const needle=String(query||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+    const haystack=String(name||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+    let position=0;
+    for(const char of needle){
+      const found=haystack.indexOf(char,position);
+      if(found<0)return false;
+      position=found+1;
+    }
+    return true;
   }
   function status(text,isError=false) {
     const node=id("gtg-status");
@@ -73,7 +86,7 @@
   async function launch(method) {
     if(!(await isEnabled(method))||modal)return;
     resetSlash();
-    history=[];mine=[];
+    history=[];mine=[];repositoriesLoading=true;repositoriesFailed=false;
     const dialog=document.createElement("dialog");
     modal=dialog;
     dialog.id="gtg-dialog";
@@ -153,8 +166,14 @@
     const repositoriesPromise=request("repositories").then(result=>{
       if(modal!==dialog)return;
       mine=result.repositories||[];
+      repositoriesLoading=false;
       renderSuggestions();
-    }).catch(()=>{ /* GitHub connection setup is managed exclusively in settings. */ });
+    }).catch(()=>{
+      if(modal!==dialog)return;
+      repositoriesLoading=false;
+      repositoriesFailed=true;
+      renderSuggestions();
+    });
     await Promise.all([recentPromise,repositoriesPromise]);
   }
   function hideRevisionMenus(){
@@ -229,10 +248,11 @@
     const box=id("gtg-options");if(!box)return;
     const wasOpen=!box.hidden;
     box.replaceChildren();
-    const query=id("gtg-repo").value.trim().toLowerCase();
-    const recent=history.filter(x=>x.toLowerCase().includes(query));
+    const entered=id("gtg-repo").value;
+    const query=repoFrom(entered)||entered;
+    const recent=history.filter(x=>repositoryMatches(x,query));
     const recentNames=new Set(recent.map(x=>x.toLowerCase()));
-    const own=mine.filter(x=>x.repo.toLowerCase().includes(query)&&!recentNames.has(x.repo.toLowerCase()));
+    const own=mine.filter(x=>repositoryMatches(x.repo,query)&&!recentNames.has(x.repo.toLowerCase()));
     function group(title,items,isRecent){
       if(!items.length)return;
       if(box.childNodes.length){
@@ -263,9 +283,9 @@
           void choose(name);
         });
         line.append(pick);
-        if(!isRecent&&item.private){
-          const flag=document.createElement("span");flag.className="gtg-private";
-          flag.textContent="Private";line.append(flag);
+        if(!isRecent){
+          const flag=document.createElement("span");flag.className="gtg-visibility";
+          flag.textContent=item.private?"Private":"Public";line.append(flag);
         }
         if(isRecent){
           const remove=document.createElement("button");
@@ -283,9 +303,17 @@
     }
     group("Recently attached",recent,true);
     group("Your repositories",own,false);
-    // An empty suggestion list is not an input placeholder or a visible panel.
-    box.hidden=!box.childNodes.length||!wasOpen;
-    const expanded=!box.hidden;
+    if(!box.childNodes.length){
+      const empty=document.createElement("div");
+      empty.className="gtg-empty";
+      empty.textContent=repositoriesLoading?"Loading repositories...":
+        repositoriesFailed?"Could not load repositories.":
+        query.trim()?"No matching repositories.":"No repositories to show.";
+      box.append(empty);
+    }
+    // Explicitly opening the dropdown must always display a panel.
+    box.hidden=!wasOpen;
+    const expanded=wasOpen;
     id("gtg-repo").setAttribute("aria-expanded",String(expanded));
     id("gtg-toggle").setAttribute("aria-expanded",String(expanded));
   }

@@ -180,26 +180,19 @@ async function storeHistory(repo) {
 }
 async function listOwnRepos() {
   const auth=await readAuth();
-  if(!auth?.access_token)return {repositories:[],installationsCount:0};
+  if(!auth?.access_token)return {repositories:[]};
   const repos=new Map();
-  let installationsCount=0;
-  for(let page=1;page<=30;page++){
-    const response=await api(ROOT+"/user/installations?per_page=100&page="+page,auth.access_token);
-    if(!Array.isArray(response.installations))throw Error("Invalid installation response.");
-    for(const installation of response.installations){
-      if(!Number.isSafeInteger(installation.id)||installation.id<1)continue;
-      installationsCount++;
-      for(let repoPage=1;repoPage<=100;repoPage++){
-        const result=await api(ROOT+"/user/installations/"+installation.id+"/repositories?per_page=100&page="+repoPage,auth.access_token);
-        if(!Array.isArray(result.repositories))throw Error("Invalid installation repository response.");
-        for(const r of result.repositories)
-          if(r.full_name)repos.set(r.full_name.toLowerCase(),{repo:r.full_name,private:!!r.private});
-        if(result.repositories.length<100)break;
-      }
+  // A GitHub App user access token can list the repositories available
+  // to both the user and the app without traversing installations.
+  for(let page=1;page<=100;page++){
+    const result=await api(ROOT+"/user/repos?affiliation=owner%2Ccollaborator%2Corganization_member&per_page=100&page="+page,auth.access_token);
+    if(!Array.isArray(result))throw Error("Unexpected GitHub repository list response.");
+    for(const entry of result){
+      if(entry.full_name)repos.set(entry.full_name.toLowerCase(),{repo:entry.full_name,private:!!entry.private});
     }
-    if(response.installations.length<100)break;
+    if(result.length<100)break;
   }
-  return {repositories:[...repos.values()].sort((a,b)=>a.repo.localeCompare(b.repo)),installationsCount};
+  return {repositories:[...repos.values()].sort((a,b)=>a.repo.localeCompare(b.repo))};
 }
 async function tokenPost(endpoint,params) {
   const response=await fetch("https://github.com/login/"+endpoint,{

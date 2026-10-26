@@ -61,7 +61,6 @@
   color:#c5c5c5;font-size:12px;font-weight:500;text-transform:uppercase;
   padding:9px 10px 11px;
 }
-#gtg-dialog .gtg-group .gtg-account {text-transform:none;font-size:12px;}
 #gtg-dialog .gtg-group button {
   border:0;background:transparent;color:#ededed;padding:3px 0;
   text-transform:none;cursor:pointer;font:inherit;
@@ -80,7 +79,8 @@
 }
 #gtg-dialog .gtg-pick .gtg-pick-text {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 #gtg-dialog .gtg-pick .gtg-entry-icon {flex:none;color:#c6c6c6;}
-#gtg-dialog .gtg-private {color:#bcbcbc;font-size:12px;margin-left:auto;padding-right:10px;}
+#gtg-dialog .gtg-visibility {color:#bcbcbc;font-size:12px;margin-left:auto;padding-right:10px;}
+#gtg-dialog .gtg-empty {padding:13px 12px;color:#c5c5c5;font-size:13px;line-height:1.45;}
 #gtg-dialog .gtg-remove {flex:none;border:0;background:transparent;color:#bbb;
   cursor:pointer;border-radius:9px;width:36px;height:36px;display:grid;place-items:center;}
 #gtg-dialog .gtg-remove:hover {color:#fff;background:#4c4c4c;}
