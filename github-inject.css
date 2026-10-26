@@ -51,7 +51,8 @@
 #gtg-dialog #gtg-toggle[aria-expanded="true"] svg {transform:rotate(180deg);}
 #gtg-dialog .gtg-options {
   background:#2b2b2b;border:1px solid #424242;border-radius:19px;
-  margin-top:10px;padding:10px;max-height:min(300px,39vh);
+  position:absolute;top:calc(100% + 8px);left:0;right:0;z-index:20;
+  margin:0;padding:10px;max-height:min(300px,39vh);
   overflow-y:auto;
 }
 #gtg-dialog .gtg-group {
