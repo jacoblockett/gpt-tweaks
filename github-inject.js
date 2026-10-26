@@ -94,6 +94,11 @@
       '</div>',
       '<div class="gtg-auth" id="gtg-auth" hidden><p id="gtg-auth-prompt"></p><button type="button" class="gtg-aux" id="gtg-login">Sign in with GitHub</button>',
       '<div id="gtg-device" class="gtg-device-panel" hidden><span class="gtg-device-label">Enter this code in the GitHub tab</span><strong id="gtg-device-code" class="gtg-device-code"></strong></div></div>',
+      '<section id="gtg-access" class="gtg-access-card" aria-labelledby="gtg-access-title" hidden>',
+      '<div class="gtg-access-head"><span id="gtg-access-title">Repository access</span><span id="gtg-access-state" class="gtg-access-state"></span></div>',
+      '<p id="gtg-access-copy"></p><div class="gtg-access-actions">',
+      '<button type="button" id="gtg-access-action" class="gtg-aux">Choose repositories on GitHub</button>',
+      '<button type="button" id="gtg-access-refresh" class="gtg-access-refresh">Refresh access</button></div></section>',
       '<div id="gtg-status" class="gtg-status" role="status" aria-live="polite" hidden></div>',
       '</div><div class="gtg-footer"><button type="button" class="gtg-btn gtg-cancel" id="gtg-cancel">Cancel</button>',
       '<button type="button" class="gtg-btn gtg-attach" id="gtg-attach" disabled><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-8.49 8.49a5.5 5.5 0 0 1-7.78-7.78l8.49-8.49a3.67 3.67 0 0 1 5.19 5.19l-8.49 8.49a1.83 1.83 0 0 1-2.6-2.59l7.78-7.78"/></svg><span>Attach</span></button></div>'
