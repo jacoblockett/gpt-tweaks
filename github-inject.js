@@ -718,6 +718,19 @@
       resetSlash();return;
     }
     slashRange=match.range.cloneRange();
+    // Prefer ChatGPT's real popup once it becomes available, but retain the
+    // one-item fallback when native slash filtering returns no results.
+    const nativeAvailable=[...document.querySelectorAll('[data-mention-section-id="commands"] [data-mention-section-items="true"] > button[data-list-navigation-item="true"]')]
+      .some(el=>visible(el));
+    const wasFallback=Boolean(document.getElementById("gtg-command-fallback"));
+    if(slashSuggestion?.isConnected&&
+       ((wasFallback&&nativeAvailable)||!visible(slashSuggestion))){
+      if(virtualRow===slashSuggestion)clearVirtualRow();
+      slashSuggestion.remove();
+      slashSuggestion=null;
+      document.getElementById("gtg-command-fallback")?.remove();
+      removeMenuGroup("slash");
+    }
     if(slashSuggestion?.isConnected){
       displayFuzzyTitle(slashSuggestion,match.value);
       return;
@@ -863,9 +876,21 @@
     const composer=localComposer();
     if(!composer||!composer.contains(event.target))return;
     const match=composerSlashMatch(composer);
-    if(slashAllowed&&event.key==="Enter"&&!event.shiftKey&&!event.isComposing&&
+    if(event.key==="Enter"&&!event.shiftKey&&!event.isComposing&&
+       !event.ctrlKey&&!event.metaKey&&!event.altKey&&
        match?.value.toLowerCase()===COMMAND.toLowerCase()){
-      event.preventDefault();event.stopImmediatePropagation();clearComposerCommand();launch("slash");
+      // Intercept the literal command before ChatGPT's send handler even if
+      // the feature-status response has not completed yet.
+      event.preventDefault();event.stopImmediatePropagation();
+      slashRange=match.range.cloneRange();
+      if(slashAllowed){
+        clearComposerCommand();launch("slash");
+      }else{
+        isEnabled("slash").then(enabled=>{
+          if(!enabled||!modal&&localComposer()!==composer)return;
+          clearComposerCommand();launch("slash");
+        }).catch(()=>{});
+      }
     }
   },true);
   document.addEventListener("input",event=>{
