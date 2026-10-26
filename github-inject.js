@@ -325,64 +325,109 @@
   }
 
   function createMenuOption(reference){
-    if(document.querySelector('[data-gtg-menu-option="true"]'))return;
-    const element=reference.closest("button")||reference.closest('[role="menuitem"]');
-    if(!element||!visible(element))return;
-    const button=element.cloneNode(false);
-    button.removeAttribute("id");
-    button.removeAttribute("aria-haspopup");
-    button.removeAttribute("data-state");
+    const element=reference.closest('button[data-list-navigation-item="true"]');
+    const section=element?.closest('[data-mention-section-items="true"]');
+    if(!section||!visible(element))return;
+    if(section.querySelector('[data-gtg-menu-option="true"]'))return;
+
+    // Clone the native row's entire layout, not just its outer button.
+    // The captured ChatGPT menu uses these semantic data attributes for
+    // the icon, label, description and menu-section parent.
+    const button=element.cloneNode(true);
+    for(const attr of ["id","aria-current","aria-selected","aria-haspopup","aria-expanded","data-state"])
+      button.removeAttribute(attr);
     button.dataset.gtgMenuOption="true";
-    button.textContent="Attach GitHub source";
     button.type="button";
-    button.addEventListener("click",event=>{event.preventDefault();event.stopImmediatePropagation();launch("menu");});
+    const content=button.querySelector('[data-menu-row-content="true"]');
+    const label=content?.querySelector(':scope > span:last-child > span > span:first-child');
+    const detail=content?.querySelector(':scope > span:last-child > span > span:last-child');
+    const iconSlot=content?.querySelector('[data-leading-icon-slot="menu"]');
+    if(!label||!detail||!iconSlot)return;
+    label.textContent="Attach GitHub source";
+    detail.textContent="Attach a repository ZIP";
+
+    const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+    svg.setAttribute("width","16");
+    svg.setAttribute("height","16");
+    svg.setAttribute("viewBox","0 0 16 16");
+    svg.setAttribute("fill","currentColor");
+    svg.setAttribute("aria-hidden","true");
+    const path=document.createElementNS("http://www.w3.org/2000/svg","path");
+    path.setAttribute("d","M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.65 7.65 0 0 1 8 4.85c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z");
+    svg.append(path);
+    iconSlot.replaceChildren(svg);
+    button.addEventListener("click",event=>{
+      event.preventDefault();
+      event.stopPropagation();
+      launch("menu");
+    });
     element.after(button);
   }
   async function scanMenu(){
-    // Only display the injected option while the corresponding preference is enabled.
-    const labels=[...document.querySelectorAll("button,[role='menuitem']")];
-    const native=labels.find(el=>visible(el)&&!el.dataset.gtgMenuOption &&
+    const labels=document.querySelectorAll('[data-mention-section-items="true"] > button[data-list-navigation-item="true"]');
+    const native=[...labels].find(el=>visible(el)&&!el.dataset.gtgMenuOption&&
       (el.innerText||"").trim().toLowerCase().startsWith("add from library"));
     if(!native)return;
     try{
       const enabled=await isEnabled("menu");
       if(!native.isConnected)return;
+      const existing=native.parentElement.querySelector('[data-gtg-menu-option="true"]');
       if(enabled)createMenuOption(native);
-      else document.querySelector('[data-gtg-menu-option="true"]')?.remove();
+      else existing?.remove();
     }catch{}
   }
   function resetSlash(){if(slashSuggestion){slashSuggestion.remove();slashSuggestion=null;}}
   async function updateSlash(){
     const composer=localComposer();
     const typed=editableText(composer);
-    const matching=typed.startsWith("/")&&COMMAND.startsWith(typed);
-    if(!matching||typed.length<2){resetSlash();return;}
+    if(!typed.startsWith("/")||!COMMAND.startsWith(typed)||typed.length<2){
+      resetSlash();return;
+    }
     if(slashSuggestion?.isConnected)return;
-    try{if(!(await isEnabled("slash"))) {resetSlash();return;}}catch{return;}
-    if(slashSuggestion?.isConnected || !COMMAND.startsWith(editableText(localComposer())))return;
-    slashSuggestion=document.createElement("button");
+    try{if(!(await isEnabled("slash"))){resetSlash();return;}}catch{return;}
+    if(!COMMAND.startsWith(editableText(localComposer()))||slashSuggestion?.isConnected)return;
+    const native=[...document.querySelectorAll('[data-mention-section-id="commands"] button[data-list-navigation-item="true"]')]
+      .find(el=>visible(el)&&!el.hasAttribute("aria-current"));
+    slashSuggestion=native?.cloneNode(true)||document.createElement("button");
     slashSuggestion.type="button";
     slashSuggestion.id="gtg-slash";
-    slashSuggestion.textContent=COMMAND+"  ·  Attach a GitHub repository";
+    slashSuggestion.dataset.gtgSlash="true";
+    slashSuggestion.removeAttribute("aria-current");
+    slashSuggestion.removeAttribute("id");
+    slashSuggestion.id="gtg-slash";
+    const menuLabel=slashSuggestion.querySelector(':scope > div > div > div > div');
+    const menuDesc=slashSuggestion.querySelector(':scope > div > div > div > span');
+    if(native&&menuLabel&&menuDesc){
+      menuLabel.textContent=COMMAND;
+      menuDesc.textContent="Attach a GitHub repository";
+      const icon=slashSuggestion.querySelector('[data-leading-icon-slot="menu"]');
+      if(icon){
+        const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+        svg.setAttribute("width","20");
+        svg.setAttribute("height","20");
+        svg.setAttribute("viewBox","0 0 16 16");
+        svg.setAttribute("fill","currentColor");
+        svg.setAttribute("aria-hidden","true");
+        const path=document.createElementNS("http://www.w3.org/2000/svg","path");
+        path.setAttribute("d","M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.65 7.65 0 0 1 8 4.85c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z");
+        svg.append(path);icon.replaceChildren(svg);
+      }
+      // Keep the button's native layout and menu navigation attributes.
+      native.before(slashSuggestion);
+    }else{
+      slashSuggestion.textContent=COMMAND+"  ·  Attach a GitHub repository";
+      const parent=composer?.closest("form")||composer?.parentElement;
+      if(parent){slashSuggestion.className="gtg-slash-fallback";parent.append(slashSuggestion);}
+    }
     slashSuggestion.addEventListener("mousedown",event=>event.preventDefault());
     slashSuggestion.addEventListener("click",event=>{
       event.preventDefault();event.stopPropagation();clearComposerCommand();launch("slash");
     });
-    // The supplied snapshot shows data-list-navigation-item buttons in
-    // the command suggestion overlay. Insert alongside them when available.
-    const native=document.querySelector('[data-list-navigation-item="true"]');
-    if(native&&visible(native)){
-      slashSuggestion.className=native.className+" gtg-slash-native";
-      native.before(slashSuggestion);
-    }else{
-      const parent=composer?.closest("form")||composer?.parentElement;
-      if(parent){slashSuggestion.className="gtg-slash-fallback";parent.append(slashSuggestion);}
-    }
   }
   function clearComposerCommand(){
     const composer=localComposer();
     if(!composer)return;
-    if(editableText(composer).trim()===COMMAND){
+    if(editableText(composer).startsWith("/") && COMMAND.startsWith(editableText(composer))){
       composer.textContent="";
       composer.dispatchEvent(new InputEvent("input",{bubbles:true,inputType:"deleteContentBackward",data:null}));
     }
