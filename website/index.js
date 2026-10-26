@@ -84,8 +84,8 @@
 		githubStatus.classList.toggle("connected", githubConnected && !authorizationPending)
 		githubDescription.hidden = fullyConnected
 		githubDescription.textContent = authorizationPending
-			? "Enter this code in the GitHub tab."
-			: githubConnected ? installationDescription : "Sign in with GitHub to connect your account."
+			? "A GitHub tab asking for a code should have opened automatically asking to verify your session. Enter the following code and complete the authorization process."
+			: githubConnected ? installationDescription : "Connect your GitHub account to allow GitHub-related utilities to read from your private repositories."
 		githubDeviceCode.hidden = !authorizationPending
 		githubControls.hidden = authorizationPending
 		githubSignIn.hidden = githubConnected
