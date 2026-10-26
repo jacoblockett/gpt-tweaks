@@ -36,7 +36,8 @@
     node.dataset.error=isError?"true":"false";
   }
   function localComposer() {
-    return document.querySelector('[data-testid="composer-text-input"]') ||
+    return document.querySelector('[data-composer-input] [contenteditable="true"][role="textbox"]') ||
+      document.querySelector('[data-testid="composer-text-input"]') ||
       document.querySelector('#prompt-textarea') ||
       document.querySelector('[contenteditable="true"][role="textbox"]');
   }
@@ -74,6 +75,7 @@
     ].join("");
     document.body.append(modal);
     modal.addEventListener("close",clearUi,{once:true});
+    modal.addEventListener("cancel",event=>{if(busy)event.preventDefault();});
     id("gtg-close").addEventListener("click",()=>modal.close());
     id("gtg-cancel").addEventListener("click",()=>modal.close());
     id("gtg-toggle").addEventListener("click",()=>{
@@ -275,11 +277,20 @@
     for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
     return bytes;
   }
+  function acceptsZip(input){
+    if(input.disabled||input.webkitdirectory)return false;
+    const accept=(input.getAttribute("accept")||"").trim().toLowerCase();
+    if(!accept||accept==="*/*")return true;
+    return accept.split(",").map(x=>x.trim()).some(x=>
+      [".zip","application/zip","application/x-zip-compressed","application/octet-stream"].includes(x));
+  }
   function uploadFile(file){
-    const inputs=[...document.querySelectorAll('input[type="file"]')].filter(x=>!x.disabled&&!x.webkitdirectory);
+    const target=localComposer();
+    const form=target?.closest("form");
+    const inputs=[...document.querySelectorAll('input[type="file"]')].filter(acceptsZip);
+    // Prefer the active composer over unrelated file controls elsewhere in ChatGPT.
+    inputs.sort((a,b)=>Number(Boolean(form?.contains(b)))-Number(Boolean(form?.contains(a))));
     for(const input of inputs){
-      const accept=(input.getAttribute("accept")||"").toLowerCase();
-      if(accept&&!accept.includes("zip")&&!accept.includes("*")&&!accept.includes("application/octet-stream"))continue;
       try{
         const dt=new DataTransfer();dt.items.add(file);input.files=dt.files;
         input.dispatchEvent(new Event("input",{bubbles:true,composed:true}));
@@ -287,41 +298,58 @@
         return true;
       }catch{}
     }
-    const target=localComposer();
     if(!target)return false;
     try{
       const dt=new DataTransfer();dt.items.add(file);
-      for(const type of ["dragenter","dragover","drop"]){
-        target.dispatchEvent(new DragEvent(type,{bubbles:true,cancelable:true,dataTransfer:dt}));
-      }
+      for(const type of ["dragenter","dragover","drop"])
+        target.dispatchEvent(new DragEvent(type,{bubbles:true,composed:true,cancelable:true,dataTransfer:dt}));
       return true;
     }catch{return false;}
   }
+  function composerAttachmentState(composer,filename){
+    const form=composer?.closest("form");
+    const root=form?.querySelector("[data-composer-attachments]") ||
+      document.querySelector("[data-composer-attachments]");
+    if(!root)return {root:null,count:0,named:false};
+    const text=root.textContent||"";
+    const named=text.includes(filename) || root.querySelectorAll("[title],[aria-label],[alt]").length>0 &&
+      [...root.querySelectorAll("[title],[aria-label],[alt]")].some(el=>
+        ["title","aria-label","alt"].some(attr=>(el.getAttribute(attr)||"").includes(filename)));
+    return {root,count:root.children.length,named};
+  }
   async function attach(){
     if(busy||!verified)return;
-    busy=true;id("gtg-attach").disabled=true;id("gtg-cancel").disabled=true;
+    busy=true;let handedOff=false;
+    id("gtg-attach").disabled=true;id("gtg-cancel").disabled=true;id("gtg-close").disabled=true;
     try{
       status("Downloading source ZIP…");
       const data=await request("zip",{repo:verified,branch:id("gtg-branch").value,
         commit:id("gtg-commit").value});
       const file=new File([base64Bytes(data.base64)],data.filename,{type:"application/zip"});
       const composer=localComposer();
-      const oldText=composer?.parentElement?.parentElement?.innerText||"";
+      const before=composerAttachmentState(composer,file.name);
       if(!uploadFile(file))throw Error("ChatGPT file uploader could not be found.");
+      handedOff=true;
       status("Waiting for ChatGPT to display the attachment…");
       let shown=false;
-      for(let i=0;i<30;i++){
-        await new Promise(resolve=>setTimeout(resolve,150));
-        const newText=composer?.parentElement?.parentElement?.innerText||"";
-        if(newText.includes(file.name)&&!oldText.includes(file.name)){shown=true;break;}
-        const fileInput=[...document.querySelectorAll('input[type="file"]')].find(x=>[...x.files||[]].some(f=>f.name===file.name));
-        if(fileInput){shown=true;break;}
+      for(let i=0;i<60;i++){
+        await new Promise(resolve=>setTimeout(resolve,250));
+        const after=composerAttachmentState(composer,file.name);
+        if(after.root&&!after.root.hidden&&!before.named &&
+          (after.named||after.count>before.count)){shown=true;break;}
       }
-      if(!shown)throw Error("Upload was initiated, but ChatGPT did not confirm the file in the composer. Check the composer before retrying.");
-      history=await request("history-add",{repo:verified});
+      if(!shown)throw Error("Attachment handoff was attempted, but no new composer attachment was confirmed. Check the composer before retrying.");
+      try{history=await request("history-add",{repo:verified});}
+      catch(err){status("Attachment displayed, but history could not be saved: "+err.message,true);return;}
       modal?.close();
     }catch(err){status(err.message,true);}
-    finally{busy=false;if(id("gtg-cancel"))id("gtg-cancel").disabled=false;if(id("gtg-attach"))id("gtg-attach").disabled=!verified;}
+    finally{
+      busy=false;
+      if(id("gtg-cancel"))id("gtg-cancel").disabled=false;
+      if(id("gtg-close"))id("gtg-close").disabled=false;
+      // An unconfirmed handoff may still be uploading. Do not allow an accidental duplicate.
+      if(id("gtg-attach"))id("gtg-attach").disabled=!verified||handedOff;
+    }
   }
 
   function createMenuOption(reference){
@@ -356,6 +384,7 @@
     path.setAttribute("d","M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.65 7.65 0 0 1 8 4.85c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z");
     svg.append(path);
     iconSlot.replaceChildren(svg);
+    button.addEventListener("mousedown",event=>event.preventDefault());
     button.addEventListener("click",event=>{
       event.preventDefault();
       event.stopPropagation();
@@ -380,24 +409,28 @@
   async function updateSlash(){
     const composer=localComposer();
     const typed=editableText(composer);
-    if(!typed.startsWith("/")||!COMMAND.startsWith(typed)||typed.length<2){
+    if(!typed.startsWith("/")||!COMMAND.startsWith(typed)){
       resetSlash();return;
     }
     if(slashSuggestion?.isConnected)return;
     try{if(!(await isEnabled("slash"))){resetSlash();return;}}catch{return;}
-    if(!COMMAND.startsWith(editableText(localComposer()))||slashSuggestion?.isConnected)return;
-    const native=[...document.querySelectorAll('[data-mention-section-id="commands"] button[data-list-navigation-item="true"]')]
-      .find(el=>visible(el)&&!el.hasAttribute("aria-current"));
-    slashSuggestion=native?.cloneNode(true)||document.createElement("button");
+    const current=editableText(localComposer());
+    if(!current.startsWith("/")||!COMMAND.startsWith(current)||slashSuggestion?.isConnected)return;
+    const rows=[...document.querySelectorAll('[data-mention-section-id="commands"] [data-mention-section-items="true"] > button[data-list-navigation-item="true"]')]
+      .filter(el=>visible(el)&&!el.dataset.gtgSlash);
+    const native=rows.find(el=>!el.hasAttribute("aria-current"))||rows[0];
+    if(!native)return; // Never place an out-of-menu fallback inside the composer.
+    slashSuggestion=native.cloneNode(true);
     slashSuggestion.type="button";
     slashSuggestion.id="gtg-slash";
     slashSuggestion.dataset.gtgSlash="true";
     slashSuggestion.removeAttribute("aria-current");
-    slashSuggestion.removeAttribute("id");
-    slashSuggestion.id="gtg-slash";
+    slashSuggestion.removeAttribute("aria-selected");
+    slashSuggestion.classList.remove("bg-primary-ghost-hover","opacity-100");
+    slashSuggestion.classList.add("menu-row-opacity");
     const menuLabel=slashSuggestion.querySelector(':scope > div > div > div > div');
     const menuDesc=slashSuggestion.querySelector(':scope > div > div > div > span');
-    if(native&&menuLabel&&menuDesc){
+    if(menuLabel&&menuDesc){
       menuLabel.textContent=COMMAND;
       menuDesc.textContent="Attach a GitHub repository";
       const icon=slashSuggestion.querySelector('[data-leading-icon-slot="menu"]');
@@ -415,11 +448,16 @@
       // Keep the button's native layout and menu navigation attributes.
       native.before(slashSuggestion);
     }else{
-      slashSuggestion.textContent=COMMAND+"  ·  Attach a GitHub repository";
-      const parent=composer?.closest("form")||composer?.parentElement;
-      if(parent){slashSuggestion.className="gtg-slash-fallback";parent.append(slashSuggestion);}
+      slashSuggestion=null;
+      return; // Captured layout no longer matches: do not create a misleading button.
     }
     slashSuggestion.addEventListener("mousedown",event=>event.preventDefault());
+    slashSuggestion.addEventListener("keydown",event=>{
+      if(event.key==="Enter"||event.key===" "){
+        event.preventDefault();event.stopPropagation();
+        clearComposerCommand();launch("slash");
+      }
+    });
     slashSuggestion.addEventListener("click",event=>{
       event.preventDefault();event.stopPropagation();clearComposerCommand();launch("slash");
     });
@@ -427,9 +465,16 @@
   function clearComposerCommand(){
     const composer=localComposer();
     if(!composer)return;
-    if(editableText(composer).startsWith("/") && COMMAND.startsWith(editableText(composer))){
-      composer.textContent="";
-      composer.dispatchEvent(new InputEvent("input",{bubbles:true,inputType:"deleteContentBackward",data:null}));
+    const typed=editableText(composer);
+    if(typed.startsWith("/")&&COMMAND.startsWith(typed)){
+      // ProseMirror tracks its document internally: perform a browser edit,
+      // not a raw textContent replacement that can desynchronize its state.
+      composer.focus();
+      const range=document.createRange();
+      range.selectNodeContents(composer);
+      const selection=window.getSelection();
+      selection.removeAllRanges();selection.addRange(range);
+      document.execCommand("delete",false);
     }
     resetSlash();
   }
