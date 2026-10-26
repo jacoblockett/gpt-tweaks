@@ -355,7 +355,9 @@
           return;
         }
       }
-      status(err.message,true);
+      if(err.code==="REPOSITORY_UNAVAILABLE"&&signedIn)
+        status("The GitHub App cannot access this repository. Check its installation and repository permissions on GitHub.",true);
+      else status(err.message,true);
     }
   }
   async function loadBranches(page,generation=repoGen){
