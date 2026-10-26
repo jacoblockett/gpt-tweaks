@@ -9,7 +9,7 @@
   const ARCHIVE_DESCRIPTION="Attach a GitHub repository source code.";
   const REPO=/^[a-z0-9](?:[a-z0-9-]{0,38})\/[a-z0-9._-]{1,100}$/i;
   let modal=null, busy=false, verified="", branchPage=0,commitPage=0,tip="",repoGen=0,commitGen=0;
-  let history=[],mine=[],installationsCount=0,signedIn=false,authReady=false,accountName="",accountStatusPromise=null,slashAllowed=false,slashFeatureEnabled=null;
+  let history=[],mine=[],installationsCount=0,accessBlocked=false,installPending=false,installChecking=false,lastInstallCheck=0,signedIn=false,authReady=false,accountName="",accountStatusPromise=null,slashAllowed=false,slashFeatureEnabled=null;
   let observer=null,scanQueued=false,scanTimer=null,slashSuggestion=null,lookupTimer=null;
   const id=id=>modal?.querySelector("#"+id);
   const option=(label,value)=>{const e=document.createElement("option");e.textContent=label;e.value=value;return e;};
@@ -62,6 +62,7 @@
     busy=false;clearTimeout(lookupTimer);
     repoGen++;commitGen++;
     accountStatusPromise=null;
+    installPending=false;installChecking=false;accessBlocked=false;
   }
   const caret='<svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="m5 7.5 5 5 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const searchIcon='<svg class="gtg-input-leading" aria-hidden="true" width="19" height="19" viewBox="0 0 20 20" fill="none"><circle cx="8.75" cy="8.75" r="6" stroke="currentColor" stroke-width="1.7"/><path d="m13.2 13.2 4.4 4.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
@@ -74,7 +75,7 @@
   async function launch(method) {
     if(!(await isEnabled(method))||modal)return;
     resetSlash();
-    signedIn=false;authReady=false;accountName="";history=[];mine=[];installationsCount=0;
+    signedIn=false;authReady=false;accountName="";history=[];mine=[];installationsCount=0;accessBlocked=false;installPending=false;
     const dialog=document.createElement("dialog");
     modal=dialog;
     dialog.id="gtg-dialog";
@@ -152,6 +153,16 @@
     id("gtg-more-branches").addEventListener("click",()=>loadBranches(branchPage+1,repoGen).catch(err=>status(err.message,true)));
     id("gtg-more-commits").addEventListener("click",()=>loadCommits(commitPage+1,repoGen));
     id("gtg-login").addEventListener("click",startLogin);
+    id("gtg-access-action").addEventListener("click",async()=>{
+      const button=id("gtg-access-action");
+      button.disabled=true;
+      try{
+        await request(installationsCount?"install-manage":"install-open");
+        installPending=true;
+      }catch(err){status(err.message,true);}
+      finally{if(modal)button.disabled=false;}
+    });
+    id("gtg-access-refresh").addEventListener("click",()=>void refreshInstallAccess());
     id("gtg-attach").addEventListener("click",attach);
     dialog.showModal();
     id("gtg-repo").focus();
@@ -169,7 +180,7 @@
       const result=await request("repositories");
       mine=result.repositories||[];
       installationsCount=result.installationsCount||0;
-      if(modal===dialog)renderSuggestions();
+      if(modal===dialog){renderAccessPrompt();renderSuggestions();}
     }catch(err){if(modal===dialog)status(err.message,true);}
   }
   function hideRevisionMenus(){
@@ -227,6 +238,48 @@
   function toggleRevisionMenu(kind){
     if(id("gtg-"+kind+"-list").hidden)showRevisionMenu(kind);
     else hideRevisionMenus();
+  }
+  function renderAccessPrompt(){
+    const panel=id("gtg-access");
+    if(!panel)return;
+    const missing=!installationsCount;
+    panel.hidden=!signedIn||(!missing&&!accessBlocked);
+    if(panel.hidden)return;
+    id("gtg-access-title").textContent="Repository access";
+    id("gtg-access-state").textContent=missing?"Not installed":"Check permissions";
+    id("gtg-access-copy").textContent=missing
+      ? "To attach private repositories, choose which repositories GPT Tweaks can read on GitHub. Public repositories still work without this step."
+      : "This repository may not exist, or GPT Tweaks may not have access to it. Review which repositories are available to the app on GitHub.";
+    id("gtg-access-action").textContent=missing
+      ? "Choose repositories on GitHub":"Manage repository access";
+  }
+  async function refreshInstallAccess(){
+    if(!modal||installChecking||!signedIn)return;
+    const dialog=modal;
+    installChecking=true;lastInstallCheck=Date.now();
+    const refresh=id("gtg-access-refresh");
+    if(refresh)refresh.disabled=true;
+    try{
+      const data=await request("repositories");
+      if(modal!==dialog)return;
+      mine=data.repositories||[];
+      installationsCount=data.installationsCount||0;
+      accessBlocked=false;
+      installPending=false;
+      renderAccessPrompt();
+      renderSuggestions();
+      const repo=repoFrom(id("gtg-repo").value);
+      if(repo)await choose(repo);
+    }catch(err){
+      if(modal===dialog){
+        id("gtg-access-state").textContent="Check failed";
+        id("gtg-access-copy").textContent=err.message||String(err);
+        id("gtg-access").hidden=false;
+      }
+    }finally{
+      installChecking=false;
+      if(modal===dialog&&refresh)refresh.disabled=false;
+    }
   }
   function hideSuggestions(){
     const box=id("gtg-options");if(!box)return;
@@ -297,12 +350,6 @@
     }
     group("Recently attached",recent,true);
     group("Your repositories",own,false);
-    if(signedIn&&!installationsCount){
-      const note=document.createElement("p");
-      note.className="gtg-install-note";
-      note.textContent="No GitHub App installation found. Install GPT Tweaks on GitHub and grant repository access to list private repositories.";
-      box.append(note);
-    }
     // An empty suggestion list is not an input placeholder or a visible panel.
     box.hidden=!box.childNodes.length||!wasOpen;
     const expanded=!box.hidden;
@@ -322,6 +369,8 @@
     if(id("gtg-lookup-progress"))id("gtg-lookup-progress").hidden=true;
   }
   function resetRepo(){
+    accessBlocked=false;
+    renderAccessPrompt();
     hideRevisionMenus();
     repoGen++;commitGen++;verified="";branchPage=0;commitPage=0;tip="";
     hideLoading();
@@ -360,9 +409,11 @@
           return;
         }
       }
-      if(err.code==="REPOSITORY_UNAVAILABLE"&&signedIn)
-        status("The GitHub App cannot access this repository. Check its installation and repository permissions on GitHub.",true);
-      else status(err.message,true);
+      if(err.code==="REPOSITORY_UNAVAILABLE"&&signedIn){
+        accessBlocked=true;
+        renderAccessPrompt();
+        status("");
+      }else status(err.message,true);
     }
   }
   async function loadBranches(page,generation=repoGen){
@@ -462,6 +513,7 @@
           const result=await request("repositories");
           mine=result.repositories||[];
           installationsCount=result.installationsCount||0;
+          renderAccessPrompt();
           status("");
           renderSuggestions();
           const repo=repoFrom(id("gtg-repo").value);
@@ -989,6 +1041,11 @@
       setVirtualRow(row);
     }
   }
+  // When the user returns from GitHub installation, re-read actual permissions.
+  window.addEventListener("focus",()=>{
+    if(modal&&installPending&&!installChecking&&Date.now()-lastInstallCheck>1200)
+      void refreshInstallAccess();
+  });
   // Registered before the dynamically opened menu installs its window handler.
   window.addEventListener("keydown",interceptMenuKey,true);
   document.addEventListener("mousemove",event=>{
