@@ -142,6 +142,31 @@
 #gtg-dialog .gtg-more {border:0;background:transparent;color:#dadada;
   padding:7px 3px;font-size:12px;cursor:pointer;}
 #gtg-dialog .gtg-more:hover {text-decoration:underline;}
+/* Optional GitHub App installation step, separate from sign-in. */
+#gtg-dialog .gtg-access-card {
+  margin-top:17px;padding:14px 16px;border:1px solid #454545;
+  border-radius:13px;background:#252525;
+}
+#gtg-dialog .gtg-access-head {
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  font-size:13px;font-weight:600;color:#ededed;
+}
+#gtg-dialog .gtg-access-state {
+  color:#bdbdbd;font-size:12px;font-weight:500;
+}
+#gtg-dialog .gtg-access-card p {
+  margin:8px 0 13px;font-size:12px;line-height:1.5;color:#bdbdbd;
+}
+#gtg-dialog .gtg-access-actions {
+  display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+}
+#gtg-dialog .gtg-access-refresh {
+  background:transparent;border:0;border-radius:8px;
+  color:#c9c9c9;font:inherit;font-size:12px;
+  padding:8px 9px;cursor:pointer;
+}
+#gtg-dialog .gtg-access-refresh:hover:not(:disabled) {background:#3c3c3c;color:#fff;}
+#gtg-dialog .gtg-access-refresh:disabled {opacity:.55;cursor:wait;}
 #gtg-dialog .gtg-auth {margin-top:18px;background:#2b2b2b;
   padding:15px 18px;border-radius:13px;border:1px solid #454545;}
 #gtg-dialog .gtg-auth p {margin:0 0 11px;color:#ddd;font-size:12px;}
