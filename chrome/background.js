@@ -19,4 +19,4 @@ chrome.action.onClicked.addListener(() => {
 })
 
 // GitHub source utility, loaded only in trusted extension service worker.
-importScripts("github-background.js");
+importScripts("../utilities/github-source/connection.js","../utilities/github-source/repositories.js","../utilities/github-source/service.js","./github-bridge.js");

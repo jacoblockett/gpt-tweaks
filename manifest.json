@@ -10,9 +10,9 @@
     "default_title": "Open GPT Tweaks settings"
   },
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "chrome/background.js"
   },
-  "options_page": "website/index.html",
+  "options_page": "settings/index.html",
   "host_permissions": [
     "https://api.github.com/*",
     "https://codeload.github.com/*",
@@ -24,12 +24,18 @@
         "https://chatgpt.com/*"
       ],
       "js": [
-        "chatgpt-menus.js",
-        "github-inject.js"
+        "shared/ui/menus/core.js",
+        "shared/ui/menus/plus.js",
+        "shared/ui/menus/slash.js",
+        "utilities/github-source/ui/scrollbar.js",
+        "utilities/github-source/ui/revisions.js",
+        "utilities/github-source/attachment.js",
+        "utilities/github-source/ui/modal.js",
+        "utilities/github-source/index.js"
       ],
       "css": [
-        "chatgpt-menus.css",
-        "github-inject.css"
+        "shared/ui/menus/styles.css",
+        "utilities/github-source/ui/styles.css"
       ],
       "run_at": "document_start"
     }

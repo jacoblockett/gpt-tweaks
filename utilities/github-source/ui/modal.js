@@ -3,14 +3,8 @@
   if (globalThis.__gptTweaksGitHubLoaded) return;
   globalThis.__gptTweaksGitHubLoaded = true;
 
-  const COMMAND="/attach-github-source";
-  const COMMAND_TITLE="Attach GitHub Source";
-  // Match the feature description in website/index.html; do not modify settings copy.
-  const ARCHIVE_DESCRIPTION="Attach a GitHub repository source code.";
   const REPO=/^[a-z0-9](?:[a-z0-9-]{0,38})\/[a-z0-9._-]{1,100}$/i;
-  let modal=null, busy=false, verified="", branchPage=0,commitPage=0,tip="",repoGen=0,commitGen=0;
-  const COMMIT_WINDOW=10,COMMIT_ROW_HEIGHT=36;
-  let commitEntries=[],commitHasMore=false,commitLoading=false;
+  let modal=null,verified="",repoGen=0;
   let history=[],mine=[],repositoriesLoading=false,repositoriesFailed=false;
   let activeRepoName="",activeRepoQuery="";
   let lookupTimer=null;
@@ -84,66 +78,8 @@
   }
   function clearUi() {
     if(modal){modal.remove();modal=null;}
-    busy=false;clearTimeout(lookupTimer);
-    repoGen++;commitGen++;
-  }
-  function setupDropdownScrollbars(dialog) {
-    const panels=[...dialog.querySelectorAll(".gtg-options,.gtg-revision-list")];
-    const states=panels.map(panel=>({panel,hover:false,dragging:false,scrolling:false,timer:null}));
-    const controller=new AbortController();
-    const refresh=state=>{
-      state.panel.classList.toggle("gtg-scrollbar-visible",
-        state.hover||state.dragging||state.scrolling);
-    };
-    const overGutter=(panel,event)=>{
-      if(!panel.getClientRects().length||panel.scrollHeight<=panel.clientHeight+1)return false;
-      const rect=panel.getBoundingClientRect();
-      return event.clientX>=rect.right-12&&event.clientX<=rect.right&&
-        event.clientY>=rect.top&&event.clientY<=rect.bottom;
-    };
-    // Listen above the individual rows so the invisible native scrollbar gutter
-    // responds without showing the thumb when hovering the rest of the list.
-    const trackPointer=event=>{
-      for(const state of states){
-        state.hover=event.pointerType==="mouse"&&overGutter(state.panel,event);
-        refresh(state);
-      }
-    };
-    document.addEventListener("pointermove",trackPointer,
-      {capture:true,passive:true,signal:controller.signal});
-    document.addEventListener("pointerdown",event=>{
-      trackPointer(event);
-      if(event.button!==0)return;
-      for(const state of states){
-        if(state.hover){state.dragging=true;refresh(state);}
-      }
-    },{capture:true,passive:true,signal:controller.signal});
-    const release=event=>{
-      for(const state of states)state.dragging=false;
-      trackPointer(event);
-    };
-    document.addEventListener("pointerup",release,
-      {capture:true,passive:true,signal:controller.signal});
-    document.addEventListener("pointercancel",release,
-      {capture:true,passive:true,signal:controller.signal});
-    window.addEventListener("blur",()=>{
-      for(const state of states){
-        state.dragging=false;state.hover=false;refresh(state);
-      }
-    },{signal:controller.signal});
-    for(const state of states){
-      state.panel.addEventListener("scroll",()=>{
-        state.scrolling=true;refresh(state);
-        clearTimeout(state.timer);
-        state.timer=setTimeout(()=>{
-          state.scrolling=false;refresh(state);
-        },800);
-      },{passive:true,signal:controller.signal});
-    }
-    dialog.addEventListener("close",()=>{
-      controller.abort();
-      for(const state of states)clearTimeout(state.timer);
-    },{once:true});
+    attachment.reset();clearTimeout(lookupTimer);
+    repoGen++;revisions.cancel();
   }
   const caret='<svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="m5 7.5 5 5 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const searchIcon='<svg class="gtg-input-leading" aria-hidden="true" width="19" height="19" viewBox="0 0 20 20" fill="none"><circle cx="8.75" cy="8.75" r="6" stroke="currentColor" stroke-width="1.7"/><path d="m13.2 13.2 4.4 4.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
@@ -153,6 +89,18 @@
     repository:'<svg class="gtg-entry-icon" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-4.3 1.4-4.3-2.5-6-3"/><path d="M15 22v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 19 4.77 5.07 5.07 0 0 0 18.91 1S17.73.65 15 2.48a13.38 13.38 0 0 0-7 0C5.27.65 4.09 1 4.09 1A5.07 5.07 0 0 0 4 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 8 18.13V22"/></svg>',
     lock:'<svg class="gtg-entry-icon" aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="4.4" y="8.5" width="11.2" height="8.3" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M7 8.3V6a3 3 0 0 1 6 0v2.3M10 12v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>'
   };
+  const revisions=globalThis.__gptTweaksCreateRevisions({
+    id,option,request,repoFrom,status,showLoading,hideLoading,hideSuggestions,
+    getRepoGen:()=>repoGen,getModal:()=>modal,getVerified:()=>verified,
+    setVerified:value=>{verified=value;}
+  });
+  const {hideRevisionMenus,showRevisionMenu,toggleRevisionMenu,renderCommitWindow,
+    loadBranches,loadCommits,syncRevisionTriggers}=revisions;
+  const attachment=globalThis.__gptTweaksCreateAttachment({
+    id,request,showLoading,hideLoading,status,localComposer,
+    getModal:()=>modal,getVerified:()=>verified,
+    setHistory:value=>{history=value;}
+  });
   async function launch(method) {
     if(!(await isEnabled(method))||modal)return;
     globalThis.__gptTweaksMenus.resetSlash();
@@ -181,9 +129,9 @@
     ].join("");
     document.body.append(dialog);
     dialog.addEventListener("close",clearUi,{once:true});
-    dialog.addEventListener("cancel",event=>{if(busy)event.preventDefault();});
+    dialog.addEventListener("cancel",event=>{if(attachment.isBusy())event.preventDefault();});
     dialog.addEventListener("click",event=>{
-      if(busy||event.target!==dialog)return;
+      if(attachment.isBusy()||event.target!==dialog)return;
       const r=dialog.getBoundingClientRect();
       if(event.clientX<r.left||event.clientX>r.right||
          event.clientY<r.top||event.clientY>r.bottom)dialog.close();
@@ -262,10 +210,10 @@
       if(!event.target.closest(".gtg-repo-control"))hideSuggestions();
       if(!event.target.closest(".gtg-select-wrap"))hideRevisionMenus();
     },true);
-    id("gtg-more-branches").addEventListener("click",()=>loadBranches(branchPage+1,repoGen).catch(()=>{if(modal)status("Could not load branches.",true);}));
-    id("gtg-attach").addEventListener("click",attach);
+    id("gtg-more-branches").addEventListener("click",()=>loadBranches(revisions.getBranchPage()+1,repoGen).catch(()=>{if(modal)status("Could not load branches.",true);}));
+    id("gtg-attach").addEventListener("click",attachment.attach);
     dialog.showModal();
-    setupDropdownScrollbars(dialog);
+    globalThis.__gptTweaksDropdownScrollbars(dialog);
     id("gtg-repo").focus();
     const recentPromise=request("history").then(recent=>{
       if(modal!==dialog)return;
@@ -283,165 +231,6 @@
       renderSuggestions();
     });
     await Promise.all([recentPromise,repositoriesPromise]);
-  }
-  function hideRevisionMenus(){
-    for(const kind of ["branch","commit"]){
-      const panel=id("gtg-"+kind+"-list"),trigger=id("gtg-"+kind+"-trigger");
-      if(panel)panel.hidden=true;
-      trigger?.setAttribute("aria-expanded","false");
-    }
-  }
-  function commitChoice(index){
-    if(index===0)return {value:"",text:"Latest"};
-    const item=commitEntries[index-1];
-    return {value:item.sha,text:item.sha.slice(0,10)+" · "+item.date+" · "+item.message};
-  }
-  function selectCommit(index){
-    const select=id("gtg-commit"),trigger=id("gtg-commit-trigger");
-    const choice=commitChoice(index);
-    const changed=select.value!==choice.value;
-    select.replaceChildren(option("Latest",""));
-    if(choice.value)select.append(option(choice.text,choice.value));
-    select.value=choice.value;
-    hideRevisionMenus();
-    syncRevisionTriggers();
-    if(changed)select.dispatchEvent(new Event("change",{bubbles:true}));
-    trigger.focus();
-  }
-  function renderCommitWindow(){
-    const panel=id("gtg-commit-list");
-    if(!panel||panel.hidden)return;
-    const total=commitEntries.length+1;
-    const start=Math.min(Math.floor(panel.scrollTop/COMMIT_ROW_HEIGHT),Math.max(0,total-COMMIT_WINDOW));
-    const end=Math.min(total,start+COMMIT_WINDOW);
-    const focused=panel.contains(document.activeElement)?
-      Number(document.activeElement.dataset.commitIndex):-1;
-    const above=document.createElement("div");
-    above.className="gtg-commit-spacer";
-    above.style.height=(start*COMMIT_ROW_HEIGHT)+"px";
-    above.setAttribute("aria-hidden","true");
-    const elements=[above];
-    for(let index=start;index<end;index++){
-      const choice=commitChoice(index),row=document.createElement("button");
-      row.type="button";row.className="gtg-revision-option";
-      row.dataset.commitIndex=String(index);
-      row.setAttribute("role","option");
-      row.setAttribute("aria-selected",String(choice.value===id("gtg-commit").value));
-      row.setAttribute("aria-setsize",String(total));
-      row.setAttribute("aria-posinset",String(index+1));
-      row.textContent=choice.text;row.title=choice.text;
-      row.addEventListener("click",()=>selectCommit(index));
-      elements.push(row);
-    }
-    const below=document.createElement("div");
-    below.className="gtg-commit-spacer";
-    below.style.height=((total-end)*COMMIT_ROW_HEIGHT)+"px";
-    below.setAttribute("aria-hidden","true");
-    elements.push(below);
-    panel.replaceChildren(...elements);
-    if(Number.isInteger(focused)&&focused>=0){
-      const row=elements.find(el=>Number(el.dataset?.commitIndex)===focused);
-      if(row)row.focus({preventScroll:true});
-      else panel.focus({preventScroll:true});
-    }
-  }
-  function checkMoreCommits(){
-    const panel=id("gtg-commit-list");
-    if(!panel||panel.hidden||!commitHasMore||commitLoading||!commitPage)return;
-    if(panel.scrollTop+panel.clientHeight>=panel.scrollHeight-COMMIT_ROW_HEIGHT)
-      void loadCommits(commitPage+1,repoGen);
-  }
-  function showCommitMenu(trigger,panel){
-    const select=id("gtg-commit");
-    panel.hidden=false;trigger.setAttribute("aria-expanded","true");
-    const selected=select.value?commitEntries.findIndex(x=>x.sha===select.value)+1:0;
-    panel.scrollTop=Math.max(0,selected)*COMMIT_ROW_HEIGHT;
-    renderCommitWindow();
-    const focusIndex=selected>=0?selected:0;
-    const initial=[...panel.querySelectorAll(".gtg-revision-option")]
-      .find(row=>Number(row.dataset.commitIndex)===focusIndex);
-    (initial||panel).focus({preventScroll:true});
-    panel.onscroll=()=>{
-      if(panel.hidden)return;
-      renderCommitWindow();
-      checkMoreCommits();
-    };
-    panel.onkeydown=event=>{
-      if(event.key==="Escape"){
-        event.preventDefault();hideRevisionMenus();trigger.focus();return;
-      }
-      if(!["ArrowDown","ArrowUp","Home","End"].includes(event.key))return;
-      event.preventDefault();
-      const active=Number(document.activeElement?.dataset.commitIndex);
-      const fallback=select.value?commitEntries.findIndex(x=>x.sha===select.value)+1:0;
-      const index=Number.isInteger(active)&&panel.contains(document.activeElement)?active:Math.max(0,fallback);
-      const total=commitEntries.length+1;
-      const next=event.key==="Home"?0:event.key==="End"?total-1:
-        (index+(event.key==="ArrowDown"?1:-1)+total)%total;
-      const viewport=Math.max(1,Math.floor(panel.clientHeight/COMMIT_ROW_HEIGHT));
-      if(next*COMMIT_ROW_HEIGHT<panel.scrollTop)
-        panel.scrollTop=next*COMMIT_ROW_HEIGHT;
-      else if((next+1)*COMMIT_ROW_HEIGHT>panel.scrollTop+panel.clientHeight)
-        panel.scrollTop=Math.max(0,(next+1)*COMMIT_ROW_HEIGHT-viewport*COMMIT_ROW_HEIGHT);
-      renderCommitWindow();
-      const row=[...panel.querySelectorAll(".gtg-revision-option")]
-        .find(button=>Number(button.dataset.commitIndex)===next);
-      (row||panel).focus({preventScroll:true});
-      checkMoreCommits();
-    };
-  }
-  function syncRevisionTriggers(){
-    for(const kind of ["branch","commit"]){
-      const select=id("gtg-"+kind),trigger=id("gtg-"+kind+"-trigger");
-      if(!select||!trigger)continue;
-      const label=id("gtg-"+kind+"-label");
-      label.textContent=kind==="commit"&&!select.value?"Latest":
-        select.selectedOptions?.[0]?.textContent||"Select "+kind;
-      trigger.disabled=select.disabled||!select.options.length;
-    }
-  }
-  function showRevisionMenu(kind){
-    const select=id("gtg-"+kind),trigger=id("gtg-"+kind+"-trigger"),panel=id("gtg-"+kind+"-list");
-    if(!select||select.disabled||!select.options.length)return;
-    hideSuggestions();hideRevisionMenus();
-    if(kind==="commit"){
-      showCommitMenu(trigger,panel);
-      return;
-    }
-    panel.replaceChildren();
-    for(const choice of select.options){
-      const row=document.createElement("button");
-      row.type="button";row.className="gtg-revision-option";
-      row.setAttribute("role","option");
-      row.setAttribute("aria-selected",String(choice.value===select.value));
-      row.textContent=choice.textContent;row.title=choice.textContent;
-      row.addEventListener("click",()=>{
-        const changed=select.value!==choice.value;
-        select.value=choice.value;
-        hideRevisionMenus();syncRevisionTriggers();
-        if(changed)select.dispatchEvent(new Event("change",{bubbles:true}));
-        trigger.focus();
-      });
-      panel.append(row);
-    }
-    panel.hidden=false;trigger.setAttribute("aria-expanded","true");
-    const rows=[...panel.querySelectorAll(".gtg-revision-option")];
-    (rows.find(x=>x.getAttribute("aria-selected")==="true")||rows[0])?.focus();
-    panel.onkeydown=event=>{
-      if(event.key==="Escape"){
-        event.preventDefault();hideRevisionMenus();trigger.focus();return;
-      }
-      if(!["ArrowDown","ArrowUp","Home","End"].includes(event.key))return;
-      event.preventDefault();
-      const index=rows.indexOf(document.activeElement);
-      const next=event.key==="Home"?0:event.key==="End"?rows.length-1:
-        (index+(event.key==="ArrowDown"?1:-1)+rows.length)%rows.length;
-      rows[next]?.focus();
-    };
-  }
-  function toggleRevisionMenu(kind){
-    if(id("gtg-"+kind+"-list").hidden)showRevisionMenu(kind);
-    else hideRevisionMenus();
   }
   function repositoryOptions() {
     return [...(id("gtg-options")?.querySelectorAll(".gtg-pick")||[])];
@@ -584,8 +373,8 @@
   }
   function resetRepo(){
     hideRevisionMenus();
-    repoGen++;commitGen++;verified="";branchPage=0;commitPage=0;tip="";
-    commitEntries=[];commitHasMore=false;commitLoading=false;
+    repoGen++;verified="";
+    revisions.reset();
     hideLoading();
     id("gtg-revisions").hidden=true;
     id("gtg-verified").hidden=true;
@@ -619,209 +408,5 @@
       status("Could not find that repository.",true);
     }
   }
-  async function loadBranches(page,generation=repoGen){
-    const repo=repoFrom(id("gtg-repo")?.value);
-    if(!repo)return;
-    if(page>1)showLoading();
-    try{
-      const data=await request("branches",{repo,page});
-      if(generation!==repoGen||!modal)return;
-      if(page===1){
-        verified=data.repo;
-        const branch=id("gtg-branch");
-        branch.replaceChildren();
-        if(data.defaultBranch)branch.append(option(data.defaultBranch,data.defaultBranch));
-      }
-      const branch=id("gtg-branch");
-      const existing=new Set([...branch.options].map(x=>x.value));
-      for(const name of data.branches){
-        if(!existing.has(name)){branch.append(option(name,name));existing.add(name);}
-      }
-      branchPage=page;
-      branch.disabled=false;
-      syncRevisionTriggers();
-      id("gtg-more-branches").hidden=!data.hasMore;
-      if(page===1){
-        if(!branch.value)throw Error("Repository has no branches.");
-        await loadCommits(1,generation);
-      }else{
-        hideLoading();
-        id("gtg-revisions").hidden=false;
-        id("gtg-attach").disabled=false;
-      }
-    }catch(err){
-      if(generation===repoGen&&modal){
-        hideLoading();
-        if(page>1){id("gtg-revisions").hidden=false;id("gtg-attach").disabled=false;}
-      }
-      throw err;
-    }
-  }
-  async function loadCommits(page,generation=repoGen){
-    const branch=id("gtg-branch")?.value,repo=verified;
-    if(!repo||!branch)return;
-    if(page>1&&(!commitHasMore||commitLoading||page!==commitPage+1))return;
-    const commitRequest=++commitGen;
-    if(page===1){
-      commitPage=0;
-      commitEntries=[];
-      commitHasMore=false;
-      commitLoading=false;
-      tip="";
-      showLoading();
-    }else commitLoading=true;
-    try{
-      const data=await request("commits",{repo,branch,page,...(page>1?{tip}:{})});
-      if(generation!==repoGen||commitRequest!==commitGen||!modal||id("gtg-branch").value!==branch)return;
-      const commit=id("gtg-commit");
-      if(page===1){
-        tip=data.tip;
-        commit.replaceChildren(option("Latest",""));
-      }
-      const existing=new Set(commitEntries.map(x=>x.sha));
-      for(const entry of data.commits){
-        if(!existing.has(entry.sha)){
-          commitEntries.push(entry);
-          existing.add(entry.sha);
-        }
-      }
-      commitPage=page;
-      commitHasMore=!!data.hasMore;
-      commitLoading=false;
-      commit.disabled=false;
-      syncRevisionTriggers();
-      if(page===1){
-        id("gtg-verified").hidden=false;
-        hideLoading();
-        id("gtg-revisions").hidden=false;
-        id("gtg-attach").disabled=false;
-      }else if(!id("gtg-commit-list").hidden){
-        renderCommitWindow();
-      }
-    }catch(err){
-      if(generation===repoGen&&commitRequest===commitGen&&modal){
-        commitLoading=false;
-        if(page>1)status("Could not load commits.",true);
-        else hideLoading();
-      }
-      if(page===1)throw err;
-    }
-  }
-  function base64Bytes(encoded){
-    const raw=atob(encoded),bytes=new Uint8Array(raw.length);
-    for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
-    return bytes;
-  }
-  function acceptsZip(input){
-    if(input.disabled||input.webkitdirectory)return false;
-    const accept=(input.getAttribute("accept")||"").trim().toLowerCase();
-    if(!accept||accept==="*/*")return true;
-    return accept.split(",").map(x=>x.trim()).some(x=>
-      [".zip","application/zip","application/x-zip-compressed","application/octet-stream"].includes(x));
-  }
-  function uploadFile(file){
-    const target=localComposer();
-    const form=target?.closest("form");
-    const inputs=[...document.querySelectorAll('input[type="file"]')].filter(acceptsZip);
-    // Prefer the active composer over unrelated file controls elsewhere in ChatGPT.
-    inputs.sort((a,b)=>Number(Boolean(form?.contains(b)))-Number(Boolean(form?.contains(a))));
-    for(const input of inputs){
-      try{
-        const dt=new DataTransfer();dt.items.add(file);input.files=dt.files;
-        input.dispatchEvent(new Event("input",{bubbles:true,composed:true}));
-        input.dispatchEvent(new Event("change",{bubbles:true,composed:true}));
-        return true;
-      }catch{}
-    }
-    if(!target)return false;
-    try{
-      const dt=new DataTransfer();dt.items.add(file);
-      for(const type of ["dragenter","dragover","drop"])
-        target.dispatchEvent(new DragEvent(type,{bubbles:true,composed:true,cancelable:true,dataTransfer:dt}));
-      return true;
-    }catch{return false;}
-  }
-  function composerAttachmentState(composer,filename){
-    const form=composer?.closest("form");
-    const root=form?.querySelector("[data-composer-attachments]") ||
-      document.querySelector("[data-composer-attachments]");
-    if(!root)return {root:null,count:0,named:false};
-    const text=root.textContent||"";
-    const named=text.includes(filename) || root.querySelectorAll("[title],[aria-label],[alt]").length>0 &&
-      [...root.querySelectorAll("[title],[aria-label],[alt]")].some(el=>
-        ["title","aria-label","alt"].some(attr=>(el.getAttribute(attr)||"").includes(filename)));
-    return {root,count:root.children.length,named};
-  }
-  async function attach(){
-    if(busy||!verified)return;
-    busy=true;let handedOff=false;
-    id("gtg-attach").disabled=true;id("gtg-cancel").disabled=true;id("gtg-close").disabled=true;
-    try{
-      showLoading();
-      const data=await request("zip",{repo:verified,branch:id("gtg-branch").value,
-        commit:id("gtg-commit").value});
-      const file=new File([base64Bytes(data.base64)],data.filename,{type:"application/zip"});
-      const composer=localComposer();
-      const before=composerAttachmentState(composer,file.name);
-      if(!uploadFile(file))throw Error("ChatGPT file uploader could not be found.");
-      handedOff=true;
-      let shown=false;
-      for(let i=0;i<60;i++){
-        await new Promise(resolve=>setTimeout(resolve,250));
-        const after=composerAttachmentState(composer,file.name);
-        if(after.root&&!after.root.hidden&&!before.named &&
-          (after.named||after.count>before.count)){shown=true;break;}
-      }
-      if(!shown)throw Error("Attachment handoff was attempted, but no new composer attachment was confirmed. Check the composer before retrying.");
-      try{history=await request("history-add",{repo:verified});}
-      catch(err){status("Attachment displayed, but history could not be saved: "+err.message,true);return;}
-      modal?.close();
-    }catch(err){
-      hideLoading();
-      if(modal&&verified)id("gtg-revisions").hidden=false;
-      status(err.message,true);
-    }
-    finally{
-      busy=false;
-      if(id("gtg-cancel"))id("gtg-cancel").disabled=false;
-      if(id("gtg-close"))id("gtg-close").disabled=false;
-      if(modal&&id("gtg-loading")&&!id("gtg-loading").hidden)hideLoading();
-      // An unconfirmed handoff may still be uploading. Do not allow an accidental duplicate.
-      if(id("gtg-attach"))id("gtg-attach").disabled=!verified||handedOff;
-    }
-  }
-
-
-  function githubIcon(size){
-    const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
-    svg.setAttribute("width",String(size));
-    svg.setAttribute("height",String(size));
-    svg.setAttribute("viewBox","0 0 24 24");
-    svg.setAttribute("fill","none");
-    svg.setAttribute("stroke","currentColor");
-    svg.setAttribute("stroke-width","1.8");
-    svg.setAttribute("stroke-linecap","round");
-    svg.setAttribute("stroke-linejoin","round");
-    svg.setAttribute("aria-hidden","true");
-    const shapes=[
-      "M9 19c-4.3 1.4-4.3-2.5-6-3",
-      "M15 22v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 19 4.77 5.07 5.07 0 0 0 18.91 1S17.73.65 15 2.48a13.38 13.38 0 0 0-7 0C5.27.65 4.09 1 4.09 1A5.07 5.07 0 0 0 4 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 8 18.13V22"
-    ];
-    for(const d of shapes){
-      const path=document.createElementNS("http://www.w3.org/2000/svg","path");
-      path.setAttribute("d",d);
-      svg.append(path);
-    }
-    return svg;
-  }
-  globalThis.__gptTweaksMenus.register({
-    id:"github-source",
-    command:COMMAND,
-    title:COMMAND_TITLE,
-    description:ARCHIVE_DESCRIPTION,
-    icon:githubIcon,
-    isEnabled,
-    isOpen:()=>Boolean(modal),
-    activate:launch
-  });
+  globalThis.__gptTweaksGitHubSourceUI={launch,isEnabled};
 })();
