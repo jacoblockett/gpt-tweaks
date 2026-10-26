@@ -85,7 +85,7 @@
 				? "GPT Tweaks can read the repositories you selected on GitHub. You can update access at any time."
 				: "Choose which repositories GPT Tweaks can read. This is separate from signing in, and public repositories still work without it."
 			githubInstallAction.textContent = installedOnAccount ? "Manage repository access" : "Choose repositories on GitHub"
-			installationPending = false
+			if (installedOnAccount) installationPending = false
 		} catch (error) {
 			githubInstallState.textContent = "Check failed"
 			githubInstallState.dataset.kind = "error"
