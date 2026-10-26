@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "GPT Tweaks",
-  "version": "0.1.0",
-  "description": "Configure enhancements to ChatGPT.",
+  "version": "1.0.0",
+  "description": "UI and UX tweaks to ChatGPT's online web interface.",
   "permissions": [
     "storage"
   ],
