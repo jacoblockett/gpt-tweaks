@@ -464,7 +464,14 @@
         interval=Math.max(result.interval*1000,interval);
       }
       throw Error("GitHub verification expired. Try again.");
-    }catch(err){if(modal)status(err.message,true);}
+    }catch(err){
+      if(modal){
+        id("gtg-device").hidden=true;
+        id("gtg-auth-prompt").hidden=false;
+        id("gtg-login").hidden=false;
+        status(err.message,true);
+      }
+    }
     finally{if(modal)id("gtg-login").disabled=false;}
   }
   function base64Bytes(encoded){
