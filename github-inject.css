@@ -7,7 +7,7 @@
   border:1px solid #393939;border-radius:20px;
   box-shadow:0 18px 60px #0005;
   background:#212121;color:#ededed;
-  padding:0;overflow:hidden;
+  padding:0;overflow:visible;
   font-family:var(--font-sans, "OpenAI Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
   font-size:13px;line-height:1.45;
 }
@@ -27,10 +27,11 @@
 #gtg-dialog .gtg-icon svg {display:block;flex:none;}
 #gtg-dialog .gtg-icon:hover {background:#393939;color:#fff;}
 #gtg-dialog .gtg-body {
-  padding:10px 20px 6px;overflow-y:auto;
+  padding:10px 20px 6px;overflow:visible;
   max-height:calc(100dvh - 145px);
 }
 #gtg-dialog .gtg-label {display:block;font-size:13px;font-weight:600;color:#e7e7e7;margin:0 0 8px;}
+#gtg-dialog .gtg-repo-control {position:relative;}
 #gtg-dialog .gtg-input-wrap {
   display:flex;align-items:center;gap:10px;
   min-height:45px;border-radius:999px;border:1px solid #555;background:#292929;
@@ -51,8 +52,9 @@
 #gtg-dialog #gtg-toggle[aria-expanded="true"] svg {transform:rotate(180deg);}
 #gtg-dialog .gtg-options {
   background:#2b2b2b;border:1px solid #424242;border-radius:19px;
-  margin-top:10px;padding:10px;max-height:min(300px,39vh);
-  overflow-y:auto;
+  position:absolute;top:calc(100% + 8px);left:0;right:0;z-index:40;
+  margin:0;padding:10px;max-height:min(300px,39vh);
+  overflow-y:auto;box-shadow:0 14px 40px #0007;
 }
 #gtg-dialog .gtg-group {
   display:flex;justify-content:space-between;align-items:center;gap:12px;
@@ -96,6 +98,33 @@
   gap:13px;margin-top:18px;
 }
 #gtg-dialog .gtg-select-wrap {position:relative;}
+#gtg-dialog .gtg-select-trigger {
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  width:100%;min-height:45px;padding:9px 16px;
+  border:1px solid #555;border-radius:999px;background:#292929;
+  color:#ededed;font:inherit;text-align:left;cursor:pointer;
+}
+#gtg-dialog .gtg-select-trigger > span {flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#gtg-dialog .gtg-select-trigger > svg {position:static;transform:none;flex:none;pointer-events:none;}
+#gtg-dialog .gtg-select-trigger:disabled {opacity:.65;cursor:not-allowed;}
+#gtg-dialog .gtg-select-trigger[aria-expanded="true"] {border-color:#777;}
+#gtg-dialog .gtg-revision-list {
+  position:absolute;top:calc(100% + 8px);left:0;right:0;z-index:35;
+  max-height:min(260px,38vh);overflow:auto;padding:6px;
+  background:#2b2b2b;border:1px solid #454545;border-radius:15px;
+  box-shadow:0 14px 40px #0007;
+}
+#gtg-dialog .gtg-revision-option {
+  display:block;width:100%;padding:9px 11px;border:0;border-radius:9px;
+  background:transparent;color:#ededed;font:inherit;text-align:left;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;
+}
+#gtg-dialog .gtg-revision-option:hover,
+#gtg-dialog .gtg-revision-option:focus-visible {background:#454545;}
+#gtg-dialog .gtg-revision-option[aria-selected="true"] {background:#3d3d3d;}
+#gtg-dialog .gtg-install-note {
+  font-size:12px;line-height:1.5;color:#c4c4c4;margin:8px 10px;padding:8px 2px;
+}
 #gtg-dialog .gtg-select-wrap svg {
   position:absolute;right:17px;top:50%;transform:translateY(-50%);
   pointer-events:none;color:#c6c6c6;
