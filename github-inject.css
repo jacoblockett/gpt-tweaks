@@ -9,13 +9,14 @@
   overflow-y:auto;
   border:1px solid #3a3a3a;
   border-radius:22px;
-  box-shadow:0 22px 80px #000c;
+  box-shadow:0 12px 40px #0006;
   background:#212121;
   color:#ededed;
   padding:0;
   font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
 }
-#gtg-dialog::backdrop { background:rgba(0,0,0,.64); }
+/* ChatGPT's reference dialog does not dim the conversation. */
+#gtg-dialog::backdrop { background:transparent!important; }
 #gtg-dialog * { box-sizing:border-box; }
 #gtg-dialog .gtg-header {
   display:flex;justify-content:space-between;align-items:center;
@@ -28,6 +29,10 @@
   cursor:pointer;font-size:22px;line-height:1;
 }
 #gtg-dialog .gtg-icon:hover {background:#353535;color:#ededed;}
+#gtg-dialog .gtg-icon svg {display:block;flex:none;}
+/* Injected rows use the same utility classes as the native active item. */
+[data-gtg-menu-option="true"]:focus-visible,
+#gtg-slash:focus-visible {outline:2px solid currentColor;outline-offset:-2px;}
 #gtg-dialog .gtg-body { padding:12px 24px 8px; }
 #gtg-dialog .gtg-label {display:block;font-size:13px;font-weight:600;color:#ededed;margin:0 0 8px;}
 #gtg-dialog .gtg-input-wrap {
