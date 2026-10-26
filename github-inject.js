@@ -4,6 +4,8 @@
   globalThis.__gptTweaksGitHubLoaded = true;
 
   const COMMAND="/attach-github-source";
+  // Match the feature description in website/index.html; do not modify settings copy.
+  const ARCHIVE_DESCRIPTION="Attach a GitHub repository's source code to the current ChatGPT conversation as a ZIP file.";
   const REPO=/^[a-z0-9](?:[a-z0-9-]{0,38})\/[a-z0-9._-]{1,100}$/i;
   let modal=null, busy=false, verified="", branchPage=0,commitPage=0,tip="",repoGen=0,commitGen=0;
   let history=[],mine=[],signedIn=false,authReady=false,accountName="",accountStatusPromise=null,slashAllowed=false;
@@ -14,7 +16,11 @@
 
   async function request(kind,fields={}) {
     const reply=await chrome.runtime.sendMessage({kind:"gpt-github-"+kind,...fields});
-    if(!reply?.ok)throw Error(reply?.error||"GitHub operation failed.");
+    if(!reply?.ok){
+      const error=new Error(reply?.error||"GitHub operation failed.");
+      error.code=reply?.code||"";
+      throw error;
+    }
     return reply.data;
   }
   function repoFrom(text) {
@@ -505,7 +511,7 @@
     const iconSlot=content?.querySelector('[data-leading-icon-slot="menu"]');
     if(!label||!detail||!iconSlot)return;
     label.textContent="Attach GitHub source";
-    detail.textContent="Attach a repository ZIP";
+    detail.textContent=ARCHIVE_DESCRIPTION;
 
     setGitHubIcon(iconSlot);
     styleInjectedMenuRow(button);
@@ -560,7 +566,7 @@
     const menuDesc=slashSuggestion.querySelector(':scope > div > div > div > span');
     if(menuLabel&&menuDesc){
       menuLabel.textContent=COMMAND;
-      menuDesc.textContent="Attach a GitHub repository";
+      menuDesc.textContent=ARCHIVE_DESCRIPTION;
       const icon=slashSuggestion.querySelector('[data-leading-icon-slot="menu"]');
       if(icon){
         setGitHubIcon(icon);
