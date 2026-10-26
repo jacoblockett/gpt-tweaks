@@ -337,10 +337,10 @@
         if(!modal)return;
         const result=await request("auth-poll");
         if(result.connected){
-          signedIn=true;
+          signedIn=true;authReady=true;accountName=result.account||"";
           id("gtg-auth").hidden=true;
           mine=await request("repositories");
-          status("Signed in as "+result.account+".");
+          status("");
           renderSuggestions();
           const repo=repoFrom(id("gtg-repo").value);
           if(repo)await choose(repo);
