@@ -146,6 +146,23 @@
   #gtg-dialog * {transition:none!important;animation:none!important;}
 }
 
+/* GPT Tweaks sits above native commands without pretending to be a
+   React-managed navigation item. The separator is outside the selectable rows. */
+.gtg-menu-heading {
+  color:var(--text-tertiary,#a9a9a9);
+  font-size:12px;
+  font-weight:600;
+  line-height:18px;
+  padding:9px 12px 5px;
+  pointer-events:none;
+}
+.gtg-menu-divider {
+  height:1px;
+  background:var(--border-light,#484848);
+  margin:7px 9px 8px;
+  pointer-events:none;
+}
+
 /* ChatGPT highlights only React-managed items. Hide its retained native
    highlight while the externally injected row is hovered or focused. */
 [data-mention-section-items="true"]:has(> [data-gtg-menu-option="true"]:is(:hover,:focus)) > button:not([data-gtg-menu-option="true"]).bg-primary-ghost-hover,
