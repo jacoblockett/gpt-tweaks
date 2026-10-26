@@ -426,7 +426,7 @@
     busy=true;let handedOff=false;
     id("gtg-attach").disabled=true;id("gtg-cancel").disabled=true;id("gtg-close").disabled=true;
     try{
-      status("Downloading source ZIP…");
+      showLoading();
       const data=await request("zip",{repo:verified,branch:id("gtg-branch").value,
         commit:id("gtg-commit").value});
       const file=new File([base64Bytes(data.base64)],data.filename,{type:"application/zip"});
@@ -434,7 +434,6 @@
       const before=composerAttachmentState(composer,file.name);
       if(!uploadFile(file))throw Error("ChatGPT file uploader could not be found.");
       handedOff=true;
-      status("Waiting for ChatGPT to display the attachment…");
       let shown=false;
       for(let i=0;i<60;i++){
         await new Promise(resolve=>setTimeout(resolve,250));
@@ -446,11 +445,16 @@
       try{history=await request("history-add",{repo:verified});}
       catch(err){status("Attachment displayed, but history could not be saved: "+err.message,true);return;}
       modal?.close();
-    }catch(err){status(err.message,true);}
+    }catch(err){
+      hideLoading();
+      if(modal&&verified)id("gtg-revisions").hidden=false;
+      status(err.message,true);
+    }
     finally{
       busy=false;
       if(id("gtg-cancel"))id("gtg-cancel").disabled=false;
       if(id("gtg-close"))id("gtg-close").disabled=false;
+      if(modal&&id("gtg-loading")&&!id("gtg-loading").hidden)hideLoading();
       // An unconfirmed handoff may still be uploading. Do not allow an accidental duplicate.
       if(id("gtg-attach"))id("gtg-attach").disabled=!verified||handedOff;
     }
