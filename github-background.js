@@ -54,7 +54,11 @@ async function api(url, token = "", missing = "GitHub repository not found or no
   if (!response.ok) {
     let message = "";
     try { message = (await response.json()).message || ""; } catch {}
-    if (response.status === 404) throw Error(missing);
+    if (response.status === 404) {
+      const error=new Error(missing);
+      error.code="NOT_FOUND";
+      throw error;
+    }
     if (response.status === 401) throw Error("GitHub authorization expired. Sign in again.");
     if (response.status === 403) throw Error("GitHub access denied or API rate limit reached: " + (message || "HTTP 403"));
     throw Error("GitHub request failed (HTTP " + response.status + "): " + (message || "unknown error"));
@@ -64,8 +68,14 @@ async function api(url, token = "", missing = "GitHub repository not found or no
 async function repoMeta(name) {
   const {repo} = validateSpec({repo:name});
   const auth = await readAuth();
-  const data = await api(ROOT + "/repos/" + repo, auth?.access_token,
-    "Repository not found or not accessible. Sign in to check access to private repositories.");
+  let data;
+  try {
+    data=await api(ROOT + "/repos/" + repo, auth?.access_token,
+      "Repository not found or inaccessible.");
+  } catch(error) {
+    if(error.code==="NOT_FOUND")error.code="REPOSITORY_UNAVAILABLE";
+    throw error;
+  }
   if (data.full_name?.toLowerCase() !== repo.toLowerCase()) throw Error("Repository redirects to a different name. Enter its canonical owner/repo.");
   return {repo:data.full_name,defaultBranch:data.default_branch || "",private:!!data.private};
 }
@@ -269,6 +279,6 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
     respond({ok:false,error:"Unauthorized request."});return;
   }
   Promise.resolve().then(()=>dispatch(message)).then(data=>respond({ok:true,data}),
-    error=>respond({ok:false,error:error?.message||String(error)}));
+    error=>respond({ok:false,error:error?.message||String(error),code:error?.code||""}));
   return true;
 });
