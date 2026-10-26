@@ -61,10 +61,10 @@
     modal.id="gtg-dialog";
     modal.setAttribute("aria-labelledby","gtg-heading");
     modal.innerHTML=[
-      '<div class="gtg-header"><h2 id="gtg-heading">Attach GitHub Source</h2><button type="button" class="gtg-icon" id="gtg-close" aria-label="Close">×</button></div>',
+      '<div class="gtg-header"><h2 id="gtg-heading">Attach GitHub Source</h2><button type="button" class="gtg-icon" id="gtg-close" aria-label="Close"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 5 15 15M15 5 5 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div>',
       '<div class="gtg-body">',
       '<label class="gtg-label" for="gtg-repo">Repository</label>',
-      '<div class="gtg-input-wrap"><input id="gtg-repo" type="text" autocomplete="off" spellcheck="false" placeholder="Search repositories or paste a GitHub URL" aria-controls="gtg-options" aria-expanded="false" /><button id="gtg-toggle" class="gtg-icon" type="button" aria-label="Show repositories">⌄</button></div>',
+      '<div class="gtg-input-wrap"><input id="gtg-repo" type="text" autocomplete="off" spellcheck="false" placeholder="Search repositories or paste a GitHub URL" aria-controls="gtg-options" aria-expanded="false" /><button id="gtg-toggle" class="gtg-icon" type="button" aria-label="Show repositories"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="m5 7.5 5 5 5-5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>',
       '<div id="gtg-options" class="gtg-options" hidden></div>',
       '<div id="gtg-revisions" class="gtg-revisions" hidden><div><label class="gtg-label" for="gtg-branch">Branch</label><select id="gtg-branch"></select><button type="button" id="gtg-more-branches" class="gtg-more" hidden>Load more branches</button></div>',
       '<div><label class="gtg-label" for="gtg-commit">Commit</label><select id="gtg-commit"></select><button type="button" id="gtg-more-commits" class="gtg-more" hidden>Load older commits</button></div></div>',
@@ -76,6 +76,13 @@
     document.body.append(modal);
     modal.addEventListener("close",clearUi,{once:true});
     modal.addEventListener("cancel",event=>{if(busy)event.preventDefault();});
+    // A native modal's transparent backdrop should dismiss on outside click.
+    modal.addEventListener("click",event=>{
+      if(busy||event.target!==modal)return;
+      const r=modal.getBoundingClientRect();
+      if(event.clientX<r.left||event.clientX>r.right||
+         event.clientY<r.top||event.clientY>r.bottom)modal.close();
+    });
     id("gtg-close").addEventListener("click",()=>modal.close());
     id("gtg-cancel").addEventListener("click",()=>modal.close());
     id("gtg-toggle").addEventListener("click",()=>{
@@ -352,6 +359,43 @@
     }
   }
 
+  // Preserve ChatGPT's compact and leading icon wrappers and dimensions.
+  const GITHUB_MARK="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.65 7.65 0 0 1 8 4.85c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z";
+  function setGitHubIcon(iconSlot){
+    const originals=[...iconSlot.querySelectorAll("svg")];
+    if(!originals.length) return;
+    for(const old of originals){
+      const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+      svg.setAttribute("aria-hidden","true");
+      svg.setAttribute("focusable","false");
+      svg.setAttribute("width",old.getAttribute("width")||"20");
+      svg.setAttribute("height",old.getAttribute("height")||"20");
+      svg.setAttribute("viewBox","0 0 16 16");
+      svg.setAttribute("fill","currentColor");
+      svg.setAttribute("class",old.getAttribute("class")||"");
+      const path=document.createElementNS("http://www.w3.org/2000/svg","path");
+      path.setAttribute("d",GITHUB_MARK);
+      svg.append(path);
+      old.replaceWith(svg);
+    }
+  }
+  function styleInjectedMenuRow(button){
+    button.removeAttribute("aria-current");
+    button.removeAttribute("aria-selected");
+    button.classList.remove("bg-primary-ghost-hover","opacity-100");
+    button.classList.add("menu-row-opacity");
+    const active=()=>{button.classList.add("bg-primary-ghost-hover","opacity-100");button.classList.remove("menu-row-opacity");};
+    const inactive=()=>{
+      if(button.matches(":hover,:focus"))return;
+      button.classList.remove("bg-primary-ghost-hover","opacity-100");
+      button.classList.add("menu-row-opacity");
+    };
+    button.addEventListener("pointerenter",active);
+    button.addEventListener("pointerleave",inactive);
+    button.addEventListener("focus",active);
+    button.addEventListener("blur",inactive);
+  }
+
   function createMenuOption(reference){
     const element=reference.closest('button[data-list-navigation-item="true"]');
     const section=element?.closest('[data-mention-section-items="true"]');
@@ -374,16 +418,8 @@
     label.textContent="Attach GitHub source";
     detail.textContent="Attach a repository ZIP";
 
-    const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
-    svg.setAttribute("width","16");
-    svg.setAttribute("height","16");
-    svg.setAttribute("viewBox","0 0 16 16");
-    svg.setAttribute("fill","currentColor");
-    svg.setAttribute("aria-hidden","true");
-    const path=document.createElementNS("http://www.w3.org/2000/svg","path");
-    path.setAttribute("d","M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.65 7.65 0 0 1 8 4.85c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z");
-    svg.append(path);
-    iconSlot.replaceChildren(svg);
+    setGitHubIcon(iconSlot);
+    styleInjectedMenuRow(button);
     button.addEventListener("mousedown",event=>event.preventDefault());
     button.addEventListener("click",event=>{
       event.preventDefault();
@@ -424,10 +460,7 @@
     slashSuggestion.type="button";
     slashSuggestion.id="gtg-slash";
     slashSuggestion.dataset.gtgSlash="true";
-    slashSuggestion.removeAttribute("aria-current");
-    slashSuggestion.removeAttribute("aria-selected");
-    slashSuggestion.classList.remove("bg-primary-ghost-hover","opacity-100");
-    slashSuggestion.classList.add("menu-row-opacity");
+    styleInjectedMenuRow(slashSuggestion);
     const menuLabel=slashSuggestion.querySelector(':scope > div > div > div > div');
     const menuDesc=slashSuggestion.querySelector(':scope > div > div > div > span');
     if(menuLabel&&menuDesc){
@@ -435,15 +468,7 @@
       menuDesc.textContent="Attach a GitHub repository";
       const icon=slashSuggestion.querySelector('[data-leading-icon-slot="menu"]');
       if(icon){
-        const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
-        svg.setAttribute("width","20");
-        svg.setAttribute("height","20");
-        svg.setAttribute("viewBox","0 0 16 16");
-        svg.setAttribute("fill","currentColor");
-        svg.setAttribute("aria-hidden","true");
-        const path=document.createElementNS("http://www.w3.org/2000/svg","path");
-        path.setAttribute("d","M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.65 7.65 0 0 1 8 4.85c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z");
-        svg.append(path);icon.replaceChildren(svg);
+        setGitHubIcon(icon);
       }
       // Keep the button's native layout and menu navigation attributes.
       native.before(slashSuggestion);
