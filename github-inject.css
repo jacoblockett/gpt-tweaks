@@ -131,3 +131,10 @@
   background-color: transparent!important;
   opacity: var(--opacity-menu-row,.75)!important;
 }
+
+/* Mask React's retained active item while the extension's virtual slot
+   is selected by keyboard, without altering any native item state. */
+[data-mention-section-items="true"]:has(> [data-gtg-virtual-highlight="true"]) > button:not([data-gtg-virtual-highlight="true"]).bg-primary-ghost-hover {
+  background-color:transparent!important;
+  opacity:var(--opacity-menu-row,.75)!important;
+}
