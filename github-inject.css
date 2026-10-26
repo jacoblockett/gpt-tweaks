@@ -207,4 +207,14 @@
 .gtg-fallback-icon {display:grid;place-items:center;flex:none;color:inherit;width:20px;height:20px;}
 .gtg-fallback-text {display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0;}
 .gtg-fallback-description {color:var(--text-secondary,#bababa);font-size:13px;}
-.gtg-fuzzy-match {font-weight:700;color:var(--text-primary,#fff);}
+/* Mirror ChatGPT's fuzzy filtering: unmatched title text is dimmed,
+   matched characters retain the normal text color and font weight. */
+#gtg-slash [data-gtg-slash-title="true"] { color:var(--text-tertiary,#999); }
+#gtg-slash [data-gtg-slash-title="true"] > span {
+  color:var(--text-tertiary,#999);
+  font-weight:inherit;
+}
+#gtg-slash [data-gtg-slash-title="true"] > span.gtg-fuzzy-match {
+  color:var(--text-primary,#ededed);
+  font-weight:inherit;
+}
