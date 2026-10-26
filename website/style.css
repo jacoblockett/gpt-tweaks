@@ -339,3 +339,54 @@ code {
 	color: #f2a9a9;
 	font-size: 13px;
 }
+
+/* Repository access is a separate, optional step after GitHub sign-in. */
+.github-access-card {
+	margin-top: 18px;
+	padding: 16px 18px;
+	max-width: 615px;
+	background: #141417;
+	border: 1px solid var(--border);
+	border-radius: 13px;
+}
+.github-access-card[hidden] { display: none; }
+.github-access-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 12px;
+}
+.github-access-title {
+	color: var(--text);
+	font-size: 14px;
+	font-weight: 630;
+}
+.github-access-state {
+	color: #bcbac3;
+	font-size: 12px;
+	font-weight: 560;
+}
+.github-access-state[data-kind="ready"] { color: #c9c9cf; }
+.github-access-state[data-kind="error"] { color: #f0aaaa; }
+.github-access-copy {
+	margin: 9px 0 14px;
+	color: var(--muted);
+	font-size: 13px;
+	line-height: 1.55;
+}
+.github-access-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 9px;
+	align-items: center;
+}
+.github-access-refresh {
+	padding: 9px 10px;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	color: #c8c5cd;
+	font-size: 12px;
+}
+.github-access-refresh:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+.github-access-refresh:disabled { opacity: .55; cursor: wait; }
