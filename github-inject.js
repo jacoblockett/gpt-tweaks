@@ -781,7 +781,7 @@
     // while typing. Never select or replace the rest of the ProseMirror document.
     const range=slashRange?.cloneRange();
     if(composer&&range&&composer.contains(range.commonAncestorContainer)&&
-       COMMAND.toLowerCase().startsWith(range.toString().toLowerCase())){
+       fuzzyPositions(range.toString())!==null){
       composer.focus();
       const selection=window.getSelection();
       selection.removeAllRanges();
@@ -887,7 +887,7 @@
         clearComposerCommand();launch("slash");
       }else{
         isEnabled("slash").then(enabled=>{
-          if(!enabled||!modal&&localComposer()!==composer)return;
+          if(!enabled||localComposer()!==composer||slashRange?.toString().toLowerCase()!==COMMAND.toLowerCase())return;
           clearComposerCommand();launch("slash");
         }).catch(()=>{});
       }
