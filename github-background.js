@@ -92,7 +92,7 @@ async function commits(input) {
   const {repo,branch}=validateSpec(input);
   if (!branch) throw Error("Select a branch.");
   const page=input.page;
-  if (!Number.isSafeInteger(page)||page<1||page>100) throw Error("Invalid commit page.");
+  if (!Number.isSafeInteger(page)||page<1) throw Error("Invalid commit page.");
   const auth=await readAuth();
   const root=ROOT+"/repos/"+repo;
   let tip=input.tip || "";

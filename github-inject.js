@@ -9,6 +9,8 @@
   const ARCHIVE_DESCRIPTION="Attach a GitHub repository source code.";
   const REPO=/^[a-z0-9](?:[a-z0-9-]{0,38})\/[a-z0-9._-]{1,100}$/i;
   let modal=null, busy=false, verified="", branchPage=0,commitPage=0,tip="",repoGen=0,commitGen=0;
+  const COMMIT_WINDOW=10,COMMIT_ROW_HEIGHT=36;
+  let commitEntries=[],commitHasMore=false,commitLoading=false;
   let history=[],mine=[],repositoriesLoading=false,repositoriesFailed=false,slashAllowed=false,slashFeatureEnabled=null;
   let observer=null,scanQueued=false,scanTimer=null,slashSuggestion=null,lookupTimer=null;
   const id=id=>modal?.querySelector("#"+id);
@@ -121,7 +123,7 @@
       '<div id="gtg-options" class="gtg-options" hidden></div></div>',
       '<div id="gtg-revisions" class="gtg-revisions" hidden>',
       '<div><label class="gtg-label" for="gtg-branch-trigger">Branch</label><div class="gtg-select-wrap"><select id="gtg-branch" hidden></select><button type="button" class="gtg-select-trigger" id="gtg-branch-trigger" aria-expanded="false" aria-haspopup="listbox" aria-controls="gtg-branch-list"><span id="gtg-branch-label"></span>',caret,'</button><div class="gtg-revision-list" id="gtg-branch-list" role="listbox" aria-label="Branches" hidden></div></div><button type="button" id="gtg-more-branches" class="gtg-more" hidden>Load more branches</button></div>',
-      '<div><label class="gtg-label" for="gtg-commit-trigger">Commit</label><div class="gtg-select-wrap"><select id="gtg-commit" hidden></select><button type="button" class="gtg-select-trigger" id="gtg-commit-trigger" aria-expanded="false" aria-haspopup="listbox" aria-controls="gtg-commit-list"><span id="gtg-commit-label"></span>',caret,'</button><div class="gtg-revision-list" id="gtg-commit-list" role="listbox" aria-label="Commits" hidden></div></div><button type="button" id="gtg-more-commits" class="gtg-more" hidden>Load older commits</button></div>',
+      '<div><label class="gtg-label" for="gtg-commit-trigger">Commit</label><div class="gtg-select-wrap"><select id="gtg-commit" hidden></select><button type="button" class="gtg-select-trigger" id="gtg-commit-trigger" aria-expanded="false" aria-haspopup="listbox" aria-controls="gtg-commit-list"><span id="gtg-commit-label"></span>',caret,'</button><div class="gtg-revision-list" id="gtg-commit-list" role="listbox" aria-label="Commits" hidden></div></div></div>',
       '</div>',
       '<div id="gtg-status" class="gtg-status" role="status" aria-live="polite" hidden></div>',
       '</div><div class="gtg-footer"><button type="button" class="gtg-btn gtg-cancel" id="gtg-cancel">Cancel</button>',
@@ -174,7 +176,6 @@
       if(!event.target.closest(".gtg-select-wrap"))hideRevisionMenus();
     },true);
     id("gtg-more-branches").addEventListener("click",()=>loadBranches(branchPage+1,repoGen).catch(()=>{if(modal)status("Could not load branches.",true);}));
-    id("gtg-more-commits").addEventListener("click",()=>loadCommits(commitPage+1,repoGen));
     id("gtg-attach").addEventListener("click",attach);
     dialog.showModal();
     id("gtg-repo").focus();
@@ -202,6 +203,105 @@
       trigger?.setAttribute("aria-expanded","false");
     }
   }
+  function commitChoice(index){
+    if(index===0)return {value:"",text:"Latest"};
+    const item=commitEntries[index-1];
+    return {value:item.sha,text:item.sha.slice(0,10)+" · "+item.date+" · "+item.message};
+  }
+  function selectCommit(index){
+    const select=id("gtg-commit"),trigger=id("gtg-commit-trigger");
+    const choice=commitChoice(index);
+    const changed=select.value!==choice.value;
+    select.replaceChildren(option("Latest",""));
+    if(choice.value)select.append(option(choice.text,choice.value));
+    select.value=choice.value;
+    hideRevisionMenus();
+    syncRevisionTriggers();
+    if(changed)select.dispatchEvent(new Event("change",{bubbles:true}));
+    trigger.focus();
+  }
+  function renderCommitWindow(){
+    const panel=id("gtg-commit-list");
+    if(!panel||panel.hidden)return;
+    const total=commitEntries.length+1;
+    const start=Math.min(Math.floor(panel.scrollTop/COMMIT_ROW_HEIGHT),Math.max(0,total-COMMIT_WINDOW));
+    const end=Math.min(total,start+COMMIT_WINDOW);
+    const focused=panel.contains(document.activeElement)?
+      Number(document.activeElement.dataset.commitIndex):-1;
+    const above=document.createElement("div");
+    above.className="gtg-commit-spacer";
+    above.style.height=(start*COMMIT_ROW_HEIGHT)+"px";
+    above.setAttribute("aria-hidden","true");
+    const elements=[above];
+    for(let index=start;index<end;index++){
+      const choice=commitChoice(index),row=document.createElement("button");
+      row.type="button";row.className="gtg-revision-option";
+      row.dataset.commitIndex=String(index);
+      row.setAttribute("role","option");
+      row.setAttribute("aria-selected",String(choice.value===id("gtg-commit").value));
+      row.setAttribute("aria-setsize",String(total));
+      row.setAttribute("aria-posinset",String(index+1));
+      row.textContent=choice.text;row.title=choice.text;
+      row.addEventListener("click",()=>selectCommit(index));
+      elements.push(row);
+    }
+    const below=document.createElement("div");
+    below.className="gtg-commit-spacer";
+    below.style.height=((total-end)*COMMIT_ROW_HEIGHT)+"px";
+    below.setAttribute("aria-hidden","true");
+    elements.push(below);
+    panel.replaceChildren(...elements);
+    if(Number.isInteger(focused)&&focused>=0){
+      const row=elements.find(el=>Number(el.dataset?.commitIndex)===focused);
+      if(row)row.focus({preventScroll:true});
+      else panel.focus({preventScroll:true});
+    }
+  }
+  function checkMoreCommits(){
+    const panel=id("gtg-commit-list");
+    if(!panel||panel.hidden||!commitHasMore||commitLoading||!commitPage)return;
+    if(panel.scrollTop+panel.clientHeight>=panel.scrollHeight-COMMIT_ROW_HEIGHT)
+      void loadCommits(commitPage+1,repoGen);
+  }
+  function showCommitMenu(trigger,panel){
+    const select=id("gtg-commit");
+    panel.hidden=false;trigger.setAttribute("aria-expanded","true");
+    const selected=select.value?commitEntries.findIndex(x=>x.sha===select.value)+1:0;
+    panel.scrollTop=Math.max(0,selected)*COMMIT_ROW_HEIGHT;
+    renderCommitWindow();
+    const focusIndex=selected>=0?selected:0;
+    const initial=[...panel.querySelectorAll(".gtg-revision-option")]
+      .find(row=>Number(row.dataset.commitIndex)===focusIndex);
+    (initial||panel).focus({preventScroll:true});
+    panel.onscroll=()=>{
+      if(panel.hidden)return;
+      renderCommitWindow();
+      checkMoreCommits();
+    };
+    panel.onkeydown=event=>{
+      if(event.key==="Escape"){
+        event.preventDefault();hideRevisionMenus();trigger.focus();return;
+      }
+      if(!["ArrowDown","ArrowUp","Home","End"].includes(event.key))return;
+      event.preventDefault();
+      const active=Number(document.activeElement?.dataset.commitIndex);
+      const fallback=select.value?commitEntries.findIndex(x=>x.sha===select.value)+1:0;
+      const index=Number.isInteger(active)&&panel.contains(document.activeElement)?active:Math.max(0,fallback);
+      const total=commitEntries.length+1;
+      const next=event.key==="Home"?0:event.key==="End"?total-1:
+        (index+(event.key==="ArrowDown"?1:-1)+total)%total;
+      const viewport=Math.max(1,Math.floor(panel.clientHeight/COMMIT_ROW_HEIGHT));
+      if(next*COMMIT_ROW_HEIGHT<panel.scrollTop)
+        panel.scrollTop=next*COMMIT_ROW_HEIGHT;
+      else if((next+1)*COMMIT_ROW_HEIGHT>panel.scrollTop+panel.clientHeight)
+        panel.scrollTop=Math.max(0,(next+1)*COMMIT_ROW_HEIGHT-viewport*COMMIT_ROW_HEIGHT);
+      renderCommitWindow();
+      const row=[...panel.querySelectorAll(".gtg-revision-option")]
+        .find(button=>Number(button.dataset.commitIndex)===next);
+      (row||panel).focus({preventScroll:true});
+      checkMoreCommits();
+    };
+  }
   function syncRevisionTriggers(){
     for(const kind of ["branch","commit"]){
       const select=id("gtg-"+kind),trigger=id("gtg-"+kind+"-trigger");
@@ -216,6 +316,10 @@
     const select=id("gtg-"+kind),trigger=id("gtg-"+kind+"-trigger"),panel=id("gtg-"+kind+"-list");
     if(!select||select.disabled||!select.options.length)return;
     hideSuggestions();hideRevisionMenus();
+    if(kind==="commit"){
+      showCommitMenu(trigger,panel);
+      return;
+    }
     panel.replaceChildren();
     for(const choice of select.options){
       const row=document.createElement("button");
@@ -354,6 +458,7 @@
   function resetRepo(){
     hideRevisionMenus();
     repoGen++;commitGen++;verified="";branchPage=0;commitPage=0;tip="";
+    commitEntries=[];commitHasMore=false;commitLoading=false;
     hideLoading();
     id("gtg-revisions").hidden=true;
     id("gtg-verified").hidden=true;
@@ -362,7 +467,6 @@
   }
   function prepareRevisionLoading(){
     id("gtg-more-branches").hidden=true;
-    id("gtg-more-commits").hidden=true;
     showLoading();
   }
   async function choose(entered){
@@ -429,8 +533,16 @@
   async function loadCommits(page,generation=repoGen){
     const branch=id("gtg-branch")?.value,repo=verified;
     if(!repo||!branch)return;
+    if(page>1&&(!commitHasMore||commitLoading||page!==commitPage+1))return;
     const commitRequest=++commitGen;
-    showLoading();
+    if(page===1){
+      commitPage=0;
+      commitEntries=[];
+      commitHasMore=false;
+      commitLoading=false;
+      tip="";
+      showLoading();
+    }else commitLoading=true;
     try{
       const data=await request("commits",{repo,branch,page,...(page>1?{tip}:{})});
       if(generation!==repoGen||commitRequest!==commitGen||!modal||id("gtg-branch").value!==branch)return;
@@ -439,29 +551,31 @@
         tip=data.tip;
         commit.replaceChildren(option("Latest",""));
       }
-      const existing=new Set([...commit.options].map(x=>x.value));
+      const existing=new Set(commitEntries.map(x=>x.sha));
       for(const entry of data.commits){
         if(!existing.has(entry.sha)){
-          commit.append(option(entry.sha.slice(0,10)+" · "+entry.date+" · "+entry.message,entry.sha));
+          commitEntries.push(entry);
           existing.add(entry.sha);
         }
       }
       commitPage=page;
+      commitHasMore=!!data.hasMore;
+      commitLoading=false;
       commit.disabled=false;
       syncRevisionTriggers();
-      id("gtg-more-commits").hidden=!data.hasMore;
-      id("gtg-verified").hidden=false;
-      hideLoading();
-      id("gtg-revisions").hidden=false;
-      id("gtg-attach").disabled=false;
+      if(page===1){
+        id("gtg-verified").hidden=false;
+        hideLoading();
+        id("gtg-revisions").hidden=false;
+        id("gtg-attach").disabled=false;
+      }else if(!id("gtg-commit-list").hidden){
+        renderCommitWindow();
+      }
     }catch(err){
       if(generation===repoGen&&commitRequest===commitGen&&modal){
-        hideLoading();
-        if(page>1){
-          id("gtg-revisions").hidden=false;
-          id("gtg-attach").disabled=false;
-          status("Could not load commits.",true);
-        }
+        commitLoading=false;
+        if(page>1)status("Could not load commits.",true);
+        else hideLoading();
       }
       if(page===1)throw err;
     }
