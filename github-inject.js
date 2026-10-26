@@ -623,7 +623,14 @@
     const label=row?.querySelector('[data-gtg-slash-title="true"]');
     if(!label||label.dataset.gtgFuzzyQuery===value)return;
     label.dataset.gtgFuzzyQuery=value;
-    const active=new Set(fuzzyPositions(value)||[]);
+    const positions=fuzzyPositions(value)||[];
+    // A lone slash opens the command menu; it does not start a fuzzy search.
+    row.dataset.gtgFuzzyActive=positions.length?"true":"false";
+    if(!positions.length){
+      label.textContent=COMMAND_TITLE;
+      return;
+    }
+    const active=new Set(positions);
     const parts=[];
     for(let i=0;i<COMMAND_TITLE.length;i++){
       const letter=document.createElement("span");
@@ -761,6 +768,16 @@
       menuLabel.dataset.gtgSlashTitle="true";
       menuDesc.textContent=ARCHIVE_DESCRIPTION;
       const icon=slashSuggestion.querySelector('[data-leading-icon-slot="menu"]');
+      // The available native command might be a submenu (e.g. Model).
+      // Its trailing chevron must never be inherited by our action row.
+      for(const arrow of slashSuggestion.querySelectorAll("svg")){
+        if(icon?.contains(arrow))continue;
+        const parent=arrow.parentElement;
+        arrow.remove();
+        if(parent&&parent!==slashSuggestion&&
+           !parent.textContent.trim()&&!parent.querySelector("svg,button,input"))
+          parent.remove();
+      }
       if(icon)setGitHubIcon(icon);
       mountMenuGroup(native.parentElement,slashSuggestion,"slash");
     }
