@@ -1,127 +1,138 @@
-/* GitHub source selector, styled to ChatGPT's dark modal surface. */
+/* GitHub repository picker, matched to the approved neutral ChatGPT dialog. */
 #gtg-dialog {
-  color-scheme: dark;
-  position:fixed;
-  inset:0;
-  margin:auto;
-  width:min(680px,calc(100vw - 32px));
-  max-height:min(660px,calc(100dvh - 30px));
-  overflow-y:auto;
-  border:1px solid #3a3a3a;
-  border-radius:22px;
-  box-shadow:0 12px 40px #0006;
-  background:#212121;
-  color:#ededed;
-  padding:0;
-  font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  color-scheme:dark;
+  position:fixed;inset:0;margin:auto;
+  width:min(875px,calc(100vw - 32px));
+  max-height:calc(100dvh - 32px);
+  border:1px solid #393939;border-radius:26px;
+  box-shadow:0 18px 60px #0005;
+  background:#212121;color:#ededed;
+  padding:0;overflow:hidden;
+  font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
 }
-/* ChatGPT's reference dialog does not dim the conversation. */
-#gtg-dialog::backdrop { background:transparent!important; }
-#gtg-dialog * { box-sizing:border-box; }
+#gtg-dialog::backdrop {background:transparent!important;}
+#gtg-dialog *,#gtg-dialog *::before,#gtg-dialog *::after {box-sizing:border-box;}
+#gtg-dialog [hidden] {display:none!important;}
 #gtg-dialog .gtg-header {
-  display:flex;justify-content:space-between;align-items:center;
-  padding:21px 24px 10px;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:24px 25px 14px;
 }
-#gtg-dialog h2 { font-size:21px;letter-spacing:-.3px;font-weight:650;margin:0;color:#ededed; }
+#gtg-dialog h2 {font-size:23px;line-height:1.3;font-weight:650;letter-spacing:-.4px;margin:0;color:#ededed;}
 #gtg-dialog .gtg-icon {
-  width:30px;height:30px;display:inline-grid;place-items:center;padding:0;
-  border:0;border-radius:50%;background:transparent;color:#b8b8b8;
-  cursor:pointer;font-size:22px;line-height:1;
+  border:0;background:transparent;color:#c4c4c4;
+  display:inline-grid;place-items:center;padding:0;
+  width:32px;height:32px;border-radius:50%;cursor:pointer;flex:none;
 }
-#gtg-dialog .gtg-icon:hover {background:#353535;color:#ededed;}
 #gtg-dialog .gtg-icon svg {display:block;flex:none;}
-/* Injected rows use the same utility classes as the native active item. */
-[data-gtg-menu-option="true"]:focus-visible,
-#gtg-slash:focus-visible {outline:2px solid currentColor;outline-offset:-2px;}
-#gtg-dialog .gtg-body { padding:12px 24px 8px; }
-#gtg-dialog .gtg-label {display:block;font-size:13px;font-weight:600;color:#ededed;margin:0 0 8px;}
+#gtg-dialog .gtg-icon:hover {background:#393939;color:#fff;}
+#gtg-dialog .gtg-body {
+  padding:10px 25px 8px;overflow-y:auto;
+  max-height:calc(100dvh - 190px);
+}
+#gtg-dialog .gtg-label {display:block;font-size:15px;font-weight:650;color:#e7e7e7;margin:0 0 10px;}
 #gtg-dialog .gtg-input-wrap {
-  display:flex;align-items:center;border:1px solid #555;border-radius:999px;
-  background:#292929;min-height:43px;padding:0 8px 0 17px;
+  display:flex;align-items:center;gap:10px;
+  min-height:57px;border-radius:999px;border:1px solid #555;background:#292929;
+  padding:0 13px 0 20px;
 }
-#gtg-dialog .gtg-input-wrap:focus-within {border-color:#7849d1;outline:1px solid #7849d1;}
-#gtg-dialog input {
-  flex:1;min-width:0;background:transparent;border:0;outline:0;
-  color:#ededed;padding:10px 0;font-size:14px;
+#gtg-dialog .gtg-input-wrap:focus-within {border-color:#777;}
+#gtg-dialog .gtg-input-leading {color:#bfbfbf;flex:none;display:block;}
+#gtg-dialog #gtg-repo {
+  background:transparent;border:0;outline:none;min-width:0;flex:1;
+  color:#ededed;font:inherit;padding:13px 0;
 }
-#gtg-dialog input::placeholder {color:#aaa;}
+#gtg-dialog #gtg-repo::placeholder {color:#a9a9a9;opacity:1;}
+#gtg-dialog .gtg-verified {color:#c7c7c7;display:grid;place-items:center;}
+#gtg-dialog #gtg-toggle svg {transition:transform .15s ease;}
+#gtg-dialog #gtg-toggle[aria-expanded="true"] svg {transform:rotate(180deg);}
 #gtg-dialog .gtg-options {
-  border:1px solid #4a4a4a;border-radius:12px;background:#2b2b2b;
-  margin-top:5px;max-height:252px;overflow-y:auto;padding:6px;
+  background:#2b2b2b;border:1px solid #424242;border-radius:19px;
+  margin-top:10px;padding:10px;max-height:min(330px,40vh);
+  overflow-y:auto;
 }
-#gtg-dialog .gtg-options[hidden],#gtg-dialog [hidden] {display:none!important;}
 #gtg-dialog .gtg-group {
-  padding:8px 10px 6px;display:flex;align-items:center;justify-content:space-between;
-  color:#b9b9b9;font-size:11px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;
+  display:flex;justify-content:space-between;align-items:center;gap:12px;
+  color:#c5c5c5;font-size:13px;font-weight:500;text-transform:uppercase;
+  padding:9px 10px 11px;
 }
+#gtg-dialog .gtg-group .gtg-account {text-transform:none;font-size:13px;}
 #gtg-dialog .gtg-group button {
-  color:#c5b0f7;border:0;background:transparent;padding:2px 6px;
-  font-size:12px;cursor:pointer;text-transform:none;letter-spacing:0;
+  border:0;background:transparent;color:#ededed;padding:3px 0;
+  text-transform:none;cursor:pointer;font:inherit;
 }
+#gtg-dialog .gtg-group button:hover {text-decoration:underline;}
+#gtg-dialog .gtg-options-divider {height:1px;background:#434343;margin:7px 0 13px;}
 #gtg-dialog .gtg-option-row {
-  display:flex;align-items:center;gap:6px;
-  min-height:34px;border-radius:8px;
+  display:flex;align-items:center;min-height:44px;gap:4px;border-radius:13px;
 }
-#gtg-dialog .gtg-option-row:hover {background:#404040;}
+#gtg-dialog .gtg-option-row:hover,#gtg-dialog .gtg-option-row:focus-within {background:#424242;}
 #gtg-dialog .gtg-pick {
-  flex:1;min-width:0;padding:8px 9px;text-align:left;overflow:hidden;text-overflow:ellipsis;
-  background:transparent;border:0;color:#ededed;cursor:pointer;font-size:13px;
+  display:flex;align-items:center;gap:12px;min-height:44px;
+  flex:1;min-width:0;background:transparent;border:0;
+  color:#ededed;font:inherit;text-align:left;cursor:pointer;
+  padding:8px 12px;border-radius:12px;
 }
-#gtg-dialog .gtg-remove {
-  flex:none;padding:0 7px;background:transparent;border:0;
-  font-size:20px;color:#b8b8b8;cursor:pointer;
+#gtg-dialog .gtg-pick .gtg-pick-text {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#gtg-dialog .gtg-pick .gtg-entry-icon {flex:none;color:#c6c6c6;}
+#gtg-dialog .gtg-private {color:#bcbcbc;font-size:13px;margin-left:auto;padding-right:10px;}
+#gtg-dialog .gtg-remove {flex:none;border:0;background:transparent;color:#bbb;
+  cursor:pointer;border-radius:9px;width:36px;height:36px;display:grid;place-items:center;}
+#gtg-dialog .gtg-remove:hover {color:#fff;background:#4c4c4c;}
+#gtg-dialog .gtg-revisions {
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  gap:15px;margin-top:21px;
 }
-#gtg-dialog .gtg-remove:hover {color:#ededed;}
-#gtg-dialog .gtg-empty {margin:8px 10px 10px;color:#bcbcbc;font-size:13px;}
-#gtg-dialog .gtg-revisions {display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:20px;}
+#gtg-dialog .gtg-select-wrap {position:relative;}
+#gtg-dialog .gtg-select-wrap svg {
+  position:absolute;right:17px;top:50%;transform:translateY(-50%);
+  pointer-events:none;color:#c6c6c6;
+}
 #gtg-dialog select {
-  color:#ededed;background:#303030;border:1px solid #565656;
-  border-radius:11px;padding:10px;width:100%;min-width:0;min-height:42px;font:inherit;
+  appearance:none;-webkit-appearance:none;background:#292929;
+  color:#ededed;border:1px solid #555;border-radius:999px;
+  padding:12px 43px 12px 19px;width:100%;min-height:56px;
+  font:inherit;cursor:pointer;outline:none;
 }
-#gtg-dialog select:focus-visible,#gtg-dialog button:focus-visible {outline:2px solid #7849d1;outline-offset:2px;}
-#gtg-dialog .gtg-more {
-  display:block;margin-top:6px;border:0;background:transparent;color:#c5a9fc;
-  cursor:pointer;font-size:12px;padding:4px 1px;
+#gtg-dialog select:focus-visible,#gtg-dialog button:focus-visible,#gtg-dialog .gtg-pick:focus-visible {
+  outline:2px solid #ddd;outline-offset:2px;
 }
-#gtg-dialog .gtg-auth {
-  margin-top:18px;padding:14px 16px;background:#302837;border:1px solid #554067;
-  border-radius:12px;
-}
-#gtg-dialog .gtg-auth p {margin:0 0 10px;color:#ededed;font-size:13px;}
-#gtg-dialog .gtg-aux {
-  background:#7849d1;border:0;border-radius:999px;color:#fff;min-height:34px;
-  padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;
-}
+#gtg-dialog select:disabled {opacity:.7;cursor:wait;}
+#gtg-dialog .gtg-more {border:0;background:transparent;color:#dadada;
+  padding:7px 3px;font-size:12px;cursor:pointer;}
+#gtg-dialog .gtg-more:hover {text-decoration:underline;}
+#gtg-dialog .gtg-auth {margin-top:18px;background:#2b2b2b;
+  padding:15px 18px;border-radius:13px;border:1px solid #454545;}
+#gtg-dialog .gtg-auth p {margin:0 0 11px;color:#ddd;font-size:14px;}
+#gtg-dialog .gtg-aux {background:#ededed;color:#202020;
+  border:1px solid #ededed;border-radius:999px;
+  min-height:36px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;}
+#gtg-dialog .gtg-aux:hover {background:#fff;}
 #gtg-dialog .gtg-aux:disabled {opacity:.5;cursor:wait;}
 #gtg-dialog #gtg-device {margin-top:12px;}
-#gtg-dialog #gtg-device-code {display:block;letter-spacing:.12em;font-size:20px;padding:8px 0;}
-#gtg-dialog .gtg-status {color:#bfbfbf;min-height:20px;margin:12px 0 2px;font-size:12px;}
-#gtg-dialog .gtg-status[data-error="true"] {color:#f1adae;}
-#gtg-dialog .gtg-footer {
-  padding:14px 24px 22px;display:flex;justify-content:flex-end;align-items:center;gap:10px;
-}
-#gtg-dialog .gtg-btn {
-  border-radius:999px;min-width:87px;height:38px;padding:7px 14px;
-  font-family:inherit;font-size:13px;line-height:1.4;font-weight:600;cursor:pointer;
-}
-#gtg-dialog .gtg-cancel {border:1px solid #575757;background:#303030;color:#ededed;}
-#gtg-dialog .gtg-attach {border:1px solid #7849d1;background:#7849d1;color:#fff;}
+#gtg-dialog #gtg-device-code {display:block;font-size:19px;letter-spacing:.14em;padding:6px 0;}
+#gtg-dialog .gtg-status {color:#c5c5c5;font-size:13px;margin:10px 0 0;min-height:20px;}
+#gtg-dialog .gtg-status[data-error="true"] {color:#f2a9a9;}
+#gtg-dialog .gtg-footer {display:flex;align-items:center;justify-content:flex-end;
+  gap:10px;padding:18px 25px 24px;}
+#gtg-dialog .gtg-btn {font:600 14px/1.3 inherit;min-width:115px;height:49px;
+  border-radius:999px;padding:10px 18px;cursor:pointer;}
+#gtg-dialog .gtg-cancel {background:#2d2d2d;border:1px solid #585858;color:#ededed;}
+#gtg-dialog .gtg-cancel:hover {background:#383838;}
+#gtg-dialog .gtg-attach {background:#ededed;border:1px solid #ededed;color:#202020;}
+#gtg-dialog .gtg-attach:hover:not(:disabled) {background:#fff;}
 #gtg-dialog .gtg-btn:disabled {opacity:.45;cursor:not-allowed;}
-#gtg-slash.gtg-slash-fallback {
-  position:absolute;bottom:calc(100% + 8px);left:10px;width:min(390px,calc(100% - 20px));
-  border:1px solid #515151;border-radius:12px;background:#303030;
-  padding:11px 15px;color:#ededed;text-align:left;font:13px/1.4 inherit;z-index:50;cursor:pointer;
+[data-gtg-menu-option="true"]:focus-visible,#gtg-slash:focus-visible {
+  outline:2px solid currentColor;outline-offset:-2px;
 }
-#gtg-slash.gtg-slash-native {
-  width:100%;color:#ededed;font-size:14px;cursor:pointer;
-}
-@media(max-width:600px) {
+@media (max-width:600px) {
+  #gtg-dialog {border-radius:19px;width:calc(100vw - 20px);}
+  #gtg-dialog .gtg-header {padding-inline:17px;}
+  #gtg-dialog .gtg-body {padding-inline:17px;}
+  #gtg-dialog .gtg-footer {padding-inline:17px;}
   #gtg-dialog .gtg-revisions {grid-template-columns:1fr;}
-  #gtg-dialog .gtg-body {padding-inline:16px;}
-  #gtg-dialog .gtg-header,#gtg-dialog .gtg-footer {padding-inline:16px;}
 }
-@media(prefers-reduced-motion:reduce) {
-  #gtg-dialog * {scroll-behavior:auto;transition:none!important;}
+@media (prefers-reduced-motion:reduce) {
+  #gtg-dialog * {transition:none!important;}
 }
 
 /* ChatGPT highlights only React-managed items. Hide its retained native
