@@ -608,6 +608,7 @@
   function fuzzyPositions(value){
     if(typeof value!=="string"||!/^\/[a-z-]*$/i.test(value))return null;
     const letters=value.slice(1).toLowerCase().replace(/-/g,"");
+    if(value!=="/"&&!letters)return null;
     const positions=[];
     let cursor=0;
     for(const char of letters){
