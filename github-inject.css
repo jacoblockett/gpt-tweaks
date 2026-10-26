@@ -2,23 +2,23 @@
 #gtg-dialog {
   color-scheme:dark;
   position:fixed;inset:0;margin:auto;
-  width:min(720px,calc(100vw - 64px));
+  width:min(700px,calc(100vw - 64px));
   max-height:calc(100dvh - 72px);
-  border:1px solid #393939;border-radius:24px;
+  border:1px solid #393939;border-radius:20px;
   box-shadow:0 18px 60px #0005;
   background:#212121;color:#ededed;
   padding:0;overflow:hidden;
   font-family:var(--font-sans, "OpenAI Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
-  font-size:15px;line-height:1.45;
+  font-size:13px;line-height:1.45;
 }
 #gtg-dialog::backdrop {background:transparent!important;}
 #gtg-dialog *,#gtg-dialog *::before,#gtg-dialog *::after {box-sizing:border-box;}
 #gtg-dialog [hidden] {display:none!important;}
 #gtg-dialog .gtg-header {
   display:flex;align-items:center;justify-content:space-between;
-  padding:22px 24px 12px;
+  padding:19px 20px 9px;
 }
-#gtg-dialog h2 {font-size:22px;line-height:1.3;font-weight:650;letter-spacing:-.35px;margin:0;color:#ededed;}
+#gtg-dialog h2 {font-size:19px;line-height:1.3;font-weight:650;letter-spacing:-.3px;margin:0;color:#ededed;}
 #gtg-dialog .gtg-icon {
   border:0;background:transparent;color:#c4c4c4;
   display:inline-grid;place-items:center;padding:0;
@@ -27,20 +27,20 @@
 #gtg-dialog .gtg-icon svg {display:block;flex:none;}
 #gtg-dialog .gtg-icon:hover {background:#393939;color:#fff;}
 #gtg-dialog .gtg-body {
-  padding:12px 24px 6px;overflow-y:auto;
-  max-height:calc(100dvh - 176px);
+  padding:10px 20px 6px;overflow-y:auto;
+  max-height:calc(100dvh - 145px);
 }
-#gtg-dialog .gtg-label {display:block;font-size:15px;font-weight:600;color:#e7e7e7;margin:0 0 9px;}
+#gtg-dialog .gtg-label {display:block;font-size:13px;font-weight:600;color:#e7e7e7;margin:0 0 8px;}
 #gtg-dialog .gtg-input-wrap {
   display:flex;align-items:center;gap:10px;
-  min-height:52px;border-radius:999px;border:1px solid #555;background:#292929;
-  padding:0 13px 0 20px;
+  min-height:45px;border-radius:999px;border:1px solid #555;background:#292929;
+  padding:0 12px 0 17px;
 }
 #gtg-dialog .gtg-input-wrap:focus-within {border-color:#777;}
 #gtg-dialog .gtg-input-leading {color:#bfbfbf;flex:none;display:block;}
 #gtg-dialog #gtg-repo {
   background:transparent;border:0;outline:none;min-width:0;flex:1;
-  color:#ededed;font:inherit;padding:13px 0;
+  color:#ededed;font:inherit;padding:9px 0;
 }
 #gtg-dialog #gtg-repo::placeholder {color:#a9a9a9;opacity:1;}
 #gtg-dialog .gtg-verified {color:#c7c7c7;display:grid;place-items:center;}
@@ -48,15 +48,15 @@
 #gtg-dialog #gtg-toggle[aria-expanded="true"] svg {transform:rotate(180deg);}
 #gtg-dialog .gtg-options {
   background:#2b2b2b;border:1px solid #424242;border-radius:19px;
-  margin-top:10px;padding:10px;max-height:min(310px,39vh);
+  margin-top:10px;padding:10px;max-height:min(300px,39vh);
   overflow-y:auto;
 }
 #gtg-dialog .gtg-group {
   display:flex;justify-content:space-between;align-items:center;gap:12px;
-  color:#c5c5c5;font-size:13px;font-weight:500;text-transform:uppercase;
+  color:#c5c5c5;font-size:12px;font-weight:500;text-transform:uppercase;
   padding:9px 10px 11px;
 }
-#gtg-dialog .gtg-group .gtg-account {text-transform:none;font-size:13px;}
+#gtg-dialog .gtg-group .gtg-account {text-transform:none;font-size:12px;}
 #gtg-dialog .gtg-group button {
   border:0;background:transparent;color:#ededed;padding:3px 0;
   text-transform:none;cursor:pointer;font:inherit;
@@ -64,24 +64,24 @@
 #gtg-dialog .gtg-group button:hover {text-decoration:underline;}
 #gtg-dialog .gtg-options-divider {height:1px;background:#434343;margin:7px 0 13px;}
 #gtg-dialog .gtg-option-row {
-  display:flex;align-items:center;min-height:44px;gap:4px;border-radius:13px;
+  display:flex;align-items:center;min-height:38px;gap:4px;border-radius:13px;
 }
 #gtg-dialog .gtg-option-row:hover,#gtg-dialog .gtg-option-row:focus-within {background:#424242;}
 #gtg-dialog .gtg-pick {
-  display:flex;align-items:center;gap:12px;min-height:44px;
+  display:flex;align-items:center;gap:10px;min-height:38px;
   flex:1;min-width:0;background:transparent;border:0;
   color:#ededed;font:inherit;text-align:left;cursor:pointer;
   padding:8px 12px;border-radius:12px;
 }
 #gtg-dialog .gtg-pick .gtg-pick-text {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 #gtg-dialog .gtg-pick .gtg-entry-icon {flex:none;color:#c6c6c6;}
-#gtg-dialog .gtg-private {color:#bcbcbc;font-size:13px;margin-left:auto;padding-right:10px;}
+#gtg-dialog .gtg-private {color:#bcbcbc;font-size:12px;margin-left:auto;padding-right:10px;}
 #gtg-dialog .gtg-remove {flex:none;border:0;background:transparent;color:#bbb;
   cursor:pointer;border-radius:9px;width:36px;height:36px;display:grid;place-items:center;}
 #gtg-dialog .gtg-remove:hover {color:#fff;background:#4c4c4c;}
 #gtg-dialog .gtg-loading {
-  margin-top:20px;min-height:52px;display:flex;align-items:center;gap:10px;
-  color:#cfcfcf;font-size:14px;
+  margin-top:18px;min-height:45px;display:flex;align-items:center;gap:10px;
+  color:#cfcfcf;font-size:13px;
 }
 #gtg-dialog .gtg-spinner {
   width:17px;height:17px;flex:none;border:2px solid #666;
@@ -90,7 +90,7 @@
 @keyframes gtg-spinner-turn {to{transform:rotate(360deg)}}
 #gtg-dialog .gtg-revisions {
   display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
-  gap:14px;margin-top:21px;
+  gap:13px;margin-top:18px;
 }
 #gtg-dialog .gtg-select-wrap {position:relative;}
 #gtg-dialog .gtg-select-wrap svg {
@@ -100,7 +100,7 @@
 #gtg-dialog select {
   appearance:none;-webkit-appearance:none;background:#292929;
   color:#ededed;border:1px solid #555;border-radius:999px;
-  padding:11px 43px 11px 18px;width:100%;min-height:52px;
+  padding:9px 38px 9px 17px;width:100%;min-height:45px;
   font:inherit;cursor:pointer;outline:none;
 }
 #gtg-dialog select:focus-visible,#gtg-dialog button:focus-visible,#gtg-dialog .gtg-pick:focus-visible {
@@ -112,20 +112,20 @@
 #gtg-dialog .gtg-more:hover {text-decoration:underline;}
 #gtg-dialog .gtg-auth {margin-top:18px;background:#2b2b2b;
   padding:15px 18px;border-radius:13px;border:1px solid #454545;}
-#gtg-dialog .gtg-auth p {margin:0 0 11px;color:#ddd;font-size:14px;}
+#gtg-dialog .gtg-auth p {margin:0 0 11px;color:#ddd;font-size:12px;}
 #gtg-dialog .gtg-aux {background:#ededed;color:#202020;
   border:1px solid #ededed;border-radius:999px;
-  min-height:36px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;}
+  min-height:36px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;}
 #gtg-dialog .gtg-aux:hover {background:#fff;}
 #gtg-dialog .gtg-aux:disabled {opacity:.5;cursor:wait;}
 #gtg-dialog #gtg-device {margin-top:12px;}
 #gtg-dialog #gtg-device-code {display:block;font-size:19px;letter-spacing:.14em;padding:6px 0;}
-#gtg-dialog .gtg-status {color:#c5c5c5;font-size:13px;margin:10px 0 0;}
+#gtg-dialog .gtg-status {color:#c5c5c5;font-size:12px;margin:10px 0 0;}
 #gtg-dialog .gtg-status[data-error="true"] {color:#f2a9a9;}
 #gtg-dialog .gtg-footer {display:flex;align-items:center;justify-content:flex-end;
-  gap:10px;padding:17px 24px 21px;}
-#gtg-dialog .gtg-btn {font-family:inherit;font-size:14px;font-weight:600;line-height:1.3;min-width:108px;height:46px;
-  border-radius:999px;padding:10px 18px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;}
+  gap:9px;padding:15px 20px 18px;}
+#gtg-dialog .gtg-btn {font-family:inherit;font-size:13px;font-weight:600;line-height:1.3;min-width:93px;height:40px;
+  border-radius:999px;padding:8px 16px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;}
 #gtg-dialog .gtg-btn svg {flex:none;display:block;}
 #gtg-dialog .gtg-cancel {background:#2d2d2d;border:1px solid #585858;color:#ededed;}
 #gtg-dialog .gtg-cancel:hover {background:#383838;}
