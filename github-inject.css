@@ -150,8 +150,16 @@
   min-height:36px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;}
 #gtg-dialog .gtg-aux:hover {background:#fff;}
 #gtg-dialog .gtg-aux:disabled {opacity:.5;cursor:wait;}
-#gtg-dialog #gtg-device {margin-top:12px;}
-#gtg-dialog #gtg-device-code {display:block;font-size:19px;letter-spacing:.14em;padding:6px 0;}
+#gtg-dialog .gtg-device-panel {
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;margin-top:4px;padding:11px 13px;
+  background:#252525;border:1px solid #484848;border-radius:12px;
+}
+#gtg-dialog .gtg-device-label {color:#c9c9c9;font-size:12px;}
+#gtg-dialog .gtg-device-code {
+  display:block;flex:none;font-size:19px;font-weight:650;letter-spacing:.11em;
+  color:#ededed;font-variant-numeric:tabular-nums;user-select:all;
+}
 #gtg-dialog .gtg-status {color:#c5c5c5;font-size:12px;margin:10px 0 0;}
 #gtg-dialog .gtg-status[data-error="true"] {color:#f2a9a9;}
 #gtg-dialog .gtg-footer {display:flex;align-items:center;justify-content:flex-end;
