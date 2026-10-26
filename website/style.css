@@ -310,3 +310,32 @@ code {
 	html { scroll-behavior: auto; }
 	*, *::before, *::after { transition: none !important; }
 }
+
+/* Compact GitHub device flow, visually aligned with the in-chat modal. */
+.github-device-panel {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	max-width: 455px;
+	margin-top: 14px;
+	padding: 12px 14px;
+	border: 1px solid #484848;
+	border-radius: 12px;
+	background: #252525;
+	color: var(--text);
+}
+.github-device-panel[hidden] { display: none; }
+.github-device-label { color: #c9c9c9; font-size: 12px; }
+.github-device-code {
+	flex: none;
+	font-size: 19px;
+	font-weight: 650;
+	letter-spacing: .11em;
+	font-variant-numeric: tabular-nums;
+	user-select: all;
+}
+.github-device-panel[data-error="true"] {
+	color: #f2a9a9;
+	font-size: 13px;
+}
