@@ -243,7 +243,8 @@
     const panel=id("gtg-access");
     if(!panel)return;
     const missing=!installationsCount;
-    panel.hidden=!signedIn||(!missing&&!accessBlocked);
+    // Do not interrupt public-repository attachment with installation prompts.
+    panel.hidden=!signedIn||!(accessBlocked||installPending);
     if(panel.hidden)return;
     id("gtg-access-title").textContent="Repository access";
     id("gtg-access-state").textContent=missing?"Not installed":"Check permissions";
