@@ -49,7 +49,7 @@
     const COMMAND=config.command;
     const COMMAND_TITLE=config.title;
     const ARCHIVE_DESCRIPTION=config.description;
-    const githubIcon=config.icon;
+    const utilityIcon=config.icon;
     const isEnabled=config.isEnabled;
     const launch=config.activate;
     const visible=el=>Boolean(el?.isConnected&&el.getClientRects().length);
@@ -225,7 +225,7 @@
     row.className="gtg-fallback-row";
     const icon=document.createElement("span");
     icon.className="gtg-fallback-icon";
-    icon.append(githubIcon(20));
+    icon.append(utilityIcon(20));
     const textBox=document.createElement("span");
     textBox.className="gtg-fallback-text";
     const title=document.createElement("span");
