@@ -513,6 +513,10 @@
     button.addEventListener("click",event=>{
       event.preventDefault();
       event.stopPropagation();
+      // Unlike a React-owned row, this injected button cannot close the
+      // native menu through its internal onSelect callback.
+      const trigger=document.querySelector('button[data-composer-navigation-target="add-context"][aria-expanded="true"]');
+      trigger?.click();
       launch("menu");
     });
     element.after(button);
