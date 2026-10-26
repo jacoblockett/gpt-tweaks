@@ -131,6 +131,19 @@
       }
     });
     id("gtg-branch").addEventListener("change",()=>loadCommits(1,repoGen));
+    for(const kind of ["branch","commit"]){
+      const trigger=id("gtg-"+kind+"-trigger");
+      trigger.addEventListener("click",()=>toggleRevisionMenu(kind));
+      trigger.addEventListener("keydown",event=>{
+        if(["ArrowDown","ArrowUp"].includes(event.key)){
+          event.preventDefault();showRevisionMenu(kind);
+        }
+      });
+    }
+    dialog.addEventListener("pointerdown",event=>{
+      if(!event.target.closest(".gtg-repo-control"))hideSuggestions();
+      if(!event.target.closest(".gtg-select-wrap"))hideRevisionMenus();
+    },true);
     id("gtg-more-branches").addEventListener("click",()=>loadBranches(branchPage+1,repoGen).catch(err=>status(err.message,true)));
     id("gtg-more-commits").addEventListener("click",()=>loadCommits(commitPage+1,repoGen));
     id("gtg-login").addEventListener("click",startLogin);
@@ -155,6 +168,62 @@
       if(modal===dialog)renderSuggestions();
     }catch(err){if(modal===dialog)status(err.message,true);}
   }
+  function hideRevisionMenus(){
+    for(const kind of ["branch","commit"]){
+      const panel=id("gtg-"+kind+"-list"),trigger=id("gtg-"+kind+"-trigger");
+      if(panel)panel.hidden=true;
+      trigger?.setAttribute("aria-expanded","false");
+    }
+  }
+  function syncRevisionTriggers(){
+    for(const kind of ["branch","commit"]){
+      const select=id("gtg-"+kind),trigger=id("gtg-"+kind+"-trigger");
+      if(!select||!trigger)continue;
+      const label=id("gtg-"+kind+"-label");
+      label.textContent=kind==="commit"&&!select.value?"Latest":
+        select.selectedOptions?.[0]?.textContent||"Select "+kind;
+      trigger.disabled=select.disabled||!select.options.length;
+    }
+  }
+  function showRevisionMenu(kind){
+    const select=id("gtg-"+kind),trigger=id("gtg-"+kind+"-trigger"),panel=id("gtg-"+kind+"-list");
+    if(!select||select.disabled||!select.options.length)return;
+    hideSuggestions();hideRevisionMenus();
+    panel.replaceChildren();
+    for(const choice of select.options){
+      const row=document.createElement("button");
+      row.type="button";row.className="gtg-revision-option";
+      row.setAttribute("role","option");
+      row.setAttribute("aria-selected",String(choice.value===select.value));
+      row.textContent=choice.textContent;row.title=choice.textContent;
+      row.addEventListener("click",()=>{
+        const changed=select.value!==choice.value;
+        select.value=choice.value;
+        hideRevisionMenus();syncRevisionTriggers();
+        if(changed)select.dispatchEvent(new Event("change",{bubbles:true}));
+        trigger.focus();
+      });
+      panel.append(row);
+    }
+    panel.hidden=false;trigger.setAttribute("aria-expanded","true");
+    const rows=[...panel.querySelectorAll(".gtg-revision-option")];
+    (rows.find(x=>x.getAttribute("aria-selected")==="true")||rows[0])?.focus();
+    panel.onkeydown=event=>{
+      if(event.key==="Escape"){
+        event.preventDefault();hideRevisionMenus();trigger.focus();return;
+      }
+      if(!["ArrowDown","ArrowUp","Home","End"].includes(event.key))return;
+      event.preventDefault();
+      const index=rows.indexOf(document.activeElement);
+      const next=event.key==="Home"?0:event.key==="End"?rows.length-1:
+        (index+(event.key==="ArrowDown"?1:-1)+rows.length)%rows.length;
+      rows[next]?.focus();
+    };
+  }
+  function toggleRevisionMenu(kind){
+    if(id("gtg-"+kind+"-list").hidden)showRevisionMenu(kind);
+    else hideRevisionMenus();
+  }
   function hideSuggestions(){
     const box=id("gtg-options");if(!box)return;
     box.hidden=true;
@@ -163,6 +232,7 @@
   }
   function showSuggestions(){
     const box=id("gtg-options");if(!box)return;
+    hideRevisionMenus();
     box.hidden=false;
     renderSuggestions();
   }
@@ -237,6 +307,7 @@
   }
   function showLoading(){
     if(!modal)return;
+    hideRevisionMenus();
     id("gtg-revisions").hidden=true;
     id("gtg-verified").hidden=true;
     id("gtg-lookup-progress").hidden=false;
@@ -247,6 +318,7 @@
     if(id("gtg-lookup-progress"))id("gtg-lookup-progress").hidden=true;
   }
   function resetRepo(){
+    hideRevisionMenus();
     repoGen++;commitGen++;verified="";branchPage=0;commitPage=0;tip="";
     hideLoading();
     id("gtg-revisions").hidden=true;
@@ -307,6 +379,7 @@
       }
       branchPage=page;
       branch.disabled=false;
+      syncRevisionTriggers();
       id("gtg-more-branches").hidden=!data.hasMore;
       if(page===1){
         if(!branch.value)throw Error("Repository has no branches.");
@@ -346,6 +419,7 @@
       }
       commitPage=page;
       commit.disabled=false;
+      syncRevisionTriggers();
       id("gtg-more-commits").hidden=!data.hasMore;
       id("gtg-verified").hidden=false;
       hideLoading();
