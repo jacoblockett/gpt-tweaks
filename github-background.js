@@ -246,6 +246,22 @@ async function disconnect() {
   await chrome.storage.session.remove(PREFIX+"pending");
   return {connected:false};
 }
+const APP_INSTALL_URL="https://github.com/apps/gpt-tweaks/installations/new";
+const APP_MANAGE_URL="https://github.com/settings/installations";
+async function installationStatus() {
+  const auth=await readAuth();
+  if(!auth?.access_token)return {connected:false,installationsCount:0,accounts:[]};
+  const accounts=[];
+  for(let page=1;page<=30;page++){
+    const data=await api(ROOT+"/user/installations?per_page=100&page="+page,auth.access_token);
+    if(!Array.isArray(data.installations))throw Error("Unexpected GitHub installations response.");
+    for(const installation of data.installations) {
+      accounts.push({name:installation.account?.login||"",selection:installation.repository_selection||""});
+    }
+    if(data.installations.length<100)break;
+  }
+  return {connected:true,installationsCount:accounts.length,accounts};
+}
 async function authStatus() {
   const auth=await readAuth();
   const data=await chrome.storage.local.get(PREFIX+"account");
@@ -274,6 +290,11 @@ async function dispatch(message) {
     case "gpt-github-history-clear":
       await chrome.storage.local.remove(PREFIX+"repository-history");return [];
     case "gpt-github-repositories":return listOwnRepos();
+    case "gpt-github-install-status":return installationStatus();
+    case "gpt-github-install-open":
+      await chrome.tabs.create({url:APP_INSTALL_URL,active:true});return true;
+    case "gpt-github-install-manage":
+      await chrome.tabs.create({url:APP_MANAGE_URL,active:true});return true;
     case "gpt-github-auth-status":return authStatus();
     case "gpt-github-auth-start":return authStart();
     case "gpt-github-auth-poll":return authPoll();
