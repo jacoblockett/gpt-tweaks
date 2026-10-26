@@ -77,7 +77,17 @@
   color:#ededed;font:inherit;text-align:left;cursor:pointer;
   padding:8px 12px;border-radius:12px;
 }
-#gtg-dialog .gtg-pick .gtg-pick-text {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#gtg-dialog .gtg-pick .gtg-pick-text {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:400;}
+/* Same per-character color treatment as slash-command fuzzy search. */
+#gtg-dialog .gtg-pick-text[data-gtg-fuzzy-active="true"],
+#gtg-dialog .gtg-pick-text[data-gtg-fuzzy-active="true"] > span {
+  color:var(--text-tertiary,#999);
+  font-weight:inherit;
+}
+#gtg-dialog .gtg-pick-text[data-gtg-fuzzy-active="true"] > span.gtg-fuzzy-match {
+  color:var(--text-primary,#ededed);
+  font-weight:inherit;
+}
 #gtg-dialog .gtg-pick .gtg-entry-icon {flex:none;color:#c6c6c6;}
 #gtg-dialog .gtg-visibility {color:#bcbcbc;font-size:12px;margin-left:auto;padding-right:10px;}
 #gtg-dialog .gtg-empty {padding:13px 12px;color:#c5c5c5;font-size:13px;line-height:1.45;}

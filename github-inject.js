@@ -36,18 +36,37 @@
       return REPO.test(value)?value:"";
     } catch {return "";}
   }
-  // Match in-order like slash commands; ignore separators only for matching.
-  // The user's repository input is never rewritten.
-  function repositoryMatches(name,query) {
-    const needle=String(query||"").toLowerCase().replace(/[^a-z0-9]/g,"");
-    const haystack=String(name||"").toLowerCase().replace(/[^a-z0-9]/g,"");
-    let position=0;
-    for(const char of needle){
-      const found=haystack.indexOf(char,position);
-      if(found<0)return false;
-      position=found+1;
+  // Reuse slash-command semantics: match characters in order, not by substring.
+  // Separators are ignored for matching without changing the user's input.
+  function repositoryMatchPositions(name,query) {
+    const letters=String(query||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+    const title=String(name||"").toLowerCase();
+    const positions=[];
+    let cursor=0;
+    for(const char of letters){
+      const next=title.indexOf(char,cursor);
+      if(next<0)return null;
+      positions.push(next);
+      cursor=next+1;
     }
-    return true;
+    return positions;
+  }
+  function repositoryMatches(name,query) {
+    return repositoryMatchPositions(name,query)!==null;
+  }
+  function displayRepositoryMatch(label,name,query) {
+    const positions=repositoryMatchPositions(name,query);
+    if(!positions?.length){label.textContent=name;return;}
+    label.dataset.gtgFuzzyActive="true";
+    const active=new Set(positions);
+    const letters=[];
+    for(let i=0;i<name.length;i++){
+      const span=document.createElement("span");
+      if(active.has(i))span.className="gtg-fuzzy-match";
+      span.textContent=name[i];
+      letters.push(span);
+    }
+    label.replaceChildren(...letters);
   }
   function status(text,isError=false) {
     const node=id("gtg-status");
@@ -276,7 +295,10 @@
         pick.type="button";pick.className="gtg-pick";
         pick.innerHTML=miniIcons[isRecent?"history":item.private?"lock":"repository"];
         const nameEl=document.createElement("span");
-        nameEl.className="gtg-pick-text";nameEl.textContent=name;pick.append(nameEl);
+        nameEl.className="gtg-pick-text";
+        displayRepositoryMatch(nameEl,name,query);
+        pick.setAttribute("aria-label",name);
+        pick.append(nameEl);
         pick.addEventListener("click",()=>{
           // Selecting a suggestion intentionally fills the input; lookups never rewrite typed text.
           id("gtg-repo").value=name;
