@@ -311,82 +311,27 @@ code {
 	*, *::before, *::after { transition: none !important; }
 }
 
-/* Compact GitHub device flow, visually aligned with the in-chat modal. */
+/* Inline GitHub authorization code, using the existing settings typography. */
 .github-device-panel {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
-	max-width: 455px;
-	margin-top: 14px;
-	padding: 12px 14px;
-	border: 1px solid #484848;
-	border-radius: 12px;
-	background: #252525;
-	color: var(--text);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:12px;
+  max-width:560px;
+  margin-top:17px;
+  padding:17px 0 0;
+  border-top:1px solid var(--border);
+  color:var(--text);
 }
-.github-device-panel[hidden] { display: none; }
-.github-device-label { color: #c9c9c9; font-size: 12px; }
+.github-device-panel[hidden] {display:none;}
+.github-device-label {font-size:13px;color:var(--muted);line-height:1.5;}
 .github-device-code {
-	flex: none;
-	font-size: 19px;
-	font-weight: 650;
-	letter-spacing: .11em;
-	font-variant-numeric: tabular-nums;
-	user-select: all;
+  font-size:20px;
+  font-weight:650;
+  color:var(--text);
+  letter-spacing:.1em;
+  font-variant-numeric:tabular-nums;
+  user-select:all;
 }
-.github-device-panel[data-error="true"] {
-	color: #f2a9a9;
-	font-size: 13px;
-}
-
-/* Repository access is a separate, optional step after GitHub sign-in. */
-.github-access-card {
-	margin-top: 18px;
-	padding: 16px 18px;
-	max-width: 615px;
-	background: #141417;
-	border: 1px solid var(--border);
-	border-radius: 13px;
-}
-.github-access-card[hidden] { display: none; }
-.github-access-head {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	gap: 12px;
-}
-.github-access-title {
-	color: var(--text);
-	font-size: 14px;
-	font-weight: 630;
-}
-.github-access-state {
-	color: #bcbac3;
-	font-size: 12px;
-	font-weight: 560;
-}
-.github-access-state[data-kind="ready"] { color: #c9c9cf; }
-.github-access-state[data-kind="error"] { color: #f0aaaa; }
-.github-access-copy {
-	margin: 9px 0 14px;
-	color: var(--muted);
-	font-size: 13px;
-	line-height: 1.55;
-}
-.github-access-actions {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 9px;
-	align-items: center;
-}
-.github-access-refresh {
-	padding: 9px 10px;
-	border: 0;
-	border-radius: 8px;
-	background: transparent;
-	color: #c8c5cd;
-	font-size: 12px;
-}
-.github-access-refresh:hover:not(:disabled) { background: var(--hover); color: var(--text); }
-.github-access-refresh:disabled { opacity: .55; cursor: wait; }
+.github-device-panel[data-error="true"] {font-size:13px;color:#f2a9a9;}
