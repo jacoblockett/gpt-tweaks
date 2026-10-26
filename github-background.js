@@ -180,15 +180,26 @@ async function storeHistory(repo) {
 }
 async function listOwnRepos() {
   const auth=await readAuth();
-  if (!auth?.access_token) return [];
-  const rows=[];
+  if(!auth?.access_token)return {repositories:[],installationsCount:0};
+  const repos=new Map();
+  let installationsCount=0;
   for(let page=1;page<=30;page++){
-    const current=await api(ROOT+"/user/repos?per_page=100&page="+page+"&affiliation=owner,collaborator,organization_member",auth.access_token);
-    if(!Array.isArray(current))throw Error("Unexpected GitHub repository response.");
-    for(const x of current)if(x.full_name)rows.push({repo:x.full_name,private:!!x.private});
-    if(current.length<100)break;
+    const response=await api(ROOT+"/user/installations?per_page=100&page="+page,auth.access_token);
+    if(!Array.isArray(response.installations))throw Error("Invalid installation response.");
+    for(const installation of response.installations){
+      if(!Number.isSafeInteger(installation.id)||installation.id<1)continue;
+      installationsCount++;
+      for(let repoPage=1;repoPage<=100;repoPage++){
+        const result=await api(ROOT+"/user/installations/"+installation.id+"/repositories?per_page=100&page="+repoPage,auth.access_token);
+        if(!Array.isArray(result.repositories))throw Error("Invalid installation repository response.");
+        for(const r of result.repositories)
+          if(r.full_name)repos.set(r.full_name.toLowerCase(),{repo:r.full_name,private:!!r.private});
+        if(result.repositories.length<100)break;
+      }
+    }
+    if(response.installations.length<100)break;
   }
-  return rows;
+  return {repositories:[...repos.values()].sort((a,b)=>a.repo.localeCompare(b.repo)),installationsCount};
 }
 async function tokenPost(endpoint,params) {
   const response=await fetch("https://github.com/login/"+endpoint,{
