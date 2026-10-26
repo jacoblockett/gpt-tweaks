@@ -123,3 +123,11 @@
 @media(prefers-reduced-motion:reduce) {
   #gtg-dialog * {scroll-behavior:auto;transition:none!important;}
 }
+
+/* ChatGPT highlights only React-managed items. Hide its retained native
+   highlight while the externally injected row is hovered or focused. */
+[data-mention-section-items="true"]:has(> [data-gtg-menu-option="true"]:is(:hover,:focus)) > button:not([data-gtg-menu-option="true"]).bg-primary-ghost-hover,
+[data-mention-section-items="true"]:has(> #gtg-slash:is(:hover,:focus)) > button:not(#gtg-slash).bg-primary-ghost-hover {
+  background-color: transparent!important;
+  opacity: var(--opacity-menu-row,.75)!important;
+}
