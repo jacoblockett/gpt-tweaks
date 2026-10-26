@@ -1,5 +1,7 @@
-;(() => {
+;(async () => {
 	"use strict"
+	const { ready, preferences: preferenceStore, credentials: credentialStore } = globalThis.GPTTweaksStorage
+	await ready
 	const $ = id => document.getElementById(id)
 	const enabled = $("archive-enabled")
 	const menu = $("method-menu")
@@ -13,12 +15,12 @@
 	const tokenMessage = $("token-message")
 	const privateStatus = $("private-status")
 	const preferences = {
-		enabled: localStorage.getItem("gpt-tweaks.archives.enabled") !== "false",
-		menu: localStorage.getItem("gpt-tweaks.archives.menu") !== "false",
-		slash: localStorage.getItem("gpt-tweaks.archives.slash") !== "false"
+		enabled: preferenceStore.getItem("gpt-tweaks.archives.enabled") !== "false",
+		menu: preferenceStore.getItem("gpt-tweaks.archives.menu") !== "false",
+		slash: preferenceStore.getItem("gpt-tweaks.archives.slash") !== "false"
 	}
-	// Credentials remain in this tab session; the finished extension will need a separate credential-storage design.
-	token.value = sessionStorage.getItem("gpt-tweaks.github.token") || ""
+	// The extension stores the token in its restricted local storage; the website preview keeps it in session storage.
+	token.value = credentialStore.getItem("gpt-tweaks.github.token") || ""
 	enabled.checked = preferences.enabled
 	menu.checked = preferences.menu
 	slash.checked = preferences.slash
@@ -28,9 +30,9 @@
 		methods.classList.toggle("inactive", !enabled.checked)
 		menu.disabled = !enabled.checked
 		slash.disabled = !enabled.checked
-		localStorage.setItem("gpt-tweaks.archives.enabled", enabled.checked)
-		localStorage.setItem("gpt-tweaks.archives.menu", menu.checked)
-		localStorage.setItem("gpt-tweaks.archives.slash", slash.checked)
+		preferenceStore.setItem("gpt-tweaks.archives.enabled", enabled.checked)
+		preferenceStore.setItem("gpt-tweaks.archives.menu", menu.checked)
+		preferenceStore.setItem("gpt-tweaks.archives.slash", slash.checked)
 	}
 	enabled.addEventListener("change", () => {
 		feedback.textContent = ""
@@ -57,8 +59,8 @@
 	function saveToken() {
 		clearTimeout(saveTimeout)
 		const value = token.value.trim()
-		if (value) sessionStorage.setItem("gpt-tweaks.github.token", value)
-		else sessionStorage.removeItem("gpt-tweaks.github.token")
+		if (value) credentialStore.setItem("gpt-tweaks.github.token", value)
+		else credentialStore.removeItem("gpt-tweaks.github.token")
 		syncTokenStatus()
 		tokenMessage.textContent = value ? "Saved" : ""
 	}
@@ -78,7 +80,7 @@
 	removeToken.addEventListener("click", () => {
 		clearTimeout(saveTimeout)
 		token.value = ""
-		sessionStorage.removeItem("gpt-tweaks.github.token")
+		credentialStore.removeItem("gpt-tweaks.github.token")
 		tokenMessage.textContent = "Removed"
 		syncTokenStatus()
 		token.focus()
@@ -109,7 +111,8 @@
 	const contextControls = $("context-controls")
 	const contextFeedback = $("context-feedback")
 	for (const [name, control] of Object.entries(contextElements)) {
-		control.checked = localStorage.getItem(contextKeys[name]) !== "false"
+		const saved = preferenceStore.getItem(contextKeys[name])
+		control.checked = saved === null ? name !== "defaultVisible" : saved !== "false"
 	}
 	// Keep at least one way to toggle visibility whenever the tracker is enabled.
 	if (!contextElements.menu.checked && !contextElements.slash.checked) {
@@ -119,7 +122,7 @@
 		const active = contextElements.enabled.checked
 		contextControls.classList.toggle("inactive", !active)
 		for (const [name, control] of Object.entries(contextElements)) {
-			localStorage.setItem(contextKeys[name], String(control.checked))
+			preferenceStore.setItem(contextKeys[name], String(control.checked))
 			if (name !== "enabled") control.disabled = !active
 		}
 	}
@@ -137,14 +140,14 @@
 	syncContext()
 	const contextTarget = $("context-target")
 	const contextTargetKey = "gpt-tweaks.context.target-tokens"
-	const savedTarget = Number(localStorage.getItem(contextTargetKey))
-	let lastValidTarget = Number.isSafeInteger(savedTarget) && savedTarget > 0 ? savedTarget : 128000
+	const savedTarget = Number(preferenceStore.getItem(contextTargetKey))
+	let lastValidTarget = Number.isSafeInteger(savedTarget) && savedTarget > 0 ? savedTarget : 512000
 	contextTarget.value = String(lastValidTarget)
 	function saveContextTarget() {
 		const value = Number(contextTarget.value)
 		if (contextTarget.value.trim() !== "" && Number.isSafeInteger(value) && value > 0) {
 			lastValidTarget = value
-			localStorage.setItem(contextTargetKey, String(value))
+			preferenceStore.setItem(contextTargetKey, String(value))
 			contextTarget.setCustomValidity("")
 		} else {
 			contextTarget.setCustomValidity("Enter a positive whole number.")
@@ -169,8 +172,8 @@
 	]
 	for (const [id, key] of featureFlags) {
 		const checkbox = $(id)
-		checkbox.checked = localStorage.getItem(key) !== "false"
-		checkbox.addEventListener("change", () => localStorage.setItem(key, String(checkbox.checked)))
+		checkbox.checked = preferenceStore.getItem(key) !== "false"
+		checkbox.addEventListener("change", () => preferenceStore.setItem(key, String(checkbox.checked)))
 	}
 
 	// New chat settings
@@ -185,10 +188,10 @@
 		slash: "gpt-tweaks.new-chat.slash",
 		destination: "gpt-tweaks.new-chat.destination"
 	}
-	newChatEnabled.checked = localStorage.getItem(newChatKeys.enabled) !== "false"
-	newChatMiddle.checked = localStorage.getItem(newChatKeys.middle) !== "false"
-	newChatSlash.checked = localStorage.getItem(newChatKeys.slash) !== "false"
-	newChatDestination.value = localStorage.getItem(newChatKeys.destination) === "window" ? "window" : "tab"
+	newChatEnabled.checked = preferenceStore.getItem(newChatKeys.enabled) !== "false"
+	newChatMiddle.checked = preferenceStore.getItem(newChatKeys.middle) !== "false"
+	newChatSlash.checked = preferenceStore.getItem(newChatKeys.slash) !== "false"
+	newChatDestination.value = preferenceStore.getItem(newChatKeys.destination) === "window" ? "window" : "tab"
 	if (!newChatMiddle.checked && !newChatSlash.checked) newChatMiddle.checked = true
 
 	function syncNewChat() {
@@ -197,10 +200,10 @@
 		newChatMiddle.disabled = !active
 		newChatSlash.disabled = !active
 		newChatDestination.disabled = !active
-		localStorage.setItem(newChatKeys.enabled, String(active))
-		localStorage.setItem(newChatKeys.middle, String(newChatMiddle.checked))
-		localStorage.setItem(newChatKeys.slash, String(newChatSlash.checked))
-		localStorage.setItem(newChatKeys.destination, newChatDestination.value)
+		preferenceStore.setItem(newChatKeys.enabled, String(active))
+		preferenceStore.setItem(newChatKeys.middle, String(newChatMiddle.checked))
+		preferenceStore.setItem(newChatKeys.slash, String(newChatSlash.checked))
+		preferenceStore.setItem(newChatKeys.destination, newChatDestination.value)
 	}
 	newChatEnabled.addEventListener("change", syncNewChat)
 	for (const control of [newChatMiddle, newChatSlash]) {
