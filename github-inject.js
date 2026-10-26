@@ -409,6 +409,8 @@
     for(const attr of ["id","aria-current","aria-selected","aria-haspopup","aria-expanded","data-state"])
       button.removeAttribute(attr);
     button.dataset.gtgMenuOption="true";
+    // React uses this DOM attribute for scroll indexes based on its own data array.
+    button.removeAttribute("data-list-navigation-item");
     button.type="button";
     const content=button.querySelector('[data-menu-row-content="true"]');
     const label=content?.querySelector(':scope > span:last-child > span > span:first-child');
@@ -460,6 +462,8 @@
     slashSuggestion.type="button";
     slashSuggestion.id="gtg-slash";
     slashSuggestion.dataset.gtgSlash="true";
+    // Do not shift native React's scroll indexes with an unregistered row.
+    slashSuggestion.removeAttribute("data-list-navigation-item");
     styleInjectedMenuRow(slashSuggestion);
     const menuLabel=slashSuggestion.querySelector(':scope > div > div > div > div');
     const menuDesc=slashSuggestion.querySelector(':scope > div > div > div > span');
