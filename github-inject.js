@@ -9,7 +9,7 @@
   const ARCHIVE_DESCRIPTION="Attach a GitHub repository source code.";
   const REPO=/^[a-z0-9](?:[a-z0-9-]{0,38})\/[a-z0-9._-]{1,100}$/i;
   let modal=null, busy=false, verified="", branchPage=0,commitPage=0,tip="",repoGen=0,commitGen=0;
-  let history=[],mine=[],installationsCount=0,accessBlocked=false,installPending=false,installChecking=false,lastInstallCheck=0,signedIn=false,authReady=false,accountName="",accountStatusPromise=null,slashAllowed=false,slashFeatureEnabled=null;
+  let history=[],mine=[],slashAllowed=false,slashFeatureEnabled=null;
   let observer=null,scanQueued=false,scanTimer=null,slashSuggestion=null,lookupTimer=null;
   const id=id=>modal?.querySelector("#"+id);
   const option=(label,value)=>{const e=document.createElement("option");e.textContent=label;e.value=value;return e;};
@@ -61,8 +61,6 @@
     if(modal){modal.remove();modal=null;}
     busy=false;clearTimeout(lookupTimer);
     repoGen++;commitGen++;
-    accountStatusPromise=null;
-    installPending=false;installChecking=false;accessBlocked=false;
   }
   const caret='<svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="m5 7.5 5 5 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const searchIcon='<svg class="gtg-input-leading" aria-hidden="true" width="19" height="19" viewBox="0 0 20 20" fill="none"><circle cx="8.75" cy="8.75" r="6" stroke="currentColor" stroke-width="1.7"/><path d="m13.2 13.2 4.4 4.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
@@ -75,7 +73,7 @@
   async function launch(method) {
     if(!(await isEnabled(method))||modal)return;
     resetSlash();
-    signedIn=false;authReady=false;accountName="";history=[];mine=[];installationsCount=0;accessBlocked=false;installPending=false;
+    history=[];mine=[];
     const dialog=document.createElement("dialog");
     modal=dialog;
     dialog.id="gtg-dialog";
@@ -93,9 +91,6 @@
       '<div><label class="gtg-label" for="gtg-branch-trigger">Branch</label><div class="gtg-select-wrap"><select id="gtg-branch" hidden></select><button type="button" class="gtg-select-trigger" id="gtg-branch-trigger" aria-expanded="false" aria-haspopup="listbox" aria-controls="gtg-branch-list"><span id="gtg-branch-label"></span>',caret,'</button><div class="gtg-revision-list" id="gtg-branch-list" role="listbox" aria-label="Branches" hidden></div></div><button type="button" id="gtg-more-branches" class="gtg-more" hidden>Load more branches</button></div>',
       '<div><label class="gtg-label" for="gtg-commit-trigger">Commit</label><div class="gtg-select-wrap"><select id="gtg-commit" hidden></select><button type="button" class="gtg-select-trigger" id="gtg-commit-trigger" aria-expanded="false" aria-haspopup="listbox" aria-controls="gtg-commit-list"><span id="gtg-commit-label"></span>',caret,'</button><div class="gtg-revision-list" id="gtg-commit-list" role="listbox" aria-label="Commits" hidden></div></div><button type="button" id="gtg-more-commits" class="gtg-more" hidden>Load older commits</button></div>',
       '</div>',
-      '<div class="gtg-auth" id="gtg-auth" hidden><p id="gtg-auth-prompt"></p><button type="button" class="gtg-aux" id="gtg-login">Sign in with GitHub</button>',
-      '<div id="gtg-device" class="gtg-device-panel" hidden><span class="gtg-device-label">Enter this code in the GitHub tab</span><strong id="gtg-device-code" class="gtg-device-code"></strong></div></div>',
-      '<div id="gtg-access" class="gtg-access-action" hidden><button type="button" id="gtg-access-action" class="gtg-aux">Complete connection on GitHub</button></div>',
       '<div id="gtg-status" class="gtg-status" role="status" aria-live="polite" hidden></div>',
       '</div><div class="gtg-footer"><button type="button" class="gtg-btn gtg-cancel" id="gtg-cancel">Cancel</button>',
       '<button type="button" class="gtg-btn gtg-attach" id="gtg-attach" disabled><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-8.49 8.49a5.5 5.5 0 0 1-7.78-7.78l8.49-8.49a3.67 3.67 0 0 1 5.19 5.19l-8.49 8.49a1.83 1.83 0 0 1-2.6-2.59l7.78-7.78"/></svg><span>Attach</span></button></div>'
@@ -118,21 +113,21 @@
     id("gtg-repo").addEventListener("input",()=>{
       clearTimeout(lookupTimer);
       resetRepo();showSuggestions();
-      const name=repoFrom(id("gtg-repo").value);
-      if(name){
+      const entered=id("gtg-repo").value;
+      if(repoFrom(entered)){
         id("gtg-lookup-progress").hidden=false;
-        lookupTimer=setTimeout(()=>choose(name),850);
+        lookupTimer=setTimeout(()=>choose(entered),850);
       }
     });
     id("gtg-repo").addEventListener("keydown",event=>{
       if(event.key==="Enter"){
-        const name=repoFrom(event.currentTarget.value);
-        if(name){event.preventDefault();choose(name);}
+        const entered=event.currentTarget.value;
+        if(entered.trim()){event.preventDefault();void choose(entered);}
       }else if(event.key==="Escape"&&!id("gtg-options").hidden){
         event.stopPropagation();hideSuggestions();
       }
     });
-    id("gtg-branch").addEventListener("change",()=>loadCommits(1,repoGen));
+    id("gtg-branch").addEventListener("change",()=>loadCommits(1,repoGen).catch(()=>{if(modal)status("Could not load commits.",true);}));
     for(const kind of ["branch","commit"]){
       const trigger=id("gtg-"+kind+"-trigger");
       trigger.addEventListener("click",()=>toggleRevisionMenu(kind));
@@ -146,37 +141,21 @@
       if(!event.target.closest(".gtg-repo-control"))hideSuggestions();
       if(!event.target.closest(".gtg-select-wrap"))hideRevisionMenus();
     },true);
-    id("gtg-more-branches").addEventListener("click",()=>loadBranches(branchPage+1,repoGen).catch(err=>status(err.message,true)));
+    id("gtg-more-branches").addEventListener("click",()=>loadBranches(branchPage+1,repoGen).catch(()=>{if(modal)status("Could not load branches.",true);}));
     id("gtg-more-commits").addEventListener("click",()=>loadCommits(commitPage+1,repoGen));
-    id("gtg-login").addEventListener("click",startLogin);
-    id("gtg-access-action").addEventListener("click",async()=>{
-      const button=id("gtg-access-action");
-      button.disabled=true;
-      try{
-        await request("install-open");
-        installPending=true;
-      }catch(err){status(err.message,true);}
-      finally{if(modal)button.disabled=false;}
-    });
     id("gtg-attach").addEventListener("click",attach);
     dialog.showModal();
     id("gtg-repo").focus();
-    accountStatusPromise=request("auth-status").then(account=>{
-      if(modal!==dialog)return;
-      signedIn=!!account.connected;authReady=true;accountName=account.account||"";
-    }).catch(()=>{if(modal===dialog)authReady=false;});
     const recentPromise=request("history").then(recent=>{
       if(modal!==dialog)return;
       history=recent;renderSuggestions();
-    }).catch(err=>{if(modal===dialog)status(err.message,true);});
-    await Promise.all([accountStatusPromise,recentPromise]);
-    if(modal!==dialog||!signedIn)return;
-    try{
-      const result=await request("repositories");
+    }).catch(()=>{ /* An unavailable history does not affect direct repository lookups. */ });
+    const repositoriesPromise=request("repositories").then(result=>{
+      if(modal!==dialog)return;
       mine=result.repositories||[];
-      installationsCount=result.installationsCount||0;
-      if(modal===dialog){renderAccessPrompt();renderSuggestions();}
-    }catch(err){if(modal===dialog)status(err.message,true);}
+      renderSuggestions();
+    }).catch(()=>{ /* GitHub connection setup is managed exclusively in settings. */ });
+    await Promise.all([recentPromise,repositoriesPromise]);
   }
   function hideRevisionMenus(){
     for(const kind of ["branch","commit"]){
@@ -234,34 +213,6 @@
     if(id("gtg-"+kind+"-list").hidden)showRevisionMenu(kind);
     else hideRevisionMenus();
   }
-  function renderAccessPrompt(){
-    const panel=id("gtg-access");
-    if(!panel)return;
-    // Only display the one-time installation action after a signed-in user
-    // requests an inaccessible repository and the app has no installations.
-    panel.hidden=!signedIn||Boolean(installationsCount)||!accessBlocked;
-  }
-  async function refreshInstallAccess(){
-    if(!modal||installChecking||!signedIn)return;
-    const dialog=modal;
-    installChecking=true;lastInstallCheck=Date.now();
-    try{
-      const data=await request("repositories");
-      if(modal!==dialog)return;
-      mine=data.repositories||[];
-      installationsCount=data.installationsCount||0;
-      if(installationsCount){
-        accessBlocked=false;
-        installPending=false;
-      }
-      renderAccessPrompt();
-      renderSuggestions();
-      const repo=repoFrom(id("gtg-repo").value);
-      if(repo&&installationsCount)await choose(repo);
-    }catch(err){
-      if(modal===dialog)status(err.message,true);
-    }finally{installChecking=false;}
-  }
   function hideSuggestions(){
     const box=id("gtg-options");if(!box)return;
     box.hidden=true;
@@ -296,9 +247,6 @@
           catch(err){status(err.message,true);}
         });
         head.append(clear);
-      }else if(accountName){
-        const account=document.createElement("span");account.className="gtg-account";
-        account.textContent=accountName;head.append(account);
       }
       box.append(head);
       for(const item of items){
@@ -309,7 +257,11 @@
         pick.innerHTML=miniIcons[isRecent?"history":item.private?"lock":"repository"];
         const nameEl=document.createElement("span");
         nameEl.className="gtg-pick-text";nameEl.textContent=name;pick.append(nameEl);
-        pick.addEventListener("click",()=>choose(name));
+        pick.addEventListener("click",()=>{
+          // Selecting a suggestion intentionally fills the input; lookups never rewrite typed text.
+          id("gtg-repo").value=name;
+          void choose(name);
+        });
         line.append(pick);
         if(!isRecent&&item.private){
           const flag=document.createElement("span");flag.className="gtg-private";
@@ -350,15 +302,12 @@
     if(id("gtg-lookup-progress"))id("gtg-lookup-progress").hidden=true;
   }
   function resetRepo(){
-    accessBlocked=false;
-    renderAccessPrompt();
     hideRevisionMenus();
     repoGen++;commitGen++;verified="";branchPage=0;commitPage=0;tip="";
     hideLoading();
     id("gtg-revisions").hidden=true;
     id("gtg-verified").hidden=true;
     id("gtg-attach").disabled=true;
-    id("gtg-auth").hidden=true;
     status("");
   }
   function prepareRevisionLoading(){
@@ -366,35 +315,27 @@
     id("gtg-more-commits").hidden=true;
     showLoading();
   }
-  async function choose(name){
-    if(!modal||!repoFrom(name))return;
+  async function choose(entered){
+    if(!modal)return;
     clearTimeout(lookupTimer);resetRepo();
-    const gen=repoGen,dialog=modal;
-    id("gtg-repo").value=name;
+    const repo=repoFrom(entered);
     hideSuggestions();
+    if(!repo){
+      status("Could not find that repository.",true);
+      return;
+    }
+    const gen=repoGen,dialog=modal;
     prepareRevisionLoading();
     try{
       await loadBranches(1,gen);
-    }catch(err){
+    }catch{
       if(gen!==repoGen||modal!==dialog)return;
+      verified="";
       hideLoading();
       id("gtg-revisions").hidden=true;
       id("gtg-verified").hidden=true;
-      if(err.code==="REPOSITORY_UNAVAILABLE"){
-        if(accountStatusPromise)await accountStatusPromise;
-        if(gen!==repoGen||modal!==dialog)return;
-        if(authReady&&!signedIn){
-          id("gtg-auth-prompt").textContent="This repository couldn't be found. If it's private, sign in with GitHub to check your access.";
-          id("gtg-auth").hidden=false;
-          status("");
-          return;
-        }
-      }
-      if(err.code==="REPOSITORY_UNAVAILABLE"&&signedIn&&!installationsCount){
-        accessBlocked=true;
-        renderAccessPrompt();
-        status("");
-      }else status(err.message,true);
+      id("gtg-attach").disabled=true;
+      status("Could not find that repository.",true);
     }
   }
   async function loadBranches(page,generation=repoGen){
@@ -466,53 +407,14 @@
     }catch(err){
       if(generation===repoGen&&commitRequest===commitGen&&modal){
         hideLoading();
-        if(page>1){id("gtg-revisions").hidden=false;id("gtg-attach").disabled=false;}
-        status(err.message,true);
-      }
-    }
-  }
-  async function startLogin(){
-    id("gtg-login").disabled=true;
-    try{
-      const data=await request("auth-start");
-      if(!modal)return;
-      id("gtg-auth-prompt").hidden=true;
-      id("gtg-login").hidden=true;
-      id("gtg-device").hidden=false;
-      id("gtg-device-code").textContent=data.user_code;
-      status("");
-      await request("auth-open");
-      const expiry=Date.now()+data.expires_in*1000;
-      let interval=data.interval*1000;
-      while(modal&&Date.now()<expiry){
-        await new Promise(resolve=>setTimeout(resolve,interval));
-        if(!modal)return;
-        const result=await request("auth-poll");
-        if(result.connected){
-          signedIn=true;authReady=true;accountName=result.account||"";
-          id("gtg-auth").hidden=true;
-          const inventory=await request("repositories");
-          mine=inventory.repositories||[];
-          installationsCount=inventory.installationsCount||0;
-          renderAccessPrompt();
-          status("");
-          renderSuggestions();
-          const repo=repoFrom(id("gtg-repo").value);
-          if(repo)await choose(repo);
-          return;
+        if(page>1){
+          id("gtg-revisions").hidden=false;
+          id("gtg-attach").disabled=false;
+          status("Could not load commits.",true);
         }
-        interval=Math.max(result.interval*1000,interval);
       }
-      throw Error("GitHub verification expired. Try again.");
-    }catch(err){
-      if(modal){
-        id("gtg-device").hidden=true;
-        id("gtg-auth-prompt").hidden=false;
-        id("gtg-login").hidden=false;
-        status(err.message,true);
-      }
+      if(page===1)throw err;
     }
-    finally{if(modal)id("gtg-login").disabled=false;}
   }
   function base64Bytes(encoded){
     const raw=atob(encoded),bytes=new Uint8Array(raw.length);
@@ -1022,11 +924,6 @@
       setVirtualRow(row);
     }
   }
-  // When the user returns from GitHub installation, re-read actual permissions.
-  window.addEventListener("focus",()=>{
-    if(modal&&installPending&&!installChecking&&Date.now()-lastInstallCheck>1200)
-      void refreshInstallAccess();
-  });
   // Registered before the dynamically opened menu installs its window handler.
   window.addEventListener("keydown",interceptMenuKey,true);
   document.addEventListener("mousemove",event=>{

@@ -122,9 +122,6 @@
 #gtg-dialog .gtg-revision-option:hover,
 #gtg-dialog .gtg-revision-option:focus-visible {background:#454545;}
 #gtg-dialog .gtg-revision-option[aria-selected="true"] {background:#3d3d3d;}
-#gtg-dialog .gtg-install-note {
-  font-size:12px;line-height:1.5;color:#c4c4c4;margin:8px 10px;padding:8px 2px;
-}
 #gtg-dialog .gtg-select-wrap svg {
   position:absolute;right:17px;top:50%;transform:translateY(-50%);
   pointer-events:none;color:#c6c6c6;
@@ -142,34 +139,6 @@
 #gtg-dialog .gtg-more {border:0;background:transparent;color:#dadada;
   padding:7px 3px;font-size:12px;cursor:pointer;}
 #gtg-dialog .gtg-more:hover {text-decoration:underline;}
-/* The installation stage is one normal modal action, not a new panel. */
-#gtg-dialog .gtg-access-action {
-  margin-top:20px;
-  padding-top:18px;
-  border-top:1px solid #393939;
-}
-#gtg-dialog .gtg-auth {margin-top:18px;background:#2b2b2b;
-  padding:15px 18px;border-radius:13px;border:1px solid #454545;}
-#gtg-dialog .gtg-auth p {margin:0 0 11px;color:#ddd;font-size:12px;}
-#gtg-dialog .gtg-aux {background:#ededed;color:#202020;
-  border:1px solid #ededed;border-radius:999px;
-  min-height:36px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;}
-#gtg-dialog .gtg-aux:hover {background:#fff;}
-#gtg-dialog .gtg-aux:disabled {opacity:.5;cursor:wait;}
-/* During device authorization, only a single inline code row appears. */
-#gtg-dialog .gtg-auth:has(#gtg-device:not([hidden])) {
-  background:transparent;border:0;padding:0;border-radius:0;
-}
-#gtg-dialog .gtg-device-panel {
-  display:flex;align-items:center;justify-content:space-between;
-  gap:12px;flex-wrap:wrap;margin-top:0;padding:17px 0 0;
-  border-top:1px solid #393939;
-}
-#gtg-dialog .gtg-device-label {color:#c9c9c9;font-size:13px;line-height:1.5;}
-#gtg-dialog .gtg-device-code {
-  display:block;flex:none;font-size:20px;font-weight:650;letter-spacing:.1em;
-  color:#ededed;font-variant-numeric:tabular-nums;user-select:all;
-}
 #gtg-dialog .gtg-status {color:#c5c5c5;font-size:12px;margin:10px 0 0;}
 #gtg-dialog .gtg-status[data-error="true"] {color:#f2a9a9;}
 #gtg-dialog .gtg-footer {display:flex;align-items:center;justify-content:flex-end;
