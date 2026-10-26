@@ -46,7 +46,8 @@
 	const githubSignIn = $("github-sign-in")
 	const githubDisconnect = $("github-disconnect")
 	const authInfo = document.createElement("div")
-	authInfo.className = "integration-note"
+	authInfo.className = "github-device-panel"
+	authInfo.hidden = true
 	githubSignIn.parentElement.after(authInfo)
 	function githubRequest(kind, extra = {}) {
 		return chrome.runtime.sendMessage({ kind: "gpt-github-" + kind, ...extra }).then(reply => {
@@ -70,13 +71,19 @@
 	}
 	githubSignIn.addEventListener("click", async () => {
 		githubSignIn.disabled = true
-		authInfo.textContent = "Starting GitHub authorization…"
+		authInfo.hidden = true
 		try {
 			const auth = await githubRequest("auth-start")
 			authInfo.replaceChildren()
+			const label = document.createElement("span")
+			label.className = "github-device-label"
+			label.textContent = "Enter this code in the GitHub tab"
 			const code = document.createElement("strong")
-			code.textContent = "Enter " + auth.user_code + " on GitHub to authorize GPT Tweaks."
-			authInfo.append(code)
+			code.className = "github-device-code"
+			code.textContent = auth.user_code
+			authInfo.append(label, code)
+			authInfo.dataset.error = "false"
+			authInfo.hidden = false
 			await githubRequest("auth-open")
 			const until = Date.now() + auth.expires_in * 1000
 			let interval = auth.interval * 1000
@@ -88,10 +95,13 @@
 				interval = Math.max(interval, response.interval * 1000)
 			}
 			if (!connected) throw new Error("GitHub authorization expired.")
-			authInfo.textContent = ""
+			authInfo.replaceChildren()
+			authInfo.hidden = true
 			await renderGithubAccount()
 		} catch (error) {
 			authInfo.textContent = error.message || String(error)
+			authInfo.dataset.error = "true"
+			authInfo.hidden = false
 		} finally { await renderGithubAccount() }
 	})
 	githubDisconnect.addEventListener("click", async () => {
