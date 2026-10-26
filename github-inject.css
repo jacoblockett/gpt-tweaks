@@ -43,7 +43,10 @@
   color:#ededed;font:inherit;padding:9px 0;
 }
 #gtg-dialog #gtg-repo::placeholder {color:#a9a9a9;opacity:1;}
-#gtg-dialog .gtg-verified {color:#c7c7c7;display:grid;place-items:center;}
+#gtg-dialog .gtg-verified,#gtg-dialog .gtg-lookup-progress {
+  color:#c7c7c7;display:grid;place-items:center;flex:none;
+  width:20px;height:20px;
+}
 #gtg-dialog #gtg-toggle svg {transition:transform .15s ease;}
 #gtg-dialog #gtg-toggle[aria-expanded="true"] svg {transform:rotate(180deg);}
 #gtg-dialog .gtg-options {
@@ -177,3 +180,31 @@
   background-color:transparent!important;
   opacity:var(--opacity-menu-row,.75)!important;
 }
+
+
+/* Direct slash matches can outlive ChatGPT's own filtered command menu. */
+.gtg-command-fallback {
+  position:fixed;z-index:2147483000;max-height:min(240px,40vh);overflow-y:auto;
+  border:1px solid var(--border-default,#505050);border-radius:20px;
+  background:var(--bg-surface-elevated-secondary,#2e2e2e);
+  color:var(--text-primary,#eee);
+  box-shadow:0 12px 36px #0006;padding:6px 10px 10px;
+  font-family:var(--font-sans,"OpenAI Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);
+  font-size:14px;
+}
+.gtg-command-fallback .gtg-menu-heading {padding:7px 11px 6px;}
+.gtg-fallback-row {
+  display:flex;align-items:center;gap:12px;width:100%;
+  min-height:42px;padding:9px 12px;border-radius:12px;border:0;
+  background:transparent;color:inherit;cursor:pointer;text-align:left;font:inherit;
+}
+.gtg-fallback-row:hover,
+.gtg-fallback-row.bg-primary-ghost-hover,
+.gtg-fallback-row:focus-visible {
+  background:var(--bg-primary-ghost-hover,#444);
+}
+.gtg-fallback-row:focus-visible {outline:2px solid currentColor;outline-offset:-2px;}
+.gtg-fallback-icon {display:grid;place-items:center;flex:none;color:inherit;width:20px;height:20px;}
+.gtg-fallback-text {display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0;}
+.gtg-fallback-description {color:var(--text-secondary,#bababa);font-size:13px;}
+.gtg-fuzzy-match {font-weight:700;color:var(--text-primary,#fff);}
