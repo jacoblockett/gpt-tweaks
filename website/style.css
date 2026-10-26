@@ -66,7 +66,6 @@ a:hover { text-decoration: underline; }
 	color: var(--text);
 	background: var(--active);
 	font-weight: 600;
-	box-shadow: inset 3px 0 var(--accent);
 }
 .nav-child {
 	margin: 1px 0 7px 22px;
