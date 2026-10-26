@@ -55,62 +55,38 @@
 			return reply.data
 		})
 	}
-	const githubInstallPanel = $("github-install-panel")
-	const githubInstallState = $("github-install-state")
-	const githubInstallCopy = $("github-install-copy")
 	const githubInstallAction = $("github-install-action")
-	const githubInstallRefresh = $("github-install-refresh")
 	let installationPending = false
 	let installationChecking = false
 	let installedOnAccount = false
 	let lastInstallCheck = 0
 	async function refreshGithubInstallation() {
-		if (githubInstallPanel.hidden || installationChecking) return
+		if (installationChecking) return
 		installationChecking = true
 		lastInstallCheck = Date.now()
-		githubInstallRefresh.disabled = true
-		githubInstallState.textContent = "Checking"
-		githubInstallState.dataset.kind = "checking"
 		try {
-			const result = await githubRequest("install-status")
-			if (githubInstallPanel.hidden) return
-			if (!result.connected) {
-				githubInstallPanel.hidden = true
-				return
-			}
-			installedOnAccount = result.installationsCount > 0
-			githubInstallState.textContent = installedOnAccount ? "Access granted" : "Not installed"
-			githubInstallState.dataset.kind = installedOnAccount ? "ready" : "missing"
-			githubInstallCopy.textContent = installedOnAccount
-				? "GPT Tweaks can read the repositories you selected on GitHub. You can update access at any time."
-				: "Choose which repositories GPT Tweaks can read. This is separate from signing in, and public repositories still work without it."
-			githubInstallAction.textContent = installedOnAccount ? "Manage repository access" : "Choose repositories on GitHub"
-			if (installedOnAccount) installationPending = false
+			const state = await githubRequest("install-status")
+			installedOnAccount = state.connected && state.installationsCount > 0
+			githubInstallAction.hidden = !state.connected || installedOnAccount
+			if (installedOnAccount || !state.connected) installationPending = false
 		} catch (error) {
-			githubInstallState.textContent = "Check failed"
-			githubInstallState.dataset.kind = "error"
-			githubInstallCopy.textContent = "Could not check repository access: " + (error.message || String(error))
-			githubInstallAction.textContent = "Choose repositories on GitHub"
-			installedOnAccount = false
-		} finally {
-			installationChecking = false
-			githubInstallRefresh.disabled = false
-		}
+			// Do not guess installation state if GitHub cannot be reached.
+			console.warn("GitHub installation status unavailable:", error)
+		} finally { installationChecking = false }
 	}
 	githubInstallAction.addEventListener("click", async () => {
 		githubInstallAction.disabled = true
 		try {
-			await githubRequest(installedOnAccount ? "install-manage" : "install-open")
+			await githubRequest("install-open")
 			installationPending = true
 		} catch (error) {
-			githubInstallState.textContent = "Could not open GitHub"
-			githubInstallState.dataset.kind = "error"
-			githubInstallCopy.textContent = error.message || String(error)
+			authInfo.textContent = error.message || String(error)
+			authInfo.dataset.error = "true"
+			authInfo.hidden = false
 		} finally { githubInstallAction.disabled = false }
 	})
-	githubInstallRefresh.addEventListener("click", () => void refreshGithubInstallation())
 	window.addEventListener("focus", () => {
-		if (installationPending && !githubInstallPanel.hidden && Date.now() - lastInstallCheck > 1200)
+		if (installationPending && Date.now() - lastInstallCheck > 1200)
 			void refreshGithubInstallation()
 	})
 	async function renderGithubAccount() {
@@ -125,7 +101,7 @@
 			githubSignIn.disabled = !state.supported
 			githubSignIn.title = state.supported ? "" : "GitHub App client ID is not configured yet"
 			githubDisconnect.hidden = !state.connected
-			githubInstallPanel.hidden = !state.connected
+			githubInstallAction.hidden = true
 			if (state.connected) await refreshGithubInstallation()
 			else { installationPending = false; installedOnAccount = false }
 		} catch (error) { authInfo.textContent = error.message || String(error) }
