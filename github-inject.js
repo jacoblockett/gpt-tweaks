@@ -9,7 +9,7 @@
   const ARCHIVE_DESCRIPTION="Attach a GitHub repository source code.";
   const REPO=/^[a-z0-9](?:[a-z0-9-]{0,38})\/[a-z0-9._-]{1,100}$/i;
   let modal=null, busy=false, verified="", branchPage=0,commitPage=0,tip="",repoGen=0,commitGen=0;
-  let history=[],mine=[],signedIn=false,authReady=false,accountName="",accountStatusPromise=null,slashAllowed=false,slashFeatureEnabled=null;
+  let history=[],mine=[],installationsCount=0,signedIn=false,authReady=false,accountName="",accountStatusPromise=null,slashAllowed=false,slashFeatureEnabled=null;
   let observer=null,scanQueued=false,scanTimer=null,slashSuggestion=null,lookupTimer=null;
   const id=id=>modal?.querySelector("#"+id);
   const option=(label,value)=>{const e=document.createElement("option");e.textContent=label;e.value=value;return e;};
@@ -74,7 +74,7 @@
   async function launch(method) {
     if(!(await isEnabled(method))||modal)return;
     resetSlash();
-    signedIn=false;authReady=false;accountName="";history=[];mine=[];
+    signedIn=false;authReady=false;accountName="";history=[];mine=[];installationsCount=0;
     const dialog=document.createElement("dialog");
     modal=dialog;
     dialog.id="gtg-dialog";
@@ -149,7 +149,9 @@
     await Promise.all([accountStatusPromise,recentPromise]);
     if(modal!==dialog||!signedIn)return;
     try{
-      mine=await request("repositories");
+      const result=await request("repositories");
+      mine=result.repositories||[];
+      installationsCount=result.installationsCount||0;
       if(modal===dialog)renderSuggestions();
     }catch(err){if(modal===dialog)status(err.message,true);}
   }
@@ -221,6 +223,12 @@
     }
     group("Recently attached",recent,true);
     group("Your repositories",own,false);
+    if(signedIn&&!installationsCount){
+      const note=document.createElement("p");
+      note.className="gtg-install-note";
+      note.textContent="No GitHub App installation found. Install GPT Tweaks on GitHub and grant repository access to list private repositories.";
+      box.append(note);
+    }
     // An empty suggestion list is not an input placeholder or a visible panel.
     box.hidden=!box.childNodes.length||!wasOpen;
     const expanded=!box.hidden;
@@ -369,7 +377,9 @@
         if(result.connected){
           signedIn=true;authReady=true;accountName=result.account||"";
           id("gtg-auth").hidden=true;
-          mine=await request("repositories");
+          const result=await request("repositories");
+          mine=result.repositories||[];
+          installationsCount=result.installationsCount||0;
           status("");
           renderSuggestions();
           const repo=repoFrom(id("gtg-repo").value);
