@@ -736,7 +736,13 @@
       removeMenuGroup("slash");
     }
     if(slashSuggestion?.isConnected){
+      const title=slashSuggestion.querySelector('[data-gtg-slash-title="true"]');
+      const queryChanged=title?.dataset.gtgFuzzyQuery!==match.value;
       displayFuzzyTitle(slashSuggestion,match.value);
+      // React may still select its first native row after filtering.
+      // Reassert the injected top row only on a new search query, so ordinary
+      // pointer and arrow navigation at a stable query is not overridden.
+      if(queryChanged)setVirtualRow(slashSuggestion);
       return;
     }
     try{
@@ -874,7 +880,8 @@
         }
         return;
       }
-      clearVirtualRow();
+      // Text editing, Backspace, etc. should not deselect the first result.
+      // updateSlash() clears the selection when the new query stops matching.
       return;
     }
     if((event.key==="ArrowDown"&&nativeSelected===prev)||
