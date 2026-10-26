@@ -2,7 +2,7 @@
 
 // Set to the public Client ID of a GitHub App with device flow enabled and
 // Contents: Read-only repository access. Never place a client secret here.
-const GITHUB_APP_CLIENT_ID = "";
+const GITHUB_APP_CLIENT_ID = "Iv23lirYD1P4hjuWYkyT";
 const PREFIX = "gpt-tweaks.github.";
 const MAX_ZIP_BYTES = 16 * 1024 * 1024;
 const REPO = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9._-]{1,100}$/;
