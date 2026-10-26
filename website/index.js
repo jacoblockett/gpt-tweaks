@@ -1,6 +1,6 @@
 ;(async () => {
 	"use strict"
-	const { ready, preferences: preferenceStore } = globalThis.GPTTweaksStorage
+	const { ready, preferences: preferenceStore, credentials: credentialStore } = globalThis.GPTTweaksStorage
 	await ready
 	const $ = id => document.getElementById(id)
 	const enabled = $("archive-enabled")
@@ -41,7 +41,28 @@
 	)
 	syncFeature()
 
-	// GitHub device login is intentionally deferred until attachment integration.
+	// Device authorization is deferred. Once connected by the attachment
+	// utility, the authenticated account is represented by these storage keys.
+	const githubAuthKey = "gpt-tweaks.github.auth"
+	const githubAccountKey = "gpt-tweaks.github.account"
+	const githubStatus = $("github-account-status")
+	const githubSignIn = $("github-sign-in")
+	const githubDisconnect = $("github-disconnect")
+	function renderGithubAccount() {
+		const session = credentialStore.getItem(githubAuthKey)
+		const username = preferenceStore.getItem(githubAccountKey)
+		const connected = Boolean(session)
+		githubStatus.textContent = connected && username ? `Connected as ${username}` : connected ? "Connected" : "Not connected"
+		githubStatus.classList.toggle("connected", connected)
+		githubSignIn.hidden = connected
+		githubDisconnect.hidden = !connected
+	}
+	githubDisconnect.addEventListener("click", () => {
+		credentialStore.removeItem(githubAuthKey)
+		preferenceStore.removeItem(githubAccountKey)
+		renderGithubAccount()
+	})
+	renderGithubAccount()
 
 	const historyKey = "gpt-tweaks.github.repository-history"
 	const historyStatus = $("repository-history-status")

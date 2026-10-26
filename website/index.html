@@ -3,7 +3,7 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<meta name="color-scheme" content="light" />
+		<meta name="color-scheme" content="dark" />
 		<title>GPT Tweaks</title>
 		<link rel="stylesheet" href="style.css" />
 		<script src="settings-storage.js" defer></script>
@@ -244,11 +244,11 @@
 					<section id="github-account" class="feature github-settings-section" aria-labelledby="github-account-title">
 						<div class="feature-heading">
 							<h2 id="github-account-title">GitHub account</h2>
-							<span id="github-account-status">Not connected</span>
+							<span id="github-account-status" class="account-status" role="status" aria-live="polite">Not connected</span>
 						</div>
 						<p class="description">Sign in to allow GitHub utilities to access private repositories you own.</p>
 						<div class="feature-body">
-							<div class="setting-row">
+							<div class="github-account-actions">
 								<button
 									type="button"
 									class="settings-action"
@@ -256,6 +256,9 @@
 									disabled
 									title="Available when GitHub attachment integration is implemented">
 									Sign in with GitHub
+								</button>
+								<button type="button" class="settings-action danger-action" id="github-disconnect" hidden>
+									Disconnect
 								</button>
 							</div>
 						</div>
