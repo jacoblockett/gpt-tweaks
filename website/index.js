@@ -43,46 +43,80 @@
 
 	// Device authorization is handled in the trusted extension service worker.
 	const githubStatus = $("github-account-status")
+	const githubDescription = $("github-account-description")
+	const githubControls = $("github-account-controls")
+	const githubDeviceCode = $("github-device-code")
+	const githubAuthError = $("github-auth-error")
 	const githubSignIn = $("github-sign-in")
+	const githubInstallAction = $("github-install-action")
 	const githubDisconnect = $("github-disconnect")
-	const authInfo = document.createElement("div")
-	authInfo.className = "github-device-panel"
-	authInfo.hidden = true
-	githubSignIn.parentElement.after(authInfo)
+	let githubConnected = false
+	let githubAccount = ""
+	let githubSupported = false
+	let authorizationPending = false
+	let installationPending = false
+	let installationChecking = false
+	let installedOnAccount = false
+	let lastInstallCheck = 0
+	const installationDescription =
+		"Your GitHub account is now connected. To access your private repositories through GPT Tweaks, " +
+		"you'll also need to install the GPT Tweaks application on GitHub."
+
 	function githubRequest(kind, extra = {}) {
 		return chrome.runtime.sendMessage({ kind: "gpt-github-" + kind, ...extra }).then(reply => {
 			if (!reply?.ok) throw new Error(reply?.error || "GitHub request failed.")
 			return reply.data
 		})
 	}
-	const githubInstallAction = $("github-install-action")
-	let installationPending = false
-	let installationChecking = false
-	let installedOnAccount = false
-	let lastInstallCheck = 0
+	function clearGithubError() {
+		githubAuthError.textContent = ""
+		githubAuthError.hidden = true
+	}
+	function showGithubError(error) {
+		githubAuthError.textContent = error.message || String(error)
+		githubAuthError.hidden = false
+	}
+	function showGithubAccount() {
+		const fullyConnected = githubConnected && installedOnAccount
+		githubStatus.textContent = authorizationPending || !githubConnected
+			? "Not connected"
+			: (fullyConnected ? "Connected" : "Signed in") + (githubAccount ? " as " + githubAccount : "")
+		githubStatus.classList.toggle("connected", githubConnected && !authorizationPending)
+		githubDescription.hidden = fullyConnected
+		githubDescription.textContent = authorizationPending
+			? "Enter this code in the GitHub tab."
+			: githubConnected ? installationDescription : "Sign in with GitHub to connect your account."
+		githubDeviceCode.hidden = !authorizationPending
+		githubControls.hidden = authorizationPending
+		githubSignIn.hidden = githubConnected
+		githubSignIn.disabled = !githubSupported
+		githubSignIn.title = githubSupported ? "" : "GitHub App client ID is not configured yet"
+		githubInstallAction.hidden = !githubConnected || fullyConnected
+		githubDisconnect.hidden = !githubConnected
+	}
 	async function refreshGithubInstallation() {
-		if (installationChecking) return
+		if (installationChecking || !githubConnected) return
 		installationChecking = true
 		lastInstallCheck = Date.now()
 		try {
 			const state = await githubRequest("install-status")
+			if (!githubConnected) return
 			installedOnAccount = state.connected && state.installationsCount > 0
-			githubInstallAction.hidden = !state.connected || installedOnAccount
 			if (installedOnAccount || !state.connected) installationPending = false
+			showGithubAccount()
 		} catch (error) {
-			// Do not guess installation state if GitHub cannot be reached.
+			// An unavailable installation check must not imply a completed installation.
 			console.warn("GitHub installation status unavailable:", error)
 		} finally { installationChecking = false }
 	}
 	githubInstallAction.addEventListener("click", async () => {
 		githubInstallAction.disabled = true
+		clearGithubError()
 		try {
 			await githubRequest("install-open")
 			installationPending = true
 		} catch (error) {
-			authInfo.textContent = error.message || String(error)
-			authInfo.dataset.error = "true"
-			authInfo.hidden = false
+			showGithubError(error)
 		} finally { githubInstallAction.disabled = false }
 	})
 	window.addEventListener("focus", () => {
@@ -93,34 +127,25 @@
 		if (!globalThis.chrome?.runtime?.id) return
 		try {
 			const state = await githubRequest("auth-status")
-			githubStatus.textContent = state.connected
-				? state.account ? "Connected as " + state.account : "Connected"
-				: "Not connected"
-			githubStatus.classList.toggle("connected", state.connected)
-			githubSignIn.hidden = state.connected
-			githubSignIn.disabled = !state.supported
-			githubSignIn.title = state.supported ? "" : "GitHub App client ID is not configured yet"
-			githubDisconnect.hidden = !state.connected
-			githubInstallAction.hidden = true
-			if (state.connected) await refreshGithubInstallation()
-			else { installationPending = false; installedOnAccount = false }
-		} catch (error) { authInfo.textContent = error.message || String(error) }
+			githubConnected = !!state.connected
+			githubAccount = state.account || ""
+			githubSupported = !!state.supported
+			if (!githubConnected) {
+				installationPending = false
+				installedOnAccount = false
+			}
+			showGithubAccount()
+			if (githubConnected) await refreshGithubInstallation()
+		} catch (error) { showGithubError(error) }
 	}
 	githubSignIn.addEventListener("click", async () => {
 		githubSignIn.disabled = true
-		authInfo.hidden = true
+		clearGithubError()
 		try {
 			const auth = await githubRequest("auth-start")
-			authInfo.replaceChildren()
-			const label = document.createElement("span")
-			label.className = "github-device-label"
-			label.textContent = "Enter this code in the GitHub tab"
-			const code = document.createElement("strong")
-			code.className = "github-device-code"
-			code.textContent = auth.user_code
-			authInfo.append(label, code)
-			authInfo.dataset.error = "false"
-			authInfo.hidden = false
+			githubDeviceCode.textContent = auth.user_code
+			authorizationPending = true
+			showGithubAccount()
 			await githubRequest("auth-open")
 			const until = Date.now() + auth.expires_in * 1000
 			let interval = auth.interval * 1000
@@ -132,22 +157,27 @@
 				interval = Math.max(interval, response.interval * 1000)
 			}
 			if (!connected) throw new Error("GitHub authorization expired.")
-			authInfo.replaceChildren()
-			authInfo.hidden = true
+			authorizationPending = false
+			githubDeviceCode.textContent = ""
 			await renderGithubAccount()
 		} catch (error) {
-			authInfo.textContent = error.message || String(error)
-			authInfo.dataset.error = "true"
-			authInfo.hidden = false
-		} finally { await renderGithubAccount() }
+			authorizationPending = false
+			githubDeviceCode.textContent = ""
+			showGithubAccount()
+			showGithubError(error)
+		} finally { githubSignIn.disabled = !githubSupported || githubConnected }
 	})
 	githubDisconnect.addEventListener("click", async () => {
 		githubDisconnect.disabled = true
+		clearGithubError()
 		try {
 			await githubRequest("auth-disconnect")
-			authInfo.textContent = ""
-			await renderGithubAccount()
-		} catch (error) { authInfo.textContent = error.message || String(error) }
+			githubConnected = false
+			githubAccount = ""
+			installedOnAccount = false
+			installationPending = false
+			showGithubAccount()
+		} catch (error) { showGithubError(error) }
 		finally { githubDisconnect.disabled = false }
 	})
 	void renderGithubAccount()

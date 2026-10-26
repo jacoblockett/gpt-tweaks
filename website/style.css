@@ -311,27 +311,23 @@ code {
 	*, *::before, *::after { transition: none !important; }
 }
 
-/* Inline GitHub authorization code, using the existing settings typography. */
-.github-device-panel {
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  flex-wrap:wrap;
-  gap:12px;
-  max-width:560px;
-  margin-top:17px;
-  padding:17px 0 0;
-  border-top:1px solid var(--border);
-  color:var(--text);
-}
-.github-device-panel[hidden] {display:none;}
-.github-device-label {font-size:13px;color:var(--muted);line-height:1.5;}
+/* GitHub authorization code uses the same unboxed treatment as the approved mockup. */
 .github-device-code {
-  font-size:20px;
-  font-weight:650;
-  color:var(--text);
-  letter-spacing:.1em;
-  font-variant-numeric:tabular-nums;
-  user-select:all;
+	display: block;
+	width: max-content;
+	margin-top: 24px;
+	font-size: 24px;
+	font-weight: 650;
+	letter-spacing: 0.10em;
+	font-variant-numeric: tabular-nums;
+	user-select: all;
 }
-.github-device-panel[data-error="true"] {font-size:13px;color:#f2a9a9;}
+.github-device-code[hidden],
+.github-auth-error[hidden],
+#github-account-controls[hidden] { display: none; }
+.github-auth-error {
+	margin-top: 17px;
+	color: #f2a9a9;
+	font-size: 13px;
+	line-height: 1.5;
+}

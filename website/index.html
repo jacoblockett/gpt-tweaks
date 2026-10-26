@@ -246,20 +246,15 @@
 							<h2 id="github-account-title">GitHub account</h2>
 							<span id="github-account-status" class="account-status" role="status" aria-live="polite">Not connected</span>
 						</div>
-						<p class="description">Sign in with GitHub to connect your account.</p>
-						<div class="feature-body">
+						<p id="github-account-description" class="description">Sign in with GitHub to connect your account.</p>
+						<strong id="github-device-code" class="github-device-code" aria-label="GitHub authorization code" hidden></strong>
+						<div id="github-auth-error" class="github-auth-error" role="alert" hidden></div>
+						<div class="feature-body" id="github-account-controls">
 							<div class="github-account-actions">
-								<button
-									type="button"
-									class="settings-action"
-									id="github-sign-in"
-									disabled
-									title="Available when GitHub attachment integration is implemented">
-									Sign in with GitHub
-								</button>
-								<button type="button" class="settings-action" id="github-install-action" hidden>Complete connection on GitHub</button>
+								<button type="button" class="settings-action" id="github-sign-in" disabled>Sign in with GitHub</button>
+								<button type="button" class="settings-action" id="github-install-action" hidden>Install GPT Tweaks on GitHub</button>
 								<button type="button" class="settings-action danger-action" id="github-disconnect" hidden>
-									Disconnect
+									Disconnect from GitHub
 								</button>
 							</div>
 						</div>
