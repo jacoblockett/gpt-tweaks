@@ -17,3 +17,6 @@ chrome.action.onClicked.addListener(() => {
 		console.error("[GPT Tweaks] Unable to open settings:", error)
 	})
 })
+
+// GitHub source utility, loaded only in trusted extension service worker.
+importScripts("github-background.js");

@@ -12,5 +12,24 @@
   "background": {
     "service_worker": "background.js"
   },
-  "options_page": "website/index.html"
+  "options_page": "website/index.html",
+  "host_permissions": [
+    "https://api.github.com/*",
+    "https://codeload.github.com/*",
+    "https://github.com/login/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*"
+      ],
+      "js": [
+        "github-inject.js"
+      ],
+      "css": [
+        "github-inject.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
 }

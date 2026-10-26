@@ -1,6 +1,6 @@
 ;(async () => {
 	"use strict"
-	const { ready, preferences: preferenceStore, credentials: credentialStore } = globalThis.GPTTweaksStorage
+	const { ready, preferences: preferenceStore } = globalThis.GPTTweaksStorage
 	await ready
 	const $ = id => document.getElementById(id)
 	const enabled = $("archive-enabled")
@@ -41,28 +41,69 @@
 	)
 	syncFeature()
 
-	// Device authorization is deferred. Once connected by the attachment
-	// utility, the authenticated account is represented by these storage keys.
-	const githubAuthKey = "gpt-tweaks.github.auth"
-	const githubAccountKey = "gpt-tweaks.github.account"
+	// Device authorization is handled in the trusted extension service worker.
 	const githubStatus = $("github-account-status")
 	const githubSignIn = $("github-sign-in")
 	const githubDisconnect = $("github-disconnect")
-	function renderGithubAccount() {
-		const session = credentialStore.getItem(githubAuthKey)
-		const username = preferenceStore.getItem(githubAccountKey)
-		const connected = Boolean(session)
-		githubStatus.textContent = connected && username ? `Connected as ${username}` : connected ? "Connected" : "Not connected"
-		githubStatus.classList.toggle("connected", connected)
-		githubSignIn.hidden = connected
-		githubDisconnect.hidden = !connected
+	const authInfo = document.createElement("div")
+	authInfo.className = "integration-note"
+	githubSignIn.parentElement.after(authInfo)
+	function githubRequest(kind, extra = {}) {
+		return chrome.runtime.sendMessage({ kind: "gpt-github-" + kind, ...extra }).then(reply => {
+			if (!reply?.ok) throw new Error(reply?.error || "GitHub request failed.")
+			return reply.data
+		})
 	}
-	githubDisconnect.addEventListener("click", () => {
-		credentialStore.removeItem(githubAuthKey)
-		preferenceStore.removeItem(githubAccountKey)
-		renderGithubAccount()
+	async function renderGithubAccount() {
+		if (!globalThis.chrome?.runtime?.id) return
+		try {
+			const state = await githubRequest("auth-status")
+			githubStatus.textContent = state.connected
+				? state.account ? "Connected as " + state.account : "Connected"
+				: "Not connected"
+			githubStatus.classList.toggle("connected", state.connected)
+			githubSignIn.hidden = state.connected
+			githubSignIn.disabled = !state.supported
+			githubSignIn.title = state.supported ? "" : "GitHub App client ID is not configured yet"
+			githubDisconnect.hidden = !state.connected
+		} catch (error) { authInfo.textContent = error.message || String(error) }
+	}
+	githubSignIn.addEventListener("click", async () => {
+		githubSignIn.disabled = true
+		authInfo.textContent = "Starting GitHub authorization…"
+		try {
+			const auth = await githubRequest("auth-start")
+			authInfo.replaceChildren()
+			const code = document.createElement("strong")
+			code.textContent = "Enter " + auth.user_code + " on GitHub to authorize GPT Tweaks."
+			authInfo.append(code)
+			await githubRequest("auth-open")
+			const until = Date.now() + auth.expires_in * 1000
+			let interval = auth.interval * 1000
+			let connected = false
+			while (Date.now() < until) {
+				await new Promise(resolve => setTimeout(resolve, interval))
+				const response = await githubRequest("auth-poll")
+				if (response.connected) { connected = true; break }
+				interval = Math.max(interval, response.interval * 1000)
+			}
+			if (!connected) throw new Error("GitHub authorization expired.")
+			authInfo.textContent = ""
+			await renderGithubAccount()
+		} catch (error) {
+			authInfo.textContent = error.message || String(error)
+		} finally { await renderGithubAccount() }
 	})
-	renderGithubAccount()
+	githubDisconnect.addEventListener("click", async () => {
+		githubDisconnect.disabled = true
+		try {
+			await githubRequest("auth-disconnect")
+			authInfo.textContent = ""
+			await renderGithubAccount()
+		} catch (error) { authInfo.textContent = error.message || String(error) }
+		finally { githubDisconnect.disabled = false }
+	})
+	void renderGithubAccount()
 
 	const historyKey = "gpt-tweaks.github.repository-history"
 	const historyStatus = $("repository-history-status")
@@ -89,6 +130,21 @@
 		historyFeedback.textContent = "History cleared."
 	})
 	renderHistoryStatus()
+	if (globalThis.chrome?.storage?.onChanged) {
+		chrome.storage.onChanged.addListener((changes, area) => {
+			if (area === "local" && changes[historyKey]) {
+				const value = changes[historyKey].newValue
+				let count = 0
+				try { const items = JSON.parse(value || "[]");count = Array.isArray(items) ? items.length : 0 } catch {}
+				historyStatus.textContent = count === 0 ? "No repositories saved yet." :
+					count + (count === 1 ? " repository saved." : " repositories saved.")
+				clearHistory.hidden = count === 0
+			}
+			if (area === "local" && (changes["gpt-tweaks.github.auth"] || changes["gpt-tweaks.github.account"])) {
+				void renderGithubAccount()
+			}
+		})
+	}
 
 	// Conversation context-tracker preferences
 	const contextKeys = {

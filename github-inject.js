@@ -1,0 +1,409 @@
+(() => {
+  "use strict";
+  if (globalThis.__gptTweaksGitHubLoaded) return;
+  globalThis.__gptTweaksGitHubLoaded = true;
+
+  const COMMAND="/attach-github-source";
+  const REPO=/^[a-z0-9](?:[a-z0-9-]{0,38})\/[a-z0-9._-]{1,100}$/i;
+  let modal=null, busy=false, verified="", branchPage=0,commitPage=0,tip="",repoGen=0,commitGen=0;
+  let history=[],mine=[],signedIn=false;
+  let observer=null,scanQueued=false,scanTimer=null,slashSuggestion=null,lookupTimer=null;
+  const id=id=>modal?.querySelector("#"+id);
+  const option=(label,value)=>{const e=document.createElement("option");e.textContent=label;e.value=value;return e;};
+  const escapeHTML=value=>String(value).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+  async function request(kind,fields={}) {
+    const reply=await chrome.runtime.sendMessage({kind:"gpt-github-"+kind,...fields});
+    if(!reply?.ok)throw Error(reply?.error||"GitHub operation failed.");
+    return reply.data;
+  }
+  function repoFrom(text) {
+    let value=String(text||"").trim();
+    if(REPO.test(value)&&!value.endsWith(".git"))return value;
+    try {
+      const url=new URL(value);
+      if(url.protocol!=="https:"||url.hostname!=="github.com")return "";
+      const path=url.pathname.split("/").filter(Boolean);
+      if(path.length!==2)return "";
+      value=path.join("/").replace(/\.git$/i,"");
+      return REPO.test(value)?value:"";
+    } catch {return "";}
+  }
+  function status(text,isError=false) {
+    const node=id("gtg-status");
+    if(!node)return;
+    node.textContent=text;
+    node.dataset.error=isError?"true":"false";
+  }
+  function localComposer() {
+    return document.querySelector('[data-testid="composer-text-input"]') ||
+      document.querySelector('#prompt-textarea') ||
+      document.querySelector('[contenteditable="true"][role="textbox"]');
+  }
+  function editableText(el) {
+    if(!el)return "";
+    return (el.innerText||el.textContent||"").trim();
+  }
+  function visible(el){return Boolean(el?.isConnected&&el.getClientRects().length);}
+  function isEnabled(method) {
+    return request("feature-status",{method}).then(x=>x.enabled);
+  }
+  function clearUi() {
+    if(modal){modal.remove();modal=null;}
+    busy=false;clearTimeout(lookupTimer);
+  }
+  async function launch(method) {
+    if(!(await isEnabled(method)))return;
+    if(modal)return;
+    resetSlash();
+    modal=document.createElement("dialog");
+    modal.id="gtg-dialog";
+    modal.setAttribute("aria-labelledby","gtg-heading");
+    modal.innerHTML=[
+      '<div class="gtg-header"><h2 id="gtg-heading">Attach GitHub Source</h2><button type="button" class="gtg-icon" id="gtg-close" aria-label="Close">×</button></div>',
+      '<div class="gtg-body">',
+      '<label class="gtg-label" for="gtg-repo">Repository</label>',
+      '<div class="gtg-input-wrap"><input id="gtg-repo" type="text" autocomplete="off" spellcheck="false" placeholder="Search repositories or paste a GitHub URL" aria-controls="gtg-options" aria-expanded="false" /><button id="gtg-toggle" class="gtg-icon" type="button" aria-label="Show repositories">⌄</button></div>',
+      '<div id="gtg-options" class="gtg-options" hidden></div>',
+      '<div id="gtg-revisions" class="gtg-revisions" hidden><div><label class="gtg-label" for="gtg-branch">Branch</label><select id="gtg-branch"></select><button type="button" id="gtg-more-branches" class="gtg-more" hidden>Load more branches</button></div>',
+      '<div><label class="gtg-label" for="gtg-commit">Commit</label><select id="gtg-commit"></select><button type="button" id="gtg-more-commits" class="gtg-more" hidden>Load older commits</button></div></div>',
+      '<div class="gtg-auth" id="gtg-auth" hidden><p id="gtg-auth-prompt">Sign in to check access to private repositories.</p><button type="button" class="gtg-aux" id="gtg-login">Sign in with GitHub</button>',
+      '<div id="gtg-device" hidden><div>Enter this code on GitHub:</div><strong id="gtg-device-code"></strong><button type="button" class="gtg-aux" id="gtg-open-device">Open GitHub verification</button></div></div>',
+      '<div id="gtg-status" class="gtg-status" role="status" aria-live="polite"></div></div>',
+      '<div class="gtg-footer"><button type="button" class="gtg-btn gtg-cancel" id="gtg-cancel">Cancel</button><button type="button" class="gtg-btn gtg-attach" id="gtg-attach" disabled>Attach</button></div>'
+    ].join("");
+    document.body.append(modal);
+    modal.addEventListener("close",clearUi,{once:true});
+    id("gtg-close").addEventListener("click",()=>modal.close());
+    id("gtg-cancel").addEventListener("click",()=>modal.close());
+    id("gtg-toggle").addEventListener("click",()=>{
+      const box=id("gtg-options");box.hidden=!box.hidden;
+      id("gtg-repo").setAttribute("aria-expanded",String(!box.hidden));
+      if(!box.hidden)renderSuggestions();
+    });
+    id("gtg-repo").addEventListener("focus",()=>showSuggestions());
+    id("gtg-repo").addEventListener("input",()=>{
+      resetRepo();
+      showSuggestions();
+      clearTimeout(lookupTimer);
+      const name=repoFrom(id("gtg-repo").value);
+      if(name)lookupTimer=setTimeout(()=>choose(name),500);
+    });
+    id("gtg-repo").addEventListener("keydown",event=>{
+      if(event.key==="Enter"){
+        event.preventDefault();
+        const repo=repoFrom(event.currentTarget.value);
+        if(repo)choose(repo);
+      } else if(event.key==="Escape"&&!id("gtg-options").hidden){
+        event.stopPropagation();id("gtg-options").hidden=true;
+      }
+    });
+    id("gtg-branch").addEventListener("change",()=>loadCommits(1));
+    id("gtg-more-branches").addEventListener("click",()=>loadBranches(branchPage+1));
+    id("gtg-more-commits").addEventListener("click",()=>loadCommits(commitPage+1));
+    id("gtg-login").addEventListener("click",startLogin);
+    id("gtg-open-device").addEventListener("click",()=>request("auth-open").catch(err=>status(err.message,true)));
+    id("gtg-attach").addEventListener("click",attach);
+    modal.showModal();
+    id("gtg-repo").focus();
+    try {
+      const [recent,account,repositories]=await Promise.all([
+        request("history"),request("auth-status"),request("repositories")
+      ]);
+      if(!modal)return;
+      history=recent;mine=repositories;
+      signedIn=Boolean(account.connected);
+      id("gtg-auth").hidden=signedIn;
+      if(!signedIn)id("gtg-auth-prompt").textContent="Sign in to list your repositories or access private repositories. Public URLs work without signing in.";
+      renderSuggestions();
+    }catch(err){status(err.message,true);}
+  }
+  function showSuggestions(){const box=id("gtg-options");if(!box)return;box.hidden=false;id("gtg-repo").setAttribute("aria-expanded","true");renderSuggestions();}
+  function renderSuggestions(){
+    const box=id("gtg-options");if(!box)return;
+    box.replaceChildren();
+    const query=id("gtg-repo").value.trim().toLowerCase();
+    function makeGroup(label,list,isRecent){
+      if(!list.length)return;
+      const heading=document.createElement("div");heading.className="gtg-group";
+      const title=document.createElement("span");title.textContent=label;heading.append(title);
+      if(isRecent){
+        const clear=document.createElement("button");clear.type="button";clear.textContent="Clear history";
+        clear.addEventListener("click",async()=>{
+          try{history=await request("history-clear");renderSuggestions();}catch(err){status(err.message,true);}
+        });
+        heading.append(clear);
+      }
+      box.append(heading);
+      for(const row of list){
+        const name=typeof row==="string"?row:row.repo;
+        const line=document.createElement("div");line.className="gtg-option-row";
+        const pick=document.createElement("button");pick.type="button";pick.className="gtg-pick";
+        pick.textContent=name+(row.private?"  ·  Private":"");
+        pick.addEventListener("click",()=>{id("gtg-repo").value=name;choose(name);});
+        line.append(pick);
+        if(isRecent){
+          const remove=document.createElement("button");remove.type="button";remove.className="gtg-remove";
+          remove.setAttribute("aria-label","Remove "+name+" from history");remove.textContent="×";
+          remove.addEventListener("click",async()=>{
+            try{history=await request("history-remove",{repo:name});renderSuggestions();}
+            catch(err){status(err.message,true);}
+          });
+          line.append(remove);
+        }
+        box.append(line);
+      }
+    }
+    const recent=history.filter(x=>x.toLowerCase().includes(query));
+    makeGroup("Recently attached",recent,true);
+    const recentNames=new Set(recent.map(x=>x.toLowerCase()));
+    makeGroup("Your repositories",mine.filter(x=>x.repo.toLowerCase().includes(query)&&!recentNames.has(x.repo.toLowerCase())),false);
+    if(!box.childNodes.length){
+      const empty=document.createElement("p");empty.className="gtg-empty";
+      empty.textContent=repoFrom(query)?"Press Enter to verify this repository.":"Enter owner/repo or paste a GitHub URL.";
+      box.append(empty);
+    }
+  }
+  function resetRepo(){
+    repoGen++;commitGen++;verified="";branchPage=0;commitPage=0;tip="";
+    const rev=id("gtg-revisions");if(rev)rev.hidden=true;
+    const attachButton=id("gtg-attach");if(attachButton)attachButton.disabled=true;
+    if(id("gtg-auth"))id("gtg-auth").hidden=signedIn;
+  }
+  async function choose(name){
+    if(!id("gtg-repo"))return;
+    clearTimeout(lookupTimer);resetRepo();
+    const gen=repoGen;id("gtg-repo").value=name;id("gtg-options").hidden=true;
+    status("Checking repository access…");
+    try{
+      await loadBranches(1,gen);
+    }catch(err){
+      if(gen!==repoGen)return;
+      status(err.message,true);
+      id("gtg-auth").hidden=false;
+    }
+  }
+  async function loadBranches(page,generation=repoGen){
+    const repo=repoFrom(id("gtg-repo").value);
+    if(!repo)return;
+    try{
+      const data=await request("branches",{repo,page});
+      if(generation!==repoGen)return;
+      if(page===1){
+        verified=data.repo;
+        id("gtg-revisions").hidden=false;
+        id("gtg-branch").replaceChildren();
+        if(data.defaultBranch)id("gtg-branch").append(option(data.defaultBranch+" (default)",data.defaultBranch));
+      }
+      const select=id("gtg-branch");
+      const existing=new Set([...select.options].map(x=>x.value));
+      for(const b of data.branches)if(!existing.has(b)){select.append(option(b,b));existing.add(b);}
+      branchPage=page;
+      id("gtg-more-branches").hidden=!data.hasMore;
+      if(page===1){
+        if(!select.value)throw Error("Repository has no branches.");
+        await loadCommits(1);
+      }
+    }catch(err){
+      if(generation!==repoGen)return;
+      status(err.message,true);
+      if(page===1)id("gtg-auth").hidden=false;
+    }
+  }
+  async function loadCommits(page){
+    const generation=++commitGen;
+    const repo=verified,branch=id("gtg-branch").value;
+    if(!repo||!branch)return;
+    id("gtg-attach").disabled=true;
+    status("Loading commits…");
+    try{
+      const data=await request("commits",{repo,branch,page,...(page>1?{tip}:{})});
+      if(generation!==commitGen||id("gtg-branch").value!==branch)return;
+      const select=id("gtg-commit");
+      if(page===1){
+        tip=data.tip;
+        select.replaceChildren(option("Latest branch tip",""));
+      }
+      const existing=new Set([...select.options].map(x=>x.value));
+      for(const entry of data.commits){
+        if(!existing.has(entry.sha)){
+          select.append(option(entry.sha.slice(0,10)+" · "+entry.date+" · "+entry.message,entry.sha));
+          existing.add(entry.sha);
+        }
+      }
+      commitPage=page;
+      id("gtg-more-commits").hidden=!data.hasMore;
+      id("gtg-attach").disabled=false;
+      status("Ready to attach "+repo+".");
+    }catch(err){
+      if(generation===commitGen)status(err.message,true);
+    }
+  }
+  async function startLogin(){
+    id("gtg-login").disabled=true;
+    try{
+      const data=await request("auth-start");
+      if(!modal)return;
+      id("gtg-device").hidden=false;
+      id("gtg-device-code").textContent=data.user_code;
+      status("Approve this code in GitHub to connect your account.");
+      await request("auth-open");
+      const expiry=Date.now()+data.expires_in*1000;
+      let interval=data.interval*1000;
+      while(modal&&Date.now()<expiry){
+        await new Promise(resolve=>setTimeout(resolve,interval));
+        if(!modal)return;
+        const result=await request("auth-poll");
+        if(result.connected){
+          signedIn=true;
+          id("gtg-auth").hidden=true;
+          mine=await request("repositories");
+          status("Signed in as "+result.account+".");
+          renderSuggestions();
+          const repo=repoFrom(id("gtg-repo").value);
+          if(repo)await choose(repo);
+          return;
+        }
+        interval=Math.max(result.interval*1000,interval);
+      }
+      throw Error("GitHub verification expired. Try again.");
+    }catch(err){if(modal)status(err.message,true);}
+    finally{if(modal)id("gtg-login").disabled=false;}
+  }
+  function base64Bytes(encoded){
+    const raw=atob(encoded),bytes=new Uint8Array(raw.length);
+    for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
+    return bytes;
+  }
+  function uploadFile(file){
+    const inputs=[...document.querySelectorAll('input[type="file"]')].filter(x=>!x.disabled&&!x.webkitdirectory);
+    for(const input of inputs){
+      const accept=(input.getAttribute("accept")||"").toLowerCase();
+      if(accept&&!accept.includes("zip")&&!accept.includes("*")&&!accept.includes("application/octet-stream"))continue;
+      try{
+        const dt=new DataTransfer();dt.items.add(file);input.files=dt.files;
+        input.dispatchEvent(new Event("input",{bubbles:true,composed:true}));
+        input.dispatchEvent(new Event("change",{bubbles:true,composed:true}));
+        return true;
+      }catch{}
+    }
+    const target=localComposer();
+    if(!target)return false;
+    try{
+      const dt=new DataTransfer();dt.items.add(file);
+      for(const type of ["dragenter","dragover","drop"]){
+        target.dispatchEvent(new DragEvent(type,{bubbles:true,cancelable:true,dataTransfer:dt}));
+      }
+      return true;
+    }catch{return false;}
+  }
+  async function attach(){
+    if(busy||!verified)return;
+    busy=true;id("gtg-attach").disabled=true;id("gtg-cancel").disabled=true;
+    try{
+      status("Downloading source ZIP…");
+      const data=await request("zip",{repo:verified,branch:id("gtg-branch").value,
+        commit:id("gtg-commit").value});
+      const file=new File([base64Bytes(data.base64)],data.filename,{type:"application/zip"});
+      const composer=localComposer();
+      const oldText=composer?.parentElement?.parentElement?.innerText||"";
+      if(!uploadFile(file))throw Error("ChatGPT file uploader could not be found.");
+      status("Waiting for ChatGPT to display the attachment…");
+      let shown=false;
+      for(let i=0;i<30;i++){
+        await new Promise(resolve=>setTimeout(resolve,150));
+        const newText=composer?.parentElement?.parentElement?.innerText||"";
+        if(newText.includes(file.name)&&!oldText.includes(file.name)){shown=true;break;}
+        const fileInput=[...document.querySelectorAll('input[type="file"]')].find(x=>[...x.files||[]].some(f=>f.name===file.name));
+        if(fileInput){shown=true;break;}
+      }
+      if(!shown)throw Error("Upload was initiated, but ChatGPT did not confirm the file in the composer. Check the composer before retrying.");
+      history=await request("history-add",{repo:verified});
+      modal?.close();
+    }catch(err){status(err.message,true);}
+    finally{busy=false;if(id("gtg-cancel"))id("gtg-cancel").disabled=false;if(id("gtg-attach"))id("gtg-attach").disabled=!verified;}
+  }
+
+  function createMenuOption(reference){
+    if(document.querySelector('[data-gtg-menu-option="true"]'))return;
+    const element=reference.closest("button")||reference.closest('[role="menuitem"]');
+    if(!element||!visible(element))return;
+    const button=element.cloneNode(false);
+    button.removeAttribute("id");
+    button.removeAttribute("aria-haspopup");
+    button.removeAttribute("data-state");
+    button.dataset.gtgMenuOption="true";
+    button.textContent="Attach GitHub source";
+    button.type="button";
+    button.addEventListener("click",event=>{event.preventDefault();event.stopImmediatePropagation();launch("menu");});
+    element.after(button);
+  }
+  function scanMenu(){
+    // Look for the visible native Add from Library item, not hashed React classes.
+    const labels=[...document.querySelectorAll("button,[role='menuitem']")];
+    for(const el of labels){
+      if(!visible(el)||el.dataset.gtgMenuOption)continue;
+      const label=(el.innerText||"").trim().toLowerCase();
+      if(label.startsWith("add from library")||label.startsWith("add from library ")){
+        createMenuOption(el);break;
+      }
+    }
+  }
+  function resetSlash(){if(slashSuggestion){slashSuggestion.remove();slashSuggestion=null;}}
+  function updateSlash(){
+    const composer=localComposer();
+    const typed=editableText(composer);
+    const matching=typed.startsWith("/")&&COMMAND.startsWith(typed);
+    if(!matching||typed.length<2){resetSlash();return;}
+    if(slashSuggestion?.isConnected)return;
+    slashSuggestion=document.createElement("button");
+    slashSuggestion.type="button";
+    slashSuggestion.id="gtg-slash";
+    slashSuggestion.textContent=COMMAND+"  ·  Attach a GitHub repository";
+    slashSuggestion.addEventListener("mousedown",event=>event.preventDefault());
+    slashSuggestion.addEventListener("click",event=>{
+      event.preventDefault();event.stopPropagation();clearComposerCommand();launch("slash");
+    });
+    // The supplied snapshot shows data-list-navigation-item buttons in
+    // the command suggestion overlay. Insert alongside them when available.
+    const native=document.querySelector('[data-list-navigation-item="true"]');
+    if(native&&visible(native)){
+      slashSuggestion.className=native.className+" gtg-slash-native";
+      native.before(slashSuggestion);
+    }else{
+      const parent=composer?.closest("form")||composer?.parentElement;
+      if(parent){slashSuggestion.className="gtg-slash-fallback";parent.append(slashSuggestion);}
+    }
+  }
+  function clearComposerCommand(){
+    const composer=localComposer();
+    if(!composer)return;
+    if(editableText(composer).trim()===COMMAND){
+      composer.textContent="";
+      composer.dispatchEvent(new InputEvent("input",{bubbles:true,inputType:"deleteContentBackward",data:null}));
+    }
+    resetSlash();
+  }
+  document.addEventListener("keydown",event=>{
+    const composer=localComposer();
+    if(!composer||!composer.contains(event.target))return;
+    if(event.key==="Enter"&&!event.shiftKey&&!event.isComposing&&editableText(composer)===COMMAND){
+      event.preventDefault();event.stopImmediatePropagation();clearComposerCommand();launch("slash");
+    }
+  },true);
+  document.addEventListener("input",event=>{
+    const composer=localComposer();
+    if(composer&&(composer===event.target||composer.contains(event.target)))updateSlash();
+  },true);
+  function scan(){
+    scanQueued=false;scanMenu();
+    if(slashSuggestion&&!slashSuggestion.isConnected)slashSuggestion=null;
+    updateSlash();
+  }
+  function scheduleScan(){
+    if(!scanQueued){scanQueued=true;scanTimer=setTimeout(scan,100);}
+  }
+  observer=new MutationObserver(scheduleScan);
+  observer.observe(document.documentElement,{childList:true,subtree:true});
+  scheduleScan();
+})();
