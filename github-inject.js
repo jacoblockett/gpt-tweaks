@@ -443,7 +443,7 @@
       else existing?.remove();
     }catch{}
   }
-  function resetSlash(){slashAllowed=false;if(slashSuggestion){slashSuggestion.remove();slashSuggestion=null;}}
+  function resetSlash(){slashAllowed=false;if(slashSuggestion){if(virtualRow===slashSuggestion)clearVirtualRow();slashSuggestion.remove();slashSuggestion=null;}}
   async function updateSlash(){
     const composer=localComposer();
     const typed=editableText(composer);
@@ -507,6 +507,83 @@
     }
     resetSlash();
   }
+  // ChatGPT's suggestion list is React-managed. This narrow adapter makes the
+  // external row reachable by arrow keys without claiming an index in that list.
+  // It yields ordinary item transitions to React and intercepts only the extra slot.
+  let virtualRow=null;
+  function clearVirtualRow(){
+    if(!virtualRow)return;
+    const row=virtualRow;
+    virtualRow=null;
+    delete row.dataset.gtgVirtualHighlight;
+    if(!row.matches(":hover,:focus")){
+      row.classList.remove("bg-primary-ghost-hover","opacity-100");
+      row.classList.add("menu-row-opacity");
+    }
+  }
+  function setVirtualRow(row){
+    clearVirtualRow();
+    virtualRow=row;
+    row.dataset.gtgVirtualHighlight="true";
+    row.classList.remove("menu-row-opacity");
+    row.classList.add("bg-primary-ghost-hover","opacity-100");
+  }
+  function nativeNeighbor(row,direction){
+    let node=row;
+    for(;;){
+      node=direction<0?node.previousElementSibling:node.nextElementSibling;
+      if(!node)return null;
+      if(node.matches('button[data-list-navigation-item="true"]'))return node;
+    }
+  }
+  function interceptMenuKey(event){
+    if(modal||event.isComposing||event.altKey||event.metaKey)return;
+    const active=[...document.querySelectorAll('[data-gtg-menu-option="true"],#gtg-slash')]
+      .filter(row=>visible(row));
+    if(active.length!==1){clearVirtualRow();return;}
+    const row=active[0];
+    if(virtualRow&&virtualRow!==row)clearVirtualRow();
+    const parent=row.parentElement;
+    const prev=nativeNeighbor(row,-1),next=nativeNeighbor(row,1);
+    if(!parent||!prev||!next)return;
+    const nativeSelected=[...parent.querySelectorAll(':scope > button[data-list-navigation-item="true"]')]
+      .find(node=>node.getAttribute("aria-current")==="true" ||
+        node.classList.contains("bg-primary-ghost-hover"));
+    if(event.key==="Escape"){clearVirtualRow();return;}
+    if(virtualRow===row){
+      if(event.key==="Enter"||event.key==="Tab"){
+        event.preventDefault();event.stopImmediatePropagation();
+        clearVirtualRow();row.click();return;
+      }
+      if(event.key==="ArrowDown"||event.key==="ArrowUp"){
+        const direction=event.key==="ArrowDown"?1:-1;
+        // React is still highlighting the adjacent item from which we entered.
+        // Let its original handler advance across the boundary in that direction.
+        const letNativeAdvance=direction===1&&nativeSelected===prev ||
+          direction===-1&&nativeSelected===next;
+        clearVirtualRow();
+        if(!letNativeAdvance){
+          event.preventDefault();event.stopImmediatePropagation();
+        }
+        return;
+      }
+      clearVirtualRow();
+      return;
+    }
+    if((event.key==="ArrowDown"&&nativeSelected===prev)||
+       (event.key==="ArrowUp"&&nativeSelected===next)){
+      event.preventDefault();event.stopImmediatePropagation();
+      setVirtualRow(row);
+    }
+  }
+  // Registered before the dynamically opened menu installs its window handler.
+  window.addEventListener("keydown",interceptMenuKey,true);
+  document.addEventListener("mousemove",event=>{
+    if(!virtualRow)return;
+    const hovered=event.target instanceof Element?
+      event.target.closest('button[data-list-navigation-item="true"]'):null;
+    if(hovered)clearVirtualRow();
+  },true);
   document.addEventListener("keydown",event=>{
     const composer=localComposer();
     if(!composer||!composer.contains(event.target))return;
