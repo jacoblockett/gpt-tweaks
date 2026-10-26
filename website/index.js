@@ -1,6 +1,6 @@
 ;(async () => {
 	"use strict"
-	const { ready, preferences: preferenceStore, credentials: credentialStore } = globalThis.GPTTweaksStorage
+	const { ready, preferences: preferenceStore } = globalThis.GPTTweaksStorage
 	await ready
 	const $ = id => document.getElementById(id)
 	const enabled = $("archive-enabled")
@@ -8,19 +8,11 @@
 	const slash = $("method-slash")
 	const methods = $("attachment-methods")
 	const feedback = $("method-feedback")
-	const panel = $("private-panel")
-	const token = $("token")
-	const reveal = $("reveal-token")
-	const removeToken = $("remove-token")
-	const tokenMessage = $("token-message")
-	const privateStatus = $("private-status")
 	const preferences = {
 		enabled: preferenceStore.getItem("gpt-tweaks.archives.enabled") !== "false",
 		menu: preferenceStore.getItem("gpt-tweaks.archives.menu") !== "false",
 		slash: preferenceStore.getItem("gpt-tweaks.archives.slash") !== "false"
 	}
-	// The extension stores the token in its restricted local storage; the website preview keeps it in session storage.
-	token.value = credentialStore.getItem("gpt-tweaks.github.token") || ""
 	enabled.checked = preferences.enabled
 	menu.checked = preferences.menu
 	slash.checked = preferences.slash
@@ -49,43 +41,33 @@
 	)
 	syncFeature()
 
-	let saveTimeout
-	function syncTokenStatus() {
-		const hasToken = Boolean(token.value.trim())
-		privateStatus.textContent = hasToken ? "Token added" : "Not configured"
-		privateStatus.classList.toggle("configured", hasToken)
-		removeToken.hidden = !hasToken
+	// GitHub device login is intentionally deferred until attachment integration.
+
+	const historyKey = "gpt-tweaks.github.repository-history"
+	const historyStatus = $("repository-history-status")
+	const clearHistory = $("clear-repository-history")
+	const historyFeedback = $("repository-history-feedback")
+	function historyCount() {
+		try {
+			const saved = JSON.parse(preferenceStore.getItem(historyKey) || "[]")
+			return Array.isArray(saved) ? saved.length : 0
+		} catch {
+			return 0
+		}
 	}
-	function saveToken() {
-		clearTimeout(saveTimeout)
-		const value = token.value.trim()
-		if (value) credentialStore.setItem("gpt-tweaks.github.token", value)
-		else credentialStore.removeItem("gpt-tweaks.github.token")
-		syncTokenStatus()
-		tokenMessage.textContent = value ? "Saved" : ""
+	function renderHistoryStatus() {
+		const count = historyCount()
+		historyStatus.textContent =
+			count === 0 ? "No repositories saved yet." :
+			`${count} ${count === 1 ? "repository" : "repositories"} saved.`
+		clearHistory.hidden = count === 0
 	}
-	token.addEventListener("input", () => {
-		tokenMessage.textContent = ""
-		clearTimeout(saveTimeout)
-		syncTokenStatus()
-		saveTimeout = setTimeout(saveToken, 450)
+	clearHistory.addEventListener("click", () => {
+		preferenceStore.removeItem(historyKey)
+		renderHistoryStatus()
+		historyFeedback.textContent = "History cleared."
 	})
-	token.addEventListener("blur", saveToken)
-	reveal.addEventListener("click", () => {
-		const exposed = token.type === "password"
-		token.type = exposed ? "text" : "password"
-		reveal.textContent = exposed ? "Hide" : "Show"
-		reveal.setAttribute("aria-label", exposed ? "Hide token" : "Show token")
-	})
-	removeToken.addEventListener("click", () => {
-		clearTimeout(saveTimeout)
-		token.value = ""
-		credentialStore.removeItem("gpt-tweaks.github.token")
-		tokenMessage.textContent = "Removed"
-		syncTokenStatus()
-		token.focus()
-	})
-	syncTokenStatus()
+	renderHistoryStatus()
 
 	// Conversation context-tracker preferences
 	const contextKeys = {
@@ -237,7 +219,6 @@
 	}
 	links.forEach(link =>
 		link.addEventListener("click", () => {
-			if (link.dataset.section === "private-access") panel.open = true
 			setActive(link.dataset.section)
 			explicitNavigateUntil = performance.now() + 650
 		})

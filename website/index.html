@@ -45,7 +45,8 @@
 					</a>
 					<div class="nav-child">
 						<a href="#archive" class="nav-item" data-section="archive">Attach source code as an archive</a>
-						<a href="#private-access" class="nav-item" data-section="private-access">Private repository access</a>
+						<a href="#github-account" class="nav-item" data-section="github-account">GitHub account</a>
+						<a href="#repository-history" class="nav-item" data-section="repository-history">Repository history</a>
 					</div>
 
 					<a href="#navigation" class="nav-item" data-section="navigation">
@@ -283,52 +284,46 @@
 					</div>
 				</section>
 
-				<section id="private-access" class="private-section" aria-label="Private repository access">
-					<details class="private-panel" id="private-panel">
-						<summary>
-							<span class="private-label">
-								<svg
-									class="chevron"
-									width="15"
-									height="15"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2"
-									aria-hidden="true">
-									<path d="m9 5 7 7-7 7" />
-								</svg>
-								<h2>Private repository access</h2>
-							</span>
-							<span id="private-status" class="private-status">Not configured</span>
-						</summary>
-						<div class="private-body">
-							<p>
-								By default, you cannot read from private repositories without authorization. Provide authorization for
-								GPT Tweaks' GitHub-related utilities by adding a personal access token.
-							</p>
-							<label class="field-label" for="token">Personal access token</label>
-							<div class="input-wrap">
-								<input
-									id="token"
-									class="token-input"
-									type="password"
-									placeholder="Paste your token"
-									autocomplete="off"
-									spellcheck="false" />
-								<button class="reveal" type="button" id="reveal-token" aria-label="Show token">Show</button>
+				<section id="github-account" class="feature github-settings-section" aria-labelledby="github-account-title">
+					<div class="feature-heading">
+						<h2 id="github-account-title">GitHub account</h2>
+					</div>
+					<p class="description">
+						Sign in to browse repositories you have access to, including authorized private repositories.
+						Public repository URLs work without signing in.
+					</p>
+					<div class="feature-body">
+						<div class="setting-row">
+							<div class="setting-text">
+								<div class="setting-title">Account connection</div>
+								<div class="setting-description" id="github-account-status">Not connected</div>
 							</div>
-							<div class="token-actions">
-								<span class="token-message" id="token-message" role="status" aria-live="polite"></span>
-								<button type="button" class="clear" id="remove-token" hidden>Remove token</button>
-							</div>
-							<div class="help">
-								<a href="https://github.com/settings/personal-access-tokens/" target="_blank" rel="noopener noreferrer"
-									>Create a fine-grained token on GitHub</a
-								>. Select the repositories it can access and grant <strong>Contents: Read-only</strong> permission.
-							</div>
+							<button type="button" class="settings-action" id="github-sign-in" disabled
+								title="Available when GitHub attachment integration is implemented">Sign in with GitHub</button>
 						</div>
-					</details>
+						<p class="integration-note">GitHub sign-in will be available when the attachment utility is integrated.</p>
+					</div>
+				</section>
+
+				<section id="repository-history" class="feature github-settings-section" aria-labelledby="repository-history-title">
+					<div class="feature-heading">
+						<h2 id="repository-history-title">Repository history</h2>
+					</div>
+					<p class="description">
+						Previously attached repositories appear in the attachment selector for quick reuse. Individual entries can also be removed there.
+					</p>
+					<div class="feature-body">
+						<div class="setting-row">
+							<div class="setting-text">
+								<div class="setting-title">Recently attached repositories</div>
+								<div class="setting-description" id="repository-history-status">No repositories saved yet.</div>
+							</div>
+							<button type="button" id="clear-repository-history" class="settings-action danger-action" hidden>
+								Clear history
+							</button>
+						</div>
+						<div class="feedback" id="repository-history-feedback" role="status" aria-live="polite"></div>
+					</div>
 				</section>
 				</section>
 
