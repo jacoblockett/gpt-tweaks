@@ -265,11 +265,11 @@
       mine=data.repositories||[];
       installationsCount=data.installationsCount||0;
       accessBlocked=false;
-      installPending=false;
+      if(installationsCount)installPending=false;
       renderAccessPrompt();
       renderSuggestions();
       const repo=repoFrom(id("gtg-repo").value);
-      if(repo)await choose(repo);
+      if(repo&&installationsCount)await choose(repo);
     }catch(err){
       if(modal===dialog){
         id("gtg-access-state").textContent="Check failed";
