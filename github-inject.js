@@ -12,6 +12,7 @@
   const COMMIT_WINDOW=10,COMMIT_ROW_HEIGHT=36;
   let commitEntries=[],commitHasMore=false,commitLoading=false;
   let history=[],mine=[],repositoriesLoading=false,repositoriesFailed=false,slashAllowed=false,slashFeatureEnabled=null;
+  let activeRepoName="",activeRepoQuery="";
   let observer=null,scanQueued=false,scanTimer=null,slashSuggestion=null,lookupTimer=null;
   const id=id=>modal?.querySelector("#"+id);
   const option=(label,value)=>{const e=document.createElement("option");e.textContent=label;e.value=value;return e;};
@@ -166,6 +167,7 @@
     if(!(await isEnabled(method))||modal)return;
     resetSlash();
     history=[];mine=[];repositoriesLoading=true;repositoriesFailed=false;
+    activeRepoName="";activeRepoQuery="";
     const dialog=document.createElement("dialog");
     modal=dialog;
     dialog.id="gtg-dialog";
@@ -174,11 +176,11 @@
       '<div class="gtg-header"><h2 id="gtg-heading">Attach GitHub Source</h2><button type="button" class="gtg-icon" id="gtg-close" aria-label="Close"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 5 15 15M15 5 5 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div>',
       '<div class="gtg-body">',
       '<label class="gtg-label" for="gtg-repo">Repository</label>',
-      '<div class="gtg-repo-control"><div class="gtg-input-wrap">',searchIcon,'<input id="gtg-repo" type="text" autocomplete="off" spellcheck="false" placeholder="Search repositories or paste a GitHub URL" aria-controls="gtg-options" aria-expanded="false" />',
+      '<div class="gtg-repo-control"><div class="gtg-input-wrap">',searchIcon,'<input id="gtg-repo" type="text" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" autocomplete="off" spellcheck="false" placeholder="Search repositories or paste a GitHub URL" aria-controls="gtg-options" aria-expanded="false" />',
       '<span class="gtg-verified" id="gtg-verified" hidden>',checkIcon,'</span>',
       '<span class="gtg-lookup-progress" id="gtg-lookup-progress" role="status" aria-label="Loading" hidden><span class="gtg-spinner" aria-hidden="true"></span></span>',
       '<button id="gtg-toggle" class="gtg-icon" type="button" aria-label="Show repositories" aria-expanded="false">',caret,'</button></div>',
-      '<div id="gtg-options" class="gtg-options" hidden></div></div>',
+      '<div id="gtg-options" class="gtg-options" role="listbox" aria-label="Repositories" hidden></div></div>',
       '<div id="gtg-revisions" class="gtg-revisions" hidden>',
       '<div><label class="gtg-label" for="gtg-branch-trigger">Branch</label><div class="gtg-select-wrap"><select id="gtg-branch" hidden></select><button type="button" class="gtg-select-trigger" id="gtg-branch-trigger" aria-expanded="false" aria-haspopup="listbox" aria-controls="gtg-branch-list"><span id="gtg-branch-label"></span>',caret,'</button><div class="gtg-revision-list" id="gtg-branch-list" role="listbox" aria-label="Branches" hidden></div></div><button type="button" id="gtg-more-branches" class="gtg-more" hidden>Load more branches</button></div>',
       '<div><label class="gtg-label" for="gtg-commit-trigger">Commit</label><div class="gtg-select-wrap"><select id="gtg-commit" hidden></select><button type="button" class="gtg-select-trigger" id="gtg-commit-trigger" aria-expanded="false" aria-haspopup="listbox" aria-controls="gtg-commit-list"><span id="gtg-commit-label"></span>',caret,'</button><div class="gtg-revision-list" id="gtg-commit-list" role="listbox" aria-label="Commits" hidden></div></div></div>',
@@ -206,15 +208,52 @@
       clearTimeout(lookupTimer);
       resetRepo();showSuggestions();
       const entered=id("gtg-repo").value;
-      if(repoFrom(entered)){
+      const normalized=repoFrom(entered);
+      // Preserve automatic lookup for complete/exact repositories and unknown
+      // names, but don't interrupt choosing a different fuzzy suggestion.
+      if(normalized&&(!activeRepoName||
+          activeRepoName.toLowerCase()===normalized.toLowerCase())){
         id("gtg-lookup-progress").hidden=false;
-        lookupTimer=setTimeout(()=>choose(entered),850);
+        lookupTimer=setTimeout(()=>{
+          if(modal!==dialog||id("gtg-repo").value!==entered)return;
+          // The accessible inventory can arrive after typing starts.
+          // Let an active fuzzy choice win over an old lookup timer.
+          if(!id("gtg-options").hidden&&activeRepoName&&
+              activeRepoName.toLowerCase()!==normalized.toLowerCase()){
+            id("gtg-lookup-progress").hidden=true;
+            return;
+          }
+          void choose(entered);
+        },850);
       }
     });
     id("gtg-repo").addEventListener("keydown",event=>{
-      if(event.key==="Enter"){
-        const entered=event.currentTarget.value;
-        if(entered.trim()){event.preventDefault();void choose(entered);}
+      if(event.isComposing)return;
+      if(event.key==="ArrowDown"||event.key==="ArrowUp"){
+        const wasHidden=id("gtg-options").hidden;
+        if(wasHidden)showSuggestions();
+        const picks=repositoryOptions();
+        if(!picks.length)return;
+        event.preventDefault();
+        const current=picks.findIndex(pick=>pick.dataset.repoName===activeRepoName);
+        const direction=event.key==="ArrowDown"?1:-1;
+        const next=wasHidden||current<0 ?
+          (direction===1?0:picks.length-1):
+          (current+direction+picks.length)%picks.length;
+        setActiveRepository(picks[next].dataset.repoName,true);
+        clearTimeout(lookupTimer);
+        id("gtg-lookup-progress").hidden=true;
+      }else if(event.key==="Enter"){
+        const active=!id("gtg-options").hidden?
+          repositoryOptions().find(pick=>pick.dataset.repoName===activeRepoName):null;
+        if(active){
+          event.preventDefault();
+          // Same operation as clicking the option, without blurring the field.
+          active.click();
+        }else{
+          const entered=event.currentTarget.value;
+          if(entered.trim()){event.preventDefault();void choose(entered);}
+        }
       }else if(event.key==="Escape"&&!id("gtg-options").hidden){
         event.stopPropagation();hideSuggestions();
       }
@@ -414,9 +453,28 @@
     if(id("gtg-"+kind+"-list").hidden)showRevisionMenu(kind);
     else hideRevisionMenus();
   }
+  function repositoryOptions() {
+    return [...(id("gtg-options")?.querySelectorAll(".gtg-pick")||[])];
+  }
+  function setActiveRepository(name,scroll=false) {
+    activeRepoName=name;
+    const input=id("gtg-repo");
+    let selected=null;
+    for(const pick of repositoryOptions()){
+      const active=Boolean(name)&&pick.dataset.repoName===name;
+      pick.closest(".gtg-option-row").classList.toggle("gtg-keyboard-active",active);
+      pick.setAttribute("aria-selected",String(active));
+      if(active)selected=pick;
+    }
+    if(selected){
+      input.setAttribute("aria-activedescendant",selected.id);
+      if(scroll)selected.scrollIntoView({block:"nearest"});
+    }else input.removeAttribute("aria-activedescendant");
+  }
   function hideSuggestions(){
     const box=id("gtg-options");if(!box)return;
     box.hidden=true;
+    id("gtg-repo").removeAttribute("aria-activedescendant");
     id("gtg-repo").setAttribute("aria-expanded","false");
     id("gtg-toggle").setAttribute("aria-expanded","false");
   }
@@ -456,6 +514,9 @@
         const line=document.createElement("div");line.className="gtg-option-row";
         const pick=document.createElement("button");
         pick.type="button";pick.className="gtg-pick";
+        pick.id="gtg-repo-option-"+box.querySelectorAll(".gtg-pick").length;
+        pick.dataset.repoName=name;
+        pick.setAttribute("role","option");
         pick.innerHTML=miniIcons[isRecent?"history":item.private?"lock":"repository"];
         const nameEl=document.createElement("span");
         nameEl.className="gtg-pick-text";
@@ -463,10 +524,15 @@
         pick.setAttribute("aria-label",name);
         pick.append(nameEl);
         pick.addEventListener("click",()=>{
-          // Selecting a suggestion intentionally fills the input; lookups never rewrite typed text.
+          // Only explicit selection replaces the user's exact typed text.
           id("gtg-repo").value=name;
           void choose(name);
+          id("gtg-repo").focus({preventScroll:true});
         });
+        pick.addEventListener("mousedown",event=>{
+          if(event.button===0)event.preventDefault();
+        });
+        pick.addEventListener("mouseenter",()=>setActiveRepository(name));
         line.append(pick);
         if(!isRecent){
           const flag=document.createElement("span");flag.className="gtg-visibility";
@@ -496,11 +562,23 @@
         query.trim()?"No matching repositories.":"No repositories to show.";
       box.append(empty);
     }
+    // Preserve the keyboard highlight across asynchronous inventory updates;
+    // a newly typed query begins at the first matching result.
+    const picks=repositoryOptions();
+    if(entered!==activeRepoQuery){
+      activeRepoQuery=entered;
+      activeRepoName=entered.trim()?picks[0]?.dataset.repoName||"":"";
+      box.scrollTop=0;
+    }else if(!picks.some(pick=>pick.dataset.repoName===activeRepoName)){
+      activeRepoName=entered.trim()?picks[0]?.dataset.repoName||"":"";
+    }
     // Explicitly opening the dropdown must always display a panel.
     box.hidden=!wasOpen;
     const expanded=wasOpen;
     id("gtg-repo").setAttribute("aria-expanded",String(expanded));
     id("gtg-toggle").setAttribute("aria-expanded",String(expanded));
+    if(expanded)setActiveRepository(activeRepoName);
+    else id("gtg-repo").removeAttribute("aria-activedescendant");
   }
   function showLoading(){
     if(!modal)return;

@@ -112,7 +112,14 @@
 #gtg-dialog .gtg-option-row {
   display:flex;align-items:center;min-height:38px;gap:4px;border-radius:13px;
 }
-#gtg-dialog .gtg-option-row:hover,#gtg-dialog .gtg-option-row:focus-within {background:#424242;}
+#gtg-dialog .gtg-option-row:hover,
+#gtg-dialog .gtg-option-row:focus-within,
+#gtg-dialog .gtg-option-row.gtg-keyboard-active {background:#424242;}
+/* Avoid showing two highlights when the mouse is stationary over a row
+   while arrow-key navigation has selected a different one. */
+#gtg-dialog .gtg-options:has(.gtg-keyboard-active) .gtg-option-row:hover:not(.gtg-keyboard-active) {
+  background:transparent;
+}
 #gtg-dialog .gtg-pick {
   display:flex;align-items:center;gap:10px;min-height:38px;
   flex:1;min-width:0;background:transparent;border:0;
