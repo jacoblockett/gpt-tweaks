@@ -56,10 +56,35 @@
   margin:0;padding:10px;max-height:min(300px,39vh);
   overflow-y:auto;box-shadow:0 14px 40px #0007;
 }
-/* Hide the platform's scrollbar arrow buttons, retaining track and thumb. */
+/* Keep the modal's track and thumb, but remove native scrollbar arrows.
+   ChatGPT can supply inherited scrollbar-color/width values that take precedence
+   over ::-webkit-scrollbar-* rules unless reset on the scrollable element. */
+#gtg-dialog .gtg-options,
+#gtg-dialog .gtg-revision-list {
+  scrollbar-color:auto !important;
+  scrollbar-width:auto !important;
+}
+#gtg-dialog .gtg-options::-webkit-scrollbar,
+#gtg-dialog .gtg-revision-list::-webkit-scrollbar {
+  width:12px;
+  height:12px;
+}
+#gtg-dialog .gtg-options::-webkit-scrollbar-track,
+#gtg-dialog .gtg-revision-list::-webkit-scrollbar-track {
+  background:#2b2b2b;
+}
+#gtg-dialog .gtg-options::-webkit-scrollbar-thumb,
+#gtg-dialog .gtg-revision-list::-webkit-scrollbar-thumb {
+  background:#696969;
+  border:2px solid #2b2b2b;
+  border-radius:12px;
+}
 #gtg-dialog .gtg-options::-webkit-scrollbar-button,
 #gtg-dialog .gtg-revision-list::-webkit-scrollbar-button {
-  display:none;width:0;height:0;
+  display:none !important;
+  width:0 !important;
+  height:0 !important;
+  background:transparent !important;
 }
 #gtg-dialog .gtg-group {
   display:flex;justify-content:space-between;align-items:center;gap:12px;
