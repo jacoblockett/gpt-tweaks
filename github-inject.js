@@ -5,7 +5,7 @@
 
   const COMMAND="/attach-github-source";
   // Match the feature description in website/index.html; do not modify settings copy.
-  const ARCHIVE_DESCRIPTION="Attach a GitHub repository's source code to the current ChatGPT conversation as a ZIP file.";
+  const ARCHIVE_DESCRIPTION="Attach a GitHub repository source code.";
   const REPO=/^[a-z0-9](?:[a-z0-9-]{0,38})\/[a-z0-9._-]{1,100}$/i;
   let modal=null, busy=false, verified="", branchPage=0,commitPage=0,tip="",repoGen=0,commitGen=0;
   let history=[],mine=[],signedIn=false,authReady=false,accountName="",accountStatusPromise=null,slashAllowed=false;
@@ -511,6 +511,26 @@
     button.addEventListener("blur",inactive);
   }
 
+  // Menu sections remain React-owned. Decorations and injected buttons must not
+  // impersonate React's data-list-navigation-item records.
+  function removeMenuGroup(kind){
+    for(const item of document.querySelectorAll('[data-gtg-menu-header="'+kind+'"],[data-gtg-menu-divider="'+kind+'"]'))
+      item.remove();
+  }
+  function mountMenuGroup(section,button,kind){
+    if(!section)return;
+    removeMenuGroup(kind);
+    const heading=document.createElement("div");
+    heading.className="gtg-menu-heading";
+    heading.dataset.gtgMenuHeader=kind;
+    heading.textContent="GPT Tweaks";
+    heading.setAttribute("aria-hidden","true");
+    const divider=document.createElement("div");
+    divider.className="gtg-menu-divider";
+    divider.dataset.gtgMenuDivider=kind;
+    divider.setAttribute("role","separator");
+    section.prepend(heading,button,divider);
+  }
   function createMenuOption(reference){
     const element=reference.closest('button[data-list-navigation-item="true"]');
     const section=element?.closest('[data-mention-section-items="true"]');
@@ -532,7 +552,7 @@
     const detail=content?.querySelector(':scope > span:last-child > span > span:last-child');
     const iconSlot=content?.querySelector('[data-leading-icon-slot="menu"]');
     if(!label||!detail||!iconSlot)return;
-    label.textContent="Attach GitHub source";
+    label.textContent="Attach GitHub Source";
     detail.textContent=ARCHIVE_DESCRIPTION;
 
     setGitHubIcon(iconSlot);
@@ -547,7 +567,7 @@
       trigger?.click();
       launch("menu");
     });
-    element.after(button);
+    mountMenuGroup(section,button,"menu");
   }
   async function scanMenu(){
     const labels=document.querySelectorAll('[data-mention-section-items="true"] > button[data-list-navigation-item="true"]');
@@ -559,20 +579,72 @@
       if(!native.isConnected)return;
       const existing=native.parentElement.querySelector('[data-gtg-menu-option="true"]');
       if(enabled)createMenuOption(native);
-      else existing?.remove();
+      else {
+        existing?.remove();
+        removeMenuGroup("menu");
+      }
     }catch{}
   }
-  function resetSlash(){slashAllowed=false;if(slashSuggestion){if(virtualRow===slashSuggestion)clearVirtualRow();slashSuggestion.remove();slashSuggestion=null;}}
+  function resetSlash(){
+    slashAllowed=false;
+    if(slashSuggestion){
+      if(virtualRow===slashSuggestion)clearVirtualRow();
+      slashSuggestion.remove();slashSuggestion=null;
+    }
+    removeMenuGroup("slash");
+    slashRange=null;
+  }
+  let slashRange=null;
+  // Match only a slash token directly before the caret, not the whole composer.
+  // This works for commands after existing text without deleting that text.
+  function composerSlashMatch(composer=localComposer()){
+    const selection=window.getSelection();
+    if(!composer||!selection||!selection.rangeCount||!selection.isCollapsed||
+       !composer.contains(selection.anchorNode))return null;
+    const caret=selection.getRangeAt(0);
+    const prefix=document.createRange();
+    prefix.selectNodeContents(composer);
+    prefix.setEnd(caret.endContainer,caret.endOffset);
+    const text=prefix.toString();
+    const match=text.match(/(?:^|[\s\u00a0])(\/[a-z-]*)$/i);
+    if(!match||!COMMAND.toLowerCase().startsWith(match[1].toLowerCase()))return null;
+    const target=text.length-match[1].length;
+    const walker=document.createTreeWalker(composer,NodeFilter.SHOW_TEXT);
+    const probe=document.createRange();
+    probe.selectNodeContents(composer);
+    let node;
+    while((node=walker.nextNode())){
+      probe.setEnd(node,node.textContent.length);
+      if(probe.toString().length<target)continue;
+      let left=0,right=node.textContent.length;
+      while(left<right){
+        const middle=Math.floor((left+right)/2);
+        probe.setEnd(node,middle);
+        if(probe.toString().length<target)left=middle+1;
+        else right=middle;
+      }
+      probe.setEnd(node,left);
+      if(probe.toString().length!==target)return null;
+      const deletion=document.createRange();
+      deletion.setStart(node,left);
+      deletion.setEnd(caret.endContainer,caret.endOffset);
+      if(deletion.toString()!==match[1])return null;
+      return {value:match[1],range:deletion};
+    }
+    return null;
+  }
   async function updateSlash(){
     const composer=localComposer();
-    const typed=editableText(composer);
-    if(!typed.startsWith("/")||!COMMAND.startsWith(typed)){
+    const match=composerSlashMatch(composer);
+    if(!match){
       resetSlash();return;
     }
+    slashRange=match.range.cloneRange();
     if(slashSuggestion?.isConnected)return;
     try{if(!(await isEnabled("slash"))){resetSlash();return;}slashAllowed=true;}catch{slashAllowed=false;return;}
-    const current=editableText(localComposer());
-    if(!current.startsWith("/")||!COMMAND.startsWith(current)||slashSuggestion?.isConnected)return;
+    const current=composerSlashMatch();
+    if(!current||slashSuggestion?.isConnected)return;
+    slashRange=current.range.cloneRange();
     const rows=[...document.querySelectorAll('[data-mention-section-id="commands"] [data-mention-section-items="true"] > button[data-list-navigation-item="true"]')]
       .filter(el=>visible(el)&&!el.dataset.gtgSlash);
     const native=rows.find(el=>!el.hasAttribute("aria-current"))||rows[0];
@@ -587,14 +659,14 @@
     const menuLabel=slashSuggestion.querySelector(':scope > div > div > div > div');
     const menuDesc=slashSuggestion.querySelector(':scope > div > div > div > span');
     if(menuLabel&&menuDesc){
-      menuLabel.textContent=COMMAND;
+      menuLabel.textContent="Attach GitHub Source";
       menuDesc.textContent=ARCHIVE_DESCRIPTION;
       const icon=slashSuggestion.querySelector('[data-leading-icon-slot="menu"]');
       if(icon){
         setGitHubIcon(icon);
       }
       // Keep the button's native layout and menu navigation attributes.
-      native.before(slashSuggestion);
+      mountMenuGroup(native.parentElement,slashSuggestion,"slash");
     }else{
       slashSuggestion=null;
       return; // Captured layout no longer matches: do not create a misleading button.
@@ -612,16 +684,15 @@
   }
   function clearComposerCommand(){
     const composer=localComposer();
-    if(!composer)return;
-    const typed=editableText(composer);
-    if(typed.startsWith("/")&&COMMAND.startsWith(typed)){
-      // ProseMirror tracks its document internally: perform a browser edit,
-      // not a raw textContent replacement that can desynchronize its state.
+    // A menu click can shift focus, so retain the exact command range captured
+    // while typing. Never select or replace the rest of the ProseMirror document.
+    const range=slashRange?.cloneRange();
+    if(composer&&range&&composer.contains(range.commonAncestorContainer)&&
+       COMMAND.toLowerCase().startsWith(range.toString().toLowerCase())){
       composer.focus();
-      const range=document.createRange();
-      range.selectNodeContents(composer);
       const selection=window.getSelection();
-      selection.removeAllRanges();selection.addRange(range);
+      selection.removeAllRanges();
+      selection.addRange(range);
       document.execCommand("delete",false);
     }
     resetSlash();
@@ -706,7 +777,9 @@
   document.addEventListener("keydown",event=>{
     const composer=localComposer();
     if(!composer||!composer.contains(event.target))return;
-    if(slashAllowed&&event.key==="Enter"&&!event.shiftKey&&!event.isComposing&&editableText(composer)===COMMAND){
+    const match=composerSlashMatch(composer);
+    if(slashAllowed&&event.key==="Enter"&&!event.shiftKey&&!event.isComposing&&
+       match?.value.toLowerCase()===COMMAND.toLowerCase()){
       event.preventDefault();event.stopImmediatePropagation();clearComposerCommand();launch("slash");
     }
   },true);
