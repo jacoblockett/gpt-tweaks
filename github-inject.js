@@ -437,9 +437,11 @@
     try{
       const data=await request("auth-start");
       if(!modal)return;
+      id("gtg-auth-prompt").hidden=true;
+      id("gtg-login").hidden=true;
       id("gtg-device").hidden=false;
       id("gtg-device-code").textContent=data.user_code;
-      status("Approve this code in GitHub to connect your account.");
+      status("");
       await request("auth-open");
       const expiry=Date.now()+data.expires_in*1000;
       let interval=data.interval*1000;
