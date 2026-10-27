@@ -17,7 +17,7 @@
   const view = globalThis.GPTTweaksContextIndicator(core);
   let enabled = true;
   let defaultVisible = false;
-  let visibilityOverride = null; // Set only by the Status command.
+  let visibility = null; // In-chat choice; null follows Show by default.
   let flags = {percent:true, tokens:true, limit:true};
 
   let target = DEFAULT_TARGET;
@@ -298,7 +298,7 @@
     // Each new conversation starts from its default; preserve a manual
     // choice as an untitled chat receives its first conversation ID.
     if (activeId && activeId !== id) {
-      visibilityOverride = null;
+      visibility = null;
       view.setVisible(enabled && defaultVisible);
     }
     activeId = id;
@@ -397,8 +397,8 @@
 
   function toggleStatus() {
     if (!enabled) return;
-    visibilityOverride = !(visibilityOverride ?? defaultVisible);
-    view.setVisible(visibilityOverride);
+    visibility = !(visibility ?? defaultVisible);
+    view.setVisible(visibility);
     render();
   }
 
@@ -421,12 +421,12 @@
       if (!enabled) fetchController?.abort();
       const nextDefault = settings.defaultVisible === true;
       // Reset the manual override only when the visibility policy changes.
-      if (previouslyEnabled !== enabled || defaultVisible !== nextDefault) visibilityOverride = null;
+      if (previouslyEnabled !== enabled || defaultVisible !== nextDefault) visibility = null;
       defaultVisible = nextDefault;
       if (Number.isSafeInteger(settings.target) && settings.target > 0) target = settings.target;
       flags = {percent:settings.percent !== false, tokens:settings.tokens !== false,
         limit:settings.limit !== false};
-      view.setVisible(enabled && (visibilityOverride ?? defaultVisible));
+      view.setVisible(enabled && (visibility ?? defaultVisible));
       render();
       if (enabled && !previouslyEnabled && activeId) {
         document.dispatchEvent(new Event('ct-v1-bridge-ready'));

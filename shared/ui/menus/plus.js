@@ -30,7 +30,14 @@ const isEnabled=config.isEnabled,launch=config.activate;
   function mountMenuGroup(section,button,kind){
     if(!section)return;
     const oldDivider=section.querySelector('[data-gtg-menu-divider="'+kind+'"]');
-    if(oldDivider){oldDivider.before(button);return;}
+    if(oldDivider){
+      // Keep utility rows in registration order even when asynchronous
+      // availability checks resolve out of order.
+      const following=[...section.querySelectorAll(':scope > [data-gtg-menu-order]')]
+        .find(row=>Number(row.dataset.gtgMenuOrder)>Number(button.dataset.gtgMenuOrder));
+      (following||oldDivider).before(button);
+      return;
+    }
     removeMenuGroup(kind);
     const heading=document.createElement("div");
     heading.className="gtg-menu-heading";
@@ -57,6 +64,7 @@ const isEnabled=config.isEnabled,launch=config.activate;
       button.removeAttribute(attr);
     button.dataset.gtgMenuOption="true";
     button.dataset.gtgUtilityId=config.id;
+    button.dataset.gtgMenuOrder=String(config.order);
     // React uses this DOM attribute for scroll indexes based on its own data array.
     button.removeAttribute("data-list-navigation-item");
     button.type="button";
@@ -81,7 +89,10 @@ const isEnabled=config.isEnabled,launch=config.activate;
       launch("menu");
     });
     mountMenuGroup(section,button,"menu");
-    setVirtualRow(button);
+    // The first visible option is selected initially. A later inserted row
+    // must not steal its keyboard highlight.
+    if(section.querySelector('[data-gtg-menu-option="true"]')===button)
+      setVirtualRow(button);
   }
   async function scanMenu(){
     const labels=document.querySelectorAll('[data-mention-section-items="true"] > button[data-list-navigation-item="true"]');

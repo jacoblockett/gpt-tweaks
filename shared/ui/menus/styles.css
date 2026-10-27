@@ -1,5 +1,5 @@
 /* Shared ChatGPT plus-menu and slash-command appearance. */
-[data-gtg-menu-option="true"]:focus-visible,#gtg-slash:focus-visible {
+[data-gtg-menu-option="true"]:focus-visible,[data-gtg-slash="true"]:focus-visible {
   outline:2px solid currentColor;outline-offset:-2px;
 }
 /* GPT Tweaks sits above native commands without pretending to be a
@@ -22,7 +22,7 @@
 /* ChatGPT highlights only React-managed items. Hide its retained native
    highlight while the externally injected row is hovered or focused. */
 [data-mention-section-items="true"]:has(> [data-gtg-menu-option="true"]:is(:hover,:focus)) > button:not([data-gtg-menu-option="true"]).bg-primary-ghost-hover,
-[data-mention-section-items="true"]:has(> #gtg-slash:is(:hover,:focus)) > button:not(#gtg-slash).bg-primary-ghost-hover {
+[data-mention-section-items="true"]:has(> [data-gtg-slash="true"]:is(:hover,:focus)) > button:not([data-gtg-slash="true"]).bg-primary-ghost-hover {
   background-color: transparent!important;
   opacity: var(--opacity-menu-row,.75)!important;
 }
@@ -63,14 +63,14 @@
 .gtg-fallback-description {color:var(--text-secondary,#bababa);font-size:inherit;}
 /* A lone slash leaves the title untouched. Only a typed search dims
    the unmatched characters; matched characters retain native color/weight. */
-#gtg-slash[data-gtg-fuzzy-active="true"] [data-gtg-slash-title="true"] {
+[data-gtg-slash="true"][data-gtg-fuzzy-active="true"] [data-gtg-slash-title="true"] {
   color:var(--text-tertiary,#999);
 }
-#gtg-slash[data-gtg-fuzzy-active="true"] [data-gtg-slash-title="true"] > span {
+[data-gtg-slash="true"][data-gtg-fuzzy-active="true"] [data-gtg-slash-title="true"] > span {
   color:var(--text-tertiary,#999);
   font-weight:inherit;
 }
-#gtg-slash[data-gtg-fuzzy-active="true"] [data-gtg-slash-title="true"] > span.gtg-fuzzy-match {
+[data-gtg-slash="true"][data-gtg-fuzzy-active="true"] [data-gtg-slash-title="true"] > span.gtg-fuzzy-match {
   color:var(--text-primary,#ededed);
   font-weight:inherit;
 }

@@ -40,7 +40,7 @@
        typeof config.activate!=="function")
       throw Error("Invalid ChatGPT menu utility registration.");
     if(adapters.has(config.id))throw Error("Duplicate menu utility: "+config.id);
-    adapters.set(config.id,createAdapter(config));
+    adapters.set(config.id,createAdapter({...config,order:adapters.size}));
     scheduleScan();
   }
   function resetSlash(){for(const adapter of adapters.values())adapter.resetSlash();}
@@ -67,7 +67,7 @@
     for(;;){
       next=direction<0?next.previousElementSibling:next.nextElementSibling;
       if(!next)return null;
-      if(next.matches('button[data-gtg-menu-option="true"],#gtg-slash'))return next;
+      if(next.matches('button[data-gtg-menu-option="true"],button[data-gtg-slash="true"]'))return next;
       if(next.matches('button[data-list-navigation-item="true"]'))return null;
     }
   }
@@ -82,7 +82,7 @@
   function interceptMenuKey(event){
     if([...adapters.values()].some(adapter=>adapter.isOpen())||
        event.isComposing||event.altKey||event.metaKey||event.ctrlKey)return;
-    const active=[...document.querySelectorAll('[data-gtg-menu-option="true"],#gtg-slash')]
+    const active=[...document.querySelectorAll('[data-gtg-menu-option="true"],[data-gtg-slash="true"]')]
       .filter(row=>visible(row));
     const registered=active.filter(row=>row.dataset.gtgUtilityId===config.id);
     if(registered.length!==1){
@@ -95,7 +95,7 @@
     const parent=row.parentElement;
     const prev=nativeNeighbor(row,-1),next=nativeNeighbor(row,1);
     if(!parent)return;
-    if(!prev&&!next&&row.id!=="gtg-slash")return;
+    if(!prev&&!next&&row.dataset.gtgSlash!=="true")return;
     const nativeRows=[...parent.querySelectorAll(':scope > button[data-list-navigation-item="true"]')];
     const nativeSelected=nativeRows.find(node=>node.getAttribute("aria-current")==="true") ||
       nativeRows.find(node=>node.classList.contains("bg-primary-ghost-hover"));
@@ -131,8 +131,10 @@
       // updateSlash() clears the selection when the new query stops matching.
       return;
     }
-    if((event.key==="ArrowDown"&&nativeSelected===prev)||
-       (event.key==="ArrowUp"&&nativeSelected===next)){
+    // Only the injected row adjoining the native region can claim the
+    // boundary key. Otherwise the first registered utility skips later rows.
+    if((event.key==="ArrowDown"&&nativeSelected===prev&&!injectedNeighbor(row,-1))||
+       (event.key==="ArrowUp"&&nativeSelected===next&&!injectedNeighbor(row,1))){
       event.preventDefault();event.stopImmediatePropagation();
       setVirtualRow(row);
     }
@@ -147,12 +149,22 @@
       if(adapter.hasSlashMatch())return adapter;
     return null;
   }
+  // A lone slash matches multiple utilities. Update each registered adapter
+  // in order, rather than selecting only the first match, and drop stale
+  // queued scans when the composer text changes.
+  let slashSync=Promise.resolve(),slashGeneration=0;
   function syncSlash(){
-    const chosen=selectedSlashAdapter();
-    for(const adapter of adapters.values()){
-      if(adapter!==chosen)adapter.resetSlash();
-    }
-    if(chosen)void chosen.updateSlash();
+    const generation=++slashGeneration;
+    slashSync=slashSync.then(async()=>{
+      if(generation!==slashGeneration)return;
+      const matching=[...adapters.values()].filter(adapter=>adapter.hasSlashMatch());
+      for(const adapter of adapters.values())
+        if(!matching.includes(adapter))adapter.resetSlash();
+      for(const adapter of matching){
+        if(generation!==slashGeneration)return;
+        await adapter.updateSlash();
+      }
+    }).catch(error=>console.warn("[GPT Tweaks] Slash menu sync failed:",error));
   }
   function scanAll(){
     scanQueued=false;

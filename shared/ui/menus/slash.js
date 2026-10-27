@@ -8,15 +8,15 @@ const utilityIcon=config.icon,isEnabled=config.isEnabled,launch=config.activate;
 let slashSuggestion=null,slashAllowed=false,slashFeatureEnabled=null;
   function resetSlash(){
     slashAllowed=false;
-    const owned=!!slashSuggestion||countUtilities()===1;
     if(slashSuggestion){
       if(isVirtualRow(slashSuggestion))clearVirtualRow();
       slashSuggestion.remove();slashSuggestion=null;
     }
-    if(owned){
-      document.getElementById("gtg-command-fallback")?.remove();
+    // The other utility may still own a row in the same native/fallback menu.
+    const fallback=document.getElementById("gtg-command-fallback");
+    if(fallback&&!fallback.querySelector('[data-gtg-slash="true"]'))fallback.remove();
+    if(!document.querySelector('[data-mention-section-id="commands"] [data-gtg-slash="true"]'))
       removeMenuGroup("slash");
-    }
     slashRange=null;
   }
   // Search the visible title, never the slash command identifier.
@@ -58,18 +58,24 @@ let slashSuggestion=null,slashAllowed=false,slashFeatureEnabled=null;
     label.replaceChildren(...parts);
   }
   function makeFallbackSuggestion(){
-    const container=document.createElement("div");
-    container.id="gtg-command-fallback";
-    container.className="gtg-command-fallback";
-    container.setAttribute("role","presentation");
-    const heading=document.createElement("div");
-    heading.className="gtg-menu-heading";
-    heading.textContent="GPT Tweaks";
+    let container=document.getElementById("gtg-command-fallback");
+    if(!container){
+      container=document.createElement("div");
+      container.id="gtg-command-fallback";
+      container.className="gtg-command-fallback";
+      container.setAttribute("role","presentation");
+      const heading=document.createElement("div");
+      heading.className="gtg-menu-heading";
+      heading.textContent="GPT Tweaks";
+      container.append(heading);
+      document.body.append(container);
+    }
     const row=document.createElement("button");
-    row.id="gtg-slash";
+    row.id="gtg-slash-"+config.id;
     row.type="button";
     row.dataset.gtgSlash="true";
     row.dataset.gtgUtilityId=config.id;
+    row.dataset.gtgMenuOrder=String(config.order);
     row.className="gtg-fallback-row";
     const icon=document.createElement("span");
     icon.className="gtg-fallback-icon";
@@ -83,8 +89,10 @@ let slashSuggestion=null,slashAllowed=false,slashFeatureEnabled=null;
     detail.textContent=ARCHIVE_DESCRIPTION;
     textBox.append(title,detail);
     row.append(icon,textBox);
-    container.append(heading,row);
-    document.body.append(container);
+    const later=[...container.querySelectorAll('[data-gtg-slash="true"]')]
+      .find(other=>Number(other.dataset.gtgMenuOrder)>config.order);
+    if(later)later.before(row);
+    else container.append(row);
     const composer=localComposer();
     if(composer){
       const rect=composer.closest("form")?.getBoundingClientRect()||composer.getBoundingClientRect();
@@ -150,8 +158,10 @@ let slashSuggestion=null,slashAllowed=false,slashFeatureEnabled=null;
       if(isVirtualRow(slashSuggestion))clearVirtualRow();
       slashSuggestion.remove();
       slashSuggestion=null;
-      document.getElementById("gtg-command-fallback")?.remove();
-      removeMenuGroup("slash");
+      const fallback=document.getElementById("gtg-command-fallback");
+      if(fallback&&!fallback.querySelector('[data-gtg-slash="true"]'))fallback.remove();
+      if(!document.querySelector('[data-mention-section-id="commands"] [data-gtg-slash="true"]'))
+        removeMenuGroup("slash");
     }
     if(slashSuggestion?.isConnected){
       const title=slashSuggestion.querySelector('[data-gtg-slash-title="true"]');
@@ -177,9 +187,10 @@ let slashSuggestion=null,slashAllowed=false,slashFeatureEnabled=null;
     const native=rows.find(el=>!el.hasAttribute("aria-current"))||rows[0];
     slashSuggestion=native?native.cloneNode(true):makeFallbackSuggestion();
     slashSuggestion.type="button";
-    slashSuggestion.id="gtg-slash";
+    slashSuggestion.id="gtg-slash-"+config.id;
     slashSuggestion.dataset.gtgSlash="true";
     slashSuggestion.dataset.gtgUtilityId=config.id;
+    slashSuggestion.dataset.gtgMenuOrder=String(config.order);
     // Do not shift native React's scroll indexes with an unregistered row.
     slashSuggestion.removeAttribute("data-list-navigation-item");
     styleInjectedMenuRow(slashSuggestion);
@@ -207,7 +218,12 @@ let slashSuggestion=null,slashAllowed=false,slashFeatureEnabled=null;
       mountMenuGroup(native.parentElement,slashSuggestion,"slash");
     }
     displayFuzzyTitle(slashSuggestion,current.value);
-    setVirtualRow(slashSuggestion);
+    // Selecting the top utility is a shared-menu concern, not whichever
+    // asynchronous request happened to finish most recently.
+    const parent=slashSuggestion.parentElement;
+    if(parent?.querySelector('[data-gtg-slash="true"]')===slashSuggestion &&
+       !parent.querySelector('[data-gtg-virtual-highlight="true"]'))
+      setVirtualRow(slashSuggestion);
     slashSuggestion.addEventListener("mousedown",event=>event.preventDefault());
     slashSuggestion.addEventListener("keydown",event=>{
       if(event.key==="Enter"||event.key===" "){
@@ -232,7 +248,7 @@ let slashSuggestion=null,slashAllowed=false,slashFeatureEnabled=null;
       selection.addRange(range);
       document.execCommand("delete",false);
     }
-    resetSlash();
+    globalThis.__gptTweaksMenus.resetSlash();
   }
   // ChatGPT's suggestion list is React-managed. This narrow adapter makes the
   // external row reachable by arrow keys without claiming an index in that list.
