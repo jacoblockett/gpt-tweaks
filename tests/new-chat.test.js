@@ -6,7 +6,7 @@ const vm=require('node:vm');
 
 const read=file=>fs.readFileSync(path.join(__dirname,'..',file),'utf8');
 const messages=[],tabs=[],windows=[];
-let saved={};
+let saved={},senderUrl='https://chatgpt.com/c/123';
 const listeners=[];
 const runtime={
   id:'test-extension',
@@ -15,7 +15,7 @@ const runtime={
     messages.push(message);
     let result;
     const async= listeners[0](message,{
-      id:'test-extension',tab:{id:7},url:'https://chatgpt.com/c/123'
+      id:'test-extension',tab:{id:7},url:senderUrl
     },value=>{result=value;});
     assert.equal(async,true);
     for(let i=0;i<8&&result===undefined;i++)await Promise.resolve();
@@ -32,10 +32,15 @@ const chrome={
 vm.runInNewContext(read('chrome/new-chat-bridge.js'),{chrome,URL,Number,String});
 const events={document:{},window:{}};
 class Element {
-  constructor(isSidebar=true){this.isSidebar=isSidebar;}
+  constructor(isSidebar=true,projectId=null){this.isSidebar=isSidebar;this.projectId=projectId;}
   closest(selector) {
     if(selector.startsWith('button['))return this;
+    if(selector==='[data-app-action-sidebar-project-id]')
+      return this.projectId?{getAttribute:()=>this.projectId}:null;
     return this.isSidebar?this:null;
+  }
+  getAttribute(name){
+    return name==='aria-label'?(this.projectId?'New chat in Project':'New chat'):null;
   }
 }
 const doc={
@@ -44,8 +49,9 @@ const doc={
   createElementNS:()=>({setAttribute(){},append(){}})
 };
 const win={addEventListener:(type,fn)=>(events.window[type]??=[]).push(fn)};
+const location={pathname:'/c/123'};
 const world={__gptTweaksMenus:{register:registration=>world.menu=registration}};
-const clientContext={globalThis:world,chrome,document:doc,window:win,Element,console};
+const clientContext={globalThis:world,chrome,document:doc,window:win,location,Element,console};
 vm.runInNewContext(read('utilities/new-chat/index.js'),clientContext);
 vm.runInNewContext(read('utilities/new-chat/ui/menu.js'),clientContext);
 async function settle() {for(let i=0;i<15;i++)await Promise.resolve();}
@@ -72,6 +78,30 @@ function dispatch(type,target=new Element()) {
   await settle();
   assert.equal(tabs.length,2);
   assert.equal(tabs[1].active,true,'slash command focuses new tab');
+  // Verify SPA project transitions from both shortcuts.
+  const project='g-p-6ade99a4de10819199a379c4360120df';
+  const other='g-p-6ad4601062008191a6a3fd8642fff51b';
+  location.pathname='/g/'+project+'/c/123';
+  senderUrl='https://chatgpt.com/c/123';
+  dispatch('auxclick');
+  await settle();
+  assert.equal(tabs[2].url,'https://chatgpt.com/g/'+project+'/project');
+  world.menu.activate('slash');
+  await settle();
+  assert.equal(tabs[3].url,'https://chatgpt.com/g/'+project+'/project');
+  // Clicking a different project's row explicitly opens that project.
+  dispatch('auxclick',new Element(true,other));
+  await settle();
+  assert.equal(tabs[4].url,'https://chatgpt.com/g/'+other+'/project');
+  location.pathname='/';
+  dispatch('auxclick',new Element(true,other));
+  await settle();
+  assert.equal(tabs[5].url,'https://chatgpt.com/g/'+other+'/project');
+  location.pathname='/g/'+project+'/project';
+  world.menu.activate('slash');
+  await settle();
+  assert.equal(tabs[6].url,'https://chatgpt.com/g/'+project+'/project');
+  location.pathname='/c/999';
   saved['gpt-tweaks.new-chat.destination']='window';
   for(const fn of events.window.focus)fn();
   await settle();
@@ -89,9 +119,12 @@ function dispatch(type,target=new Element()) {
   await settle();
   assert.equal(await world.menu.isEnabled('slash'),false);
   assert.equal((await runtime.sendMessage({type:'gpt-tweaks:new-chat:open',method:'slash'})).ok,false);
+  assert.equal((await runtime.sendMessage({
+    type:'gpt-tweaks:new-chat:open',method:'middle',projectId:'bad/id'
+  })).ok,false);
   let rejected;
   listeners[0]({type:'gpt-tweaks:new-chat:open',method:'middle'},
     {id:'test-extension',tab:{id:7},url:'https://example.com/'},value=>{rejected=value;});
   assert.equal(rejected.ok,false);
-  console.log('PASS: settings, middle-click, slash command, destination, and sender authorization');
+  console.log('PASS: general/project routes, explicit project buttons, SPA navigation, preferences, and authorization');
 })().catch(error=>{console.error(error);process.exitCode=1;});

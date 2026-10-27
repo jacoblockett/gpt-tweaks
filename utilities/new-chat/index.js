@@ -20,28 +20,34 @@
   function enabled(method) {
     return !!(preferences?.enabled&&preferences[method]);
   }
-  function open(method) {
+  function open(method,projectId=null) {
     if(!enabled(method))return;
-    void chrome.runtime.sendMessage({type:"gpt-tweaks:new-chat:open",method})
-      .then(result=>{
-        if(!result?.ok)console.warn("[GPT Tweaks] Unable to open new chat:",result?.error);
-      })
-      .catch(error=>console.warn("[GPT Tweaks] Unable to open new chat:",error));
+    void chrome.runtime.sendMessage({
+      type:"gpt-tweaks:new-chat:open",method,pathname:location.pathname,
+      ...(projectId?{projectId}:{})
+    }).then(result=>{
+      if(!result?.ok)console.warn("[GPT Tweaks] Unable to open new chat:",result?.error);
+    }).catch(error=>console.warn("[GPT Tweaks] Unable to open new chat:",error));
   }
 
-  // ChatGPT currently renders the sidebar New chat controls as buttons.
-  // Scope the delegated handler to the sidebar so toolbar/project controls
-  // and the normal left-click interaction remain untouched.
-  function sidebarNewChat(target) {
-    if(!(target instanceof Element))return false;
-    const button=target.closest('button[aria-label="New chat"],a[aria-label="New chat"]');
-    return !!(button&&button.closest("#app-shell-sidebar,aside,nav[aria-label]"));
+  // Native New chat controls exist in the sidebar, project rows, and
+  // responsive header. Project rows carry an explicit project ID.
+  function newChatTarget(target) {
+    if(!(target instanceof Element))return null;
+    const button=target.closest('button[aria-label="New chat"],button[aria-label^="New chat in "]');
+    if(!button||!button.closest('#app-shell-sidebar,[data-app-shell-titlebar]'))return null;
+    const projectRow=button.closest('[data-app-action-sidebar-project-id]');
+    if(button.getAttribute("aria-label")!=="New chat"&&!projectRow)return null;
+    const projectId=projectRow?.getAttribute("data-app-action-sidebar-project-id")||null;
+    return {projectId};
   }
   function onMiddleClick(event) {
-    if(event.button!==1||!enabled("middle")||!sidebarNewChat(event.target))return;
+    if(event.button!==1||!enabled("middle"))return;
+    const target=newChatTarget(event.target);
+    if(!target)return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    if(event.type==="auxclick")open("middle");
+    if(event.type==="auxclick")open("middle",target.projectId);
   }
   document.addEventListener("mousedown",onMiddleClick,true);
   document.addEventListener("auxclick",onMiddleClick,true);

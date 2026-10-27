@@ -64,7 +64,8 @@
         "utilities/token-estimator/index.js",
         "utilities/token-estimator/menu.js",
         "utilities/new-chat/index.js",
-        "utilities/new-chat/ui/menu.js"
+        "utilities/new-chat/ui/menu.js",
+        "utilities/new-chat/ui/tooltip.js"
       ],
       "css": [
         "utilities/token-estimator/ui/styles.css"
