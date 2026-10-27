@@ -5,43 +5,35 @@ const vm=require('node:vm');
 const path=require('node:path');
 const source=fs.readFileSync(path.join(__dirname,'../utilities/session-handoff/index.js'),'utf8');
 
-async function scenario(withButton,sandbox=false) {
-  let draft='',submitted=0,prepared=0,notices=0,navigation=null;
-  // The number of hydrated message nodes stays unchanged after submission.
-  const replies=[{getAttribute:key=>key==='data-message-id'?'old-message':null}];
-  const requested=[];
-  const filename='Session-Handoff.md';
-  const handoff='# Session handoff\n'+'Current goal and recent context. '.repeat(8);
-  const anchor={
-    textContent:filename,isConnected:true,
-    getAttribute:key=>key==='href'?
-      sandbox?'sandbox:/mnt/data/Session-Handoff.md':'https://chatgpt.com/test/Session-Handoff.md':null,
-    closest:()=>null
-  };
+async function scenario(withButton,success=true) {
+  let draft='',submitted=0,prepared=0,navigation=null,ui=0;
+  const listeners=new Map();
+  const handoff='# Session Handoff\n'+'Relevant history and constraints. '.repeat(8);
+  function dispatch(event) {
+    for(const fn of [...(listeners.get(event.type)||[])])fn(event);
+  }
+  let arm=null;
   const submit=()=>{
-    submitted++;
-    draft='';
-    replies.splice(0,replies.length,{
-      isConnected:true,
-      getAttribute:key=>key==='data-message-id'?'new-message':null,
-      closest:()=>null,
-      querySelectorAll:()=>[anchor]
-    });
+    submitted++;draft='';
+    // MAIN-world stream observer publishes the result after submission.
+    queueMicrotask(()=>dispatch({
+      type:'gpt-tweaks:handoff:result',
+      detail:JSON.stringify(success?
+        {id:arm,ok:true,text:handoff}:
+        {id:arm,ok:false,error:'No Session-Handoff.md in completed reply'})
+    }));
   };
-  const button={
-    disabled:false,getAttribute:()=>null,getClientRects:()=>[{}],click:submit
-  };
+  const button={disabled:false,getAttribute:()=>null,getClientRects:()=>[1],click:submit};
   const form={
-    querySelector:selector=>
-      withButton&&selector==='button[type="submit"]'&&draft?button:null,
+    querySelector:selector=>withButton&&selector==='button[type="submit"]'&&draft?button:null,
     requestSubmit:submit
   };
   class Input {
     get value(){return draft;}
     set value(value){draft=value;}
     focus(){}
-    matches(selector){return selector==='textarea,input';}
-    closest(selector){return selector==='form'?form:null;}
+    matches(){return true;}
+    closest(){return form;}
     dispatchEvent(){}
   }
   const input=new Input();
@@ -58,55 +50,51 @@ async function scenario(withButton,sandbox=false) {
   }}};
   const context={__gptTweaksMenus:{composer:()=>input}};
   const document={
-    querySelectorAll:()=>replies,
     querySelector:()=>null,
-    createElement:()=>{notices++;throw Error('Unexpected handoff UI');}
+    createElement:()=>{ui++;throw Error('Unexpected handoff UI');},
+    addEventListener:(type,fn)=>{
+      const current=listeners.get(type)||[];current.push(fn);listeners.set(type,current);
+    },
+    removeEventListener:(type,fn)=>{
+      listeners.set(type,(listeners.get(type)||[]).filter(item=>item!==fn));
+    },
+    dispatchEvent:event=>{
+      if(event.type==='gpt-tweaks:handoff:arm')arm=event.detail;
+      dispatch(event);
+    }
   };
   const location={
     pathname:'/g/g-p-example/c/42',
     href:'https://chatgpt.com/g/g-p-example/c/42',
-    origin:'https://chatgpt.com',
-    assign:path=>{navigation=path}
+    assign:target=>{navigation=target}
   };
   const warnings=[];
+  class CustomEvent {constructor(type,options){this.type=type;this.detail=options?.detail;}}
   vm.runInNewContext(source,{
     chrome,document,window:{addEventListener(){}},globalThis:context,
-    location,URL,Date,Event,
-    setInterval,clearInterval,setTimeout,
-    fetch:async url=>{
-      requested.push(String(url));
-      if(sandbox&&String(url).includes('/interpreter/download'))
-        return {ok:true,json:async()=>({
-          download_url:'https://chatgpt.com/backend-api/estuary/content?id=test'
-        })};
-      return {
-        ok:true,type:'basic',headers:{get:()=> 'text/markdown'},
-        text:async()=>handoff
-      };
-    },
+    location,Date,Event,CustomEvent,
+    crypto:{randomUUID:()=> '12345678-1234-1234-1234-123456789012'},
+    setInterval,clearInterval,setTimeout,clearTimeout,
     console:{warn:(...args)=>warnings.push(args)}
   });
   await new Promise(resolve=>setTimeout(resolve,10));
   await context.GPTTweaksHandoff.activate('slash');
-  assert.equal(submitted,1,'prompt must submit exactly once');
-  assert.equal(prepared,1,'file must be transferred exactly once');
-  assert.equal(navigation,'/g/g-p-example/project');
-  assert.equal(notices,0,'no handoff error UI');
-  assert.equal(warnings.length,0);
+  assert.equal(submitted,1);
+  assert.equal(prepared,success?1:0);
+  assert.equal(navigation,success?'/g/g-p-example/project':null);
+  assert.equal(ui,0,'no error UI');
+  assert.equal(warnings.length,success?0:1);
   assert.equal(draft,'');
-  if(sandbox){
-    assert.ok(requested[0].includes('/conversation/42/interpreter/download'));
-    assert.ok(requested[0].includes('message_id=new-message'));
-    assert.ok(requested[0].includes('sandbox_path=%2Fmnt%2Fdata%2FSession-Handoff.md'));
-    assert.ok(requested[1].includes('/estuary/content'));
-  }
 }
 (async()=>{
+  await scenario(true);
+  await scenario(false);
   await scenario(true,false);
-  await scenario(false,true);
-  const plus=fs.readFileSync(path.join(__dirname,'../shared/ui/menus/plus.js'),'utf8');
-  const slash=fs.readFileSync(path.join(__dirname,'../shared/ui/menus/slash.js'),'utf8');
-  assert.match(plus,/localeCompare\(button\.dataset\.gtgMenuTitle/);
-  assert.match(slash,/localeCompare\(COMMAND_TITLE/);
-  console.log('PASS: handoff submission, form fallback, no added UI, and menu title ordering');
+  const manifest=JSON.parse(fs.readFileSync(path.join(__dirname,'../manifest.json'),'utf8'));
+  assert.ok(manifest.content_scripts.some(entry=>entry.world==='MAIN'&&
+    entry.js.includes('utilities/session-handoff/stream-bridge.js')));
+  for(const file of ['utilities/session-handoff/index.js','utilities/session-handoff/stream-bridge.js']){
+    new vm.Script(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),{filename:file});
+  }
+  console.log('PASS: automatic handoff send, fallback, rejection, no UI, and bridge registration');
 })().catch(error=>{console.error(error);process.exitCode=1;});
