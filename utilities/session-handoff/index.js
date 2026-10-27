@@ -130,7 +130,7 @@
       catch{return label.toLowerCase().includes("session-handoff.md");}
     });
   }
-  async function downloadMarkdown(link) {
+  async function downloadMarkdown(link,answerId) {
     const raw=link.getAttribute("href");
     if(!raw)throw Error("File has no downloadable link");
     let url=new URL(raw,location.href);
@@ -139,7 +139,7 @@
       // message through ChatGPT's interpreter file-download endpoint.
       const parts=location.pathname.split("/");
       const chat=parts[parts.indexOf("c")+1];
-      const messageId=link.closest('[data-message-id]')?.getAttribute("data-message-id");
+      const messageId=link.closest('[data-message-id]')?.getAttribute("data-message-id")||answerId;
       if(!chat||!messageId||!url.pathname.startsWith("/mnt/data/"))
         throw Error("Cannot resolve the generated handoff file");
       const endpoint="/backend-api/conversation/"+encodeURIComponent(chat)+
@@ -181,7 +181,7 @@
       if(generating()){completedAt=null;return null;}
       for(const answer of newAnswers()){
         const found=fileLinks(answer)[0];
-        if(found)return found;
+        if(found)return {link:found,answerId:answer.getAttribute("data-message-id")};
       }
       if(completedAt===null)completedAt=Date.now();
       if(Date.now()-completedAt>10000)
@@ -190,8 +190,8 @@
     },10*60*1000);
     // Give React time to finish committing the final file attachment.
     await new Promise(resolve=>setTimeout(resolve,750));
-    if(!link.isConnected||generating())throw Error("Handoff response changed before capture");
-    return downloadMarkdown(link);
+    if(!link.link.isConnected||generating())throw Error("Handoff response changed before capture");
+    return downloadMarkdown(link.link,link.answerId);
   }
   async function activate(method) {
     if(method!=="slash"||!enabled||busy||invalidated)return;
