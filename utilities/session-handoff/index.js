@@ -34,18 +34,8 @@
     if(/Extension context invalidated/i.test(String(reason))){
       invalidated=true;return;
     }
+    // No handoff error UI. Keep diagnostics in the extension console only.
     console.warn("[GPT Tweaks] "+label,reason);
-    const form=editor()?.closest("form");
-    if(!form)return;
-    let notice=form.querySelector('[data-gt-handoff-error]');
-    if(!notice){
-      notice=document.createElement("div");
-      notice.dataset.gtHandoffError="true";
-      notice.setAttribute("role","status");
-      notice.style.cssText="font-size:12px;padding:4px 8px;color:var(--text-secondary,#aaa)";
-      form.append(notice);
-    }
-    notice.textContent="Session handoff: "+label;
   }
   async function refresh(){
     if(invalidated)return;
@@ -90,17 +80,45 @@
     if(normalized(editorText(node))!==normalized(text))
       throw Error("Composer did not accept the complete handoff text");
   }
+  function sendButton(form) {
+    // ChatGPT varies its submit control across composer layouts and versions.
+    const selectors=[
+      'button[data-testid="send-button"]',
+      'button[data-testid="composer-send-button"]',
+      '#composer-submit-button',
+      'button[aria-label="Send prompt"]',
+      'button[aria-label="Send message"]',
+      'button[aria-label="Send"]',
+      'button.composer-submit-btn',
+      'button[type="submit"]'
+    ];
+    for(const selector of selectors){
+      const button=form.querySelector(selector);
+      if(button&&!button.disabled&&button.getAttribute("aria-disabled")!=="true"&&
+         button.getClientRects().length)return button;
+    }
+    return null;
+  }
   async function send(text) {
     const node=await waitFor(editor);
     insert(node,text);
     const form=node.closest("form");
     if(!form)throw Error("ChatGPT composer form not found");
-    const selector='button[data-testid="send-button"],button[data-testid="composer-send-button"],button[aria-label="Send prompt"],button[aria-label="Send message"],#composer-submit-button';
-    const button=await waitFor(()=>{
-      const found=form.querySelector(selector);
-      return found&&!found.disabled?found:null;
+    // The control may appear only after ProseMirror registers the new text.
+    // A real form submission is the fallback when ChatGPT renames the button.
+    const button=await waitFor(()=>sendButton(form),3000).catch(reason=>{
+      if(!/Timed out waiting for ChatGPT/.test(String(reason)))throw reason;
+      return null;
+    });
+    if(button)button.click();
+    else if(typeof form.requestSubmit==="function")form.requestSubmit();
+    else throw Error("ChatGPT has no available send control");
+    // Confirm the draft was actually submitted before awaiting a response
+    // or deleting the pending transfer in the receiving conversation.
+    await waitFor(()=>{
+      const current=editor();
+      return current&&!editorText(current);
     },10000);
-    button.click();
   }
   function fileLinks(messageNode){
     return [...messageNode.querySelectorAll("a[href],a[download]")].filter(link=>{
