@@ -56,6 +56,9 @@ async function run(){
   assert(!panel.source.includes('id="messages"'));
   assert.equal(get('numbers').textContent,'128,000 / 512,000 tokens (25.0%)');
   assert(!panel.source.includes('contenteditable'));
+  assert(!panel.source.includes('Target Exceeded'));
+  assert(!panel.source.includes('id="status"'));
+  assert(!marker.children[0].adoptedStyleSheets[0].source.includes('#status'));
   assert(!panel.events.click);
   const source=marker.children[0].adoptedStyleSheets?.[0]?.source;
   assert(source.includes('left:50%') && source.includes('transform:translate(-50%,-50%)'));

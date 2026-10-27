@@ -17,6 +17,7 @@
   const view = globalThis.GPTTweaksContextIndicator(core);
   let enabled = true;
   let defaultVisible = false;
+  let visibilityOverride = null; // Set only by the Status command.
   let flags = {percent:true, tokens:true, limit:true};
 
   let target = DEFAULT_TARGET;
@@ -294,6 +295,12 @@
     if (fetchController) fetchController.abort();
     running = false;
     queued = false;
+    // Each new conversation starts from its default; preserve a manual
+    // choice as an untitled chat receives its first conversation ID.
+    if (activeId && activeId !== id) {
+      visibilityOverride = null;
+      view.setVisible(enabled && defaultVisible);
+    }
     activeId = id;
     activeEntries = [];
     complete = false;
@@ -388,6 +395,22 @@
     }
   }
 
+  function toggleStatus() {
+    if (!enabled) return;
+    visibilityOverride = !(visibilityOverride ?? defaultVisible);
+    view.setVisible(visibilityOverride);
+    render();
+  }
+
+  // Register via the same shared menu API as GitHub Source.
+  globalThis.GPTTweaksContextStatus = Object.freeze({
+    isEnabled:async method => {
+      const settings = await storage.preferences();
+      return settings.enabled !== false && settings[method] !== false;
+    },
+    activate:toggleStatus
+  });
+
   async function refreshPreferences() {
     try {
       const settings = await storage.preferences();
@@ -396,11 +419,14 @@
       document.dispatchEvent(new CustomEvent('ct-v1-tracker-enabled',
         {detail:enabled ? 'true' : 'false'}));
       if (!enabled) fetchController?.abort();
-      defaultVisible = settings.defaultVisible === true;
+      const nextDefault = settings.defaultVisible === true;
+      // Reset the manual override only when the visibility policy changes.
+      if (previouslyEnabled !== enabled || defaultVisible !== nextDefault) visibilityOverride = null;
+      defaultVisible = nextDefault;
       if (Number.isSafeInteger(settings.target) && settings.target > 0) target = settings.target;
       flags = {percent:settings.percent !== false, tokens:settings.tokens !== false,
         limit:settings.limit !== false};
-      view.setVisible(enabled && defaultVisible);
+      view.setVisible(enabled && (visibilityOverride ?? defaultVisible));
       render();
       if (enabled && !previouslyEnabled && activeId) {
         document.dispatchEvent(new Event('ct-v1-bridge-ready'));

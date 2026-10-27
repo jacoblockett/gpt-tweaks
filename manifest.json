@@ -61,7 +61,8 @@
         "utilities/context-tracker/tracker-core.js",
         "utilities/context-tracker/storage.js",
         "utilities/context-tracker/ui/indicator.js",
-        "utilities/context-tracker/index.js"
+        "utilities/context-tracker/index.js",
+        "utilities/context-tracker/menu.js"
       ],
       "css": [
         "utilities/context-tracker/ui/styles.css"

@@ -47,14 +47,51 @@ async function main(){
   assert(!JSON.stringify(emitted).includes('Answer more')); // No text across MAIN/ISOLATED boundary.
   // Isolated coordinator: mocked storage and view, one native page and optimistic send.
   const storageData=new Map(),snapshots=[],visibility=[],mounted=[];
+  const trackerSettings={enabled:true,defaultVisible:true,menu:true,slash:true,target:512000,percent:true,tokens:true,limit:true};
   let navChanges=()=>{};
   const isolated={console,document:{...doc,hidden:false,getElementById(){return null}},location:loc,globalThis:null,window:{addEventListener(){},navigation:{addEventListener(){} }},Event:E,CustomEvent:E,setTimeout,clearTimeout,AbortController,DOMException,MutationObserver:class {observe(){}disconnect(){}},chrome:{runtime:{onMessage:{addListener:fn=>navChanges=fn}}},
-    GPTTweaksContextStorage:{preferences:async()=>({enabled:true,defaultVisible:true,target:512000,percent:true,tokens:true,limit:true,messages:true}),load:async id=>storageData.get(id)||null,save:async(id,cache)=>{storageData.set(id,cache)}},
+    GPTTweaksContextStorage:{preferences:async()=>({...trackerSettings}),load:async id=>storageData.get(id)||null,save:async(id,cache)=>{storageData.set(id,cache)}},
     GPTTweaksContextIndicator:core=>{return ({setVisible:v=>visibility.push(v),setConversation:id=>mounted.push(id),render:s=>snapshots.push({messages:core.metrics([...s.activeEntries,...s.streamEntries.values()]).messages,target:s.target}),isMounted:()=>true,mount(){},updateTheme(){},align(){}})}};
   isolated.globalThis=isolated;isolated.CTCore=core;
   vm.runInNewContext(source('utilities/context-tracker/index.js'),isolated);
   await wait(80);
   assert(visibility.includes(true));assert(mounted.includes(uuid));
+  // Exercise the real first-class menu utility registration contract, not a
+  // second injection path. The shared plus/slash adapter owns menu behavior.
+  const registrations=[];
+  isolated.__gptTweaksMenus={register:config=>registrations.push(config)};
+  isolated.document.createElementNS=(ns,tag)=>({attrs:new Map(),setAttribute(k,v){this.attrs.set(k,v)},append(){}});
+  vm.runInNewContext(source('utilities/context-tracker/menu.js'),isolated);
+  assert.equal(registrations.length,1);
+  const status=registrations[0];
+  assert.equal(status.id,'context-tracker');
+  assert.equal(status.title,'Status');
+  assert.equal(status.command,'/status');
+  assert.equal(status.icon(20).attrs.get('viewBox'),'0 0 24 24');
+  assert.equal(await status.isEnabled('menu'),true);
+  assert.equal(await status.isEnabled('slash'),true);
+  status.activate('menu');
+  assert.equal(visibility.at(-1),false);
+  status.activate('slash');
+  assert.equal(visibility.at(-1),true);
+  trackerSettings.menu=false;
+  assert.equal(await status.isEnabled('menu'),false);
+  assert.equal(await status.isEnabled('slash'),true);
+  trackerSettings.slash=false;
+  assert.equal(await status.isEnabled('slash'),false);
+  trackerSettings.enabled=false;
+  assert.equal(await status.isEnabled('menu'),false);
+  trackerSettings.enabled=true;
+  trackerSettings.menu=true;
+  trackerSettings.slash=true;
+  status.activate('menu');
+  const chosenVisibility=visibility.at(-1);
+  navChanges({type:'gpt-tweaks:context:settings-changed'});
+  await wait(25);
+  assert.equal(visibility.at(-1),chosenVisibility);
+  status.activate('slash');
+  assert.equal(visibility.at(-1),true);
+
   doc.dispatchEvent(new E('ct-v1-outgoing',{detail:JSON.stringify({id:uuid,entries:[[user,4,1]]})}));
   await wait(25);
   assert(snapshots.some(s=>s.messages===1));
@@ -83,6 +120,13 @@ async function main(){
   })}
   const validSender={id:'test-extension',url:`https://chatgpt.com/c/${uuid}`,tab:{id:7}};
   assert.equal((await rpc({type:'gpt-tweaks:context:preferences'},validSender)).data.target,750000);
+  assert.equal((await rpc({type:'gpt-tweaks:context:preferences'},validSender)).data.menu,true);
+  assert.equal((await rpc({type:'gpt-tweaks:context:preferences'},validSender)).data.slash,true);
+  priv.set('gpt-tweaks.context.menu','false');
+  priv.set('gpt-tweaks.context.slash','false');
+  assert.equal((await rpc({type:'gpt-tweaks:context:preferences'},validSender)).data.menu,false);
+  assert.equal((await rpc({type:'gpt-tweaks:context:preferences'},validSender)).data.slash,false);
+
   assert.equal((await rpc({type:'gpt-tweaks:context:preferences'},{...validSender,url:'https://github.com/'})).ok,false);
   assert.equal((await rpc({type:'gpt-tweaks:context:set-target',target:512001},validSender)).ok,false);
   assert.equal(priv.get('gpt-tweaks.context.target-tokens'),'750000');
