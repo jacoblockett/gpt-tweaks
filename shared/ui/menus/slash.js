@@ -2,14 +2,13 @@
 "use strict";
 globalThis.__gptTweaksSlashMenu=(config,helpers)=>{
 const {visible,localComposer,setMenuIcon,styleInjectedMenuRow,mountMenuGroup,removeMenuGroup,
-setVirtualRow,clearVirtualRow,isVirtualRow,countUtilities}=helpers;
+onSlashRowMounted,onSlashQueryChanged,countUtilities}=helpers;
 const COMMAND_TITLE=config.title,ARCHIVE_DESCRIPTION=config.description;
 const utilityIcon=config.icon,isEnabled=config.isEnabled,launch=config.activate;
 let slashSuggestion=null,slashAllowed=false,slashFeatureEnabled=null;
   function resetSlash(){
     slashAllowed=false;
     if(slashSuggestion){
-      if(isVirtualRow(slashSuggestion))clearVirtualRow();
       slashSuggestion.remove();slashSuggestion=null;
     }
     // The other utility may still own a row in the same native/fallback menu.
@@ -155,7 +154,6 @@ let slashSuggestion=null,slashAllowed=false,slashFeatureEnabled=null;
     const wasFallback=document.getElementById("gtg-command-fallback") !== null;
     if(slashSuggestion?.isConnected&&
        ((wasFallback&&nativeAvailable)||!visible(slashSuggestion))){
-      if(isVirtualRow(slashSuggestion))clearVirtualRow();
       slashSuggestion.remove();
       slashSuggestion=null;
       const fallback=document.getElementById("gtg-command-fallback");
@@ -167,10 +165,8 @@ let slashSuggestion=null,slashAllowed=false,slashFeatureEnabled=null;
       const title=slashSuggestion.querySelector('[data-gtg-slash-title="true"]');
       const queryChanged=title?.dataset.gtgFuzzyQuery!==match.value;
       displayFuzzyTitle(slashSuggestion,match.value);
-      // React may still select its first native row after filtering.
-      // Reassert the injected top row only on a new search query, so ordinary
-      // pointer and arrow navigation at a stable query is not overridden.
-      if(queryChanged)setVirtualRow(slashSuggestion);
+      if(queryChanged)onSlashQueryChanged(match.value);
+      else onSlashRowMounted();
       return;
     }
     try{
@@ -193,7 +189,7 @@ let slashSuggestion=null,slashAllowed=false,slashFeatureEnabled=null;
     slashSuggestion.dataset.gtgMenuOrder=String(config.order);
     // Do not shift native React's scroll indexes with an unregistered row.
     slashSuggestion.removeAttribute("data-list-navigation-item");
-    styleInjectedMenuRow(slashSuggestion);
+    styleInjectedMenuRow(slashSuggestion,"controlled");
     if(native){
       const menuLabel=slashSuggestion.querySelector(':scope > div > div > div > div');
       const menuDesc=slashSuggestion.querySelector(':scope > div > div > div > span');
@@ -218,12 +214,8 @@ let slashSuggestion=null,slashAllowed=false,slashFeatureEnabled=null;
       mountMenuGroup(native.parentElement,slashSuggestion,"slash");
     }
     displayFuzzyTitle(slashSuggestion,current.value);
-    // Selecting the top utility is a shared-menu concern, not whichever
-    // asynchronous request happened to finish most recently.
-    const parent=slashSuggestion.parentElement;
-    if(parent?.querySelector('[data-gtg-slash="true"]')===slashSuggestion &&
-       !parent.querySelector('[data-gtg-virtual-highlight="true"]'))
-      setVirtualRow(slashSuggestion);
+    // The shared controller owns hover, focus and wraparound for every row.
+    onSlashQueryChanged(current.value);
     slashSuggestion.addEventListener("mousedown",event=>event.preventDefault());
     slashSuggestion.addEventListener("keydown",event=>{
       if(event.key==="Enter"||event.key===" "){
@@ -250,9 +242,7 @@ let slashSuggestion=null,slashAllowed=false,slashFeatureEnabled=null;
     }
     globalThis.__gptTweaksMenus.resetSlash();
   }
-  // ChatGPT's suggestion list is React-managed. This narrow adapter makes the
-  // external row reachable by arrow keys without claiming an index in that list.
-  // It yields ordinary item transitions to React and intercepts only the extra slot.
+  // Slash matching and activation remain here. Shared menu code owns selection.
 
   function handleDirectEnter(event){
     if(event.key!=="Enter"||event.shiftKey||event.isComposing||

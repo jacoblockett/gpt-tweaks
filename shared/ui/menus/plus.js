@@ -11,7 +11,7 @@ const isEnabled=config.isEnabled,launch=config.activate;
     button.classList.add("menu-row-opacity");
     // Plus-menu selection and hover are owned by the complete menu controller.
     // Slash commands retain their existing per-row pointer appearance.
-    if(kind==="plus")return;
+    if(kind==="plus"||kind==="controlled")return;
     const active=()=>{button.classList.add("bg-primary-ghost-hover","opacity-100");button.classList.remove("menu-row-opacity");};
     const inactive=()=>{
       if(button.matches(":hover,:focus"))return;

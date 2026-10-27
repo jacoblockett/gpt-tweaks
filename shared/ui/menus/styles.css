@@ -31,20 +31,17 @@
   opacity:1!important;
 }
 
-/* ChatGPT highlights only React-managed items. Hide its retained native
-   highlight while the externally injected row is hovered or focused. */
-[data-mention-section-items="true"]:has(> [data-gtg-slash="true"]:is(:hover,:focus)) > button:not([data-gtg-slash="true"]).bg-primary-ghost-hover {
-  background-color: transparent!important;
-  opacity: var(--opacity-menu-row,.75)!important;
-}
-
-/* Mask React's retained active item while the extension's virtual slot
-   is selected by keyboard, without altering any native item state. */
-[data-mention-section-items="true"]:has(> [data-gtg-virtual-highlight="true"]) > button:not([data-gtg-virtual-highlight="true"]).bg-primary-ghost-hover {
+/* Slash commands share one selection state across injected and native
+   command results. Override React's retained highlight just as in the plus
+   menu, including the extension-only fallback. */
+[data-gtg-slash-controlled="true"] button:is([data-list-navigation-item="true"],[data-gtg-slash="true"]):not([data-gtg-slash-selected="true"]) {
   background-color:transparent!important;
   opacity:var(--opacity-menu-row,.75)!important;
 }
-
+[data-gtg-slash-controlled="true"] button:is([data-list-navigation-item="true"],[data-gtg-slash="true"])[data-gtg-slash-selected="true"] {
+  background-color:var(--bg-primary-ghost-hover,#444)!important;
+  opacity:1!important;
+}
 
 /* Direct slash matches can outlive ChatGPT's own filtered command menu. */
 .gtg-command-fallback {
