@@ -74,7 +74,7 @@ let slashSuggestion=null,slashAllowed=false,slashFeatureEnabled=null;
     row.type="button";
     row.dataset.gtgSlash="true";
     row.dataset.gtgUtilityId=config.id;
-    row.dataset.gtgMenuOrder=String(config.order);
+    row.dataset.gtgMenuTitle=COMMAND_TITLE;
     row.className="gtg-fallback-row";
     const icon=document.createElement("span");
     icon.className="gtg-fallback-icon";
@@ -89,7 +89,7 @@ let slashSuggestion=null,slashAllowed=false,slashFeatureEnabled=null;
     textBox.append(title,detail);
     row.append(icon,textBox);
     const later=[...container.querySelectorAll('[data-gtg-slash="true"]')]
-      .find(other=>Number(other.dataset.gtgMenuOrder)>config.order);
+      .find(other=>other.dataset.gtgMenuTitle.localeCompare(COMMAND_TITLE,undefined,{sensitivity:"base"})>0);
     if(later)later.before(row);
     else container.append(row);
     const composer=localComposer();
@@ -186,7 +186,7 @@ let slashSuggestion=null,slashAllowed=false,slashFeatureEnabled=null;
     slashSuggestion.id="gtg-slash-"+config.id;
     slashSuggestion.dataset.gtgSlash="true";
     slashSuggestion.dataset.gtgUtilityId=config.id;
-    slashSuggestion.dataset.gtgMenuOrder=String(config.order);
+    slashSuggestion.dataset.gtgMenuTitle=COMMAND_TITLE;
     // Do not shift native React's scroll indexes with an unregistered row.
     slashSuggestion.removeAttribute("data-list-navigation-item");
     styleInjectedMenuRow(slashSuggestion,"controlled");
