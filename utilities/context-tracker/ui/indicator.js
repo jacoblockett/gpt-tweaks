@@ -4,7 +4,7 @@
   const sheet = `
     :host { display:block; position:relative; z-index:1; box-sizing:border-box;
       align-self:stretch; width:100%; max-width:100%; min-width:0;
-      height:52px; flex:none; margin-bottom:0; container-type:inline-size;
+      height:60px; flex:none; margin-bottom:0; container-type:inline-size;
       background-color:var(--composer-layout-surface-background, var(--ct-surface-fallback, #1b1b1b));
       -webkit-backdrop-filter:var(--composer-layout-surface-backdrop-filter, none);
       backdrop-filter:var(--composer-layout-surface-backdrop-filter, none);
@@ -15,15 +15,15 @@
       color:var(--color-text, #ededed); font:inherit; text-align:left; line-height:normal; }
     *, *::before, *::after { box-sizing:border-box; }
     #tracker { position:relative; display:flex; align-items:center; justify-content:center;
-      width:100%; height:52px; border:0; padding:10px 18px;
+      width:100%; height:60px; border:0; padding:12px 18px;
       background:transparent; color:inherit; }
-    .track { display:block; width:100%; min-width:0; height:6px; overflow:hidden;
+    .track { display:block; width:100%; min-width:0; height:6px; flex:none; overflow:hidden;
       background:color-mix(in srgb, var(--color-text, #ededed) 15%, transparent);
       border-radius:99px; }
     .metrics { position:absolute; z-index:1; left:50%; top:50%; transform:translate(-50%,-50%);
-      max-width:calc(100% - 36px); padding:0 10px;
+      max-width:calc(100% - 36px); padding:0 8px; border:0; border-radius:0; box-shadow:none;
       background:var(--composer-layout-surface-background, var(--ct-surface-fallback, #1b1b1b));
-      color:inherit; font:inherit; font-size:13px; font-weight:400; line-height:20px;
+      color:inherit; font-family:inherit; font-size:14px; font-weight:400; line-height:19px;
       font-variant-numeric:tabular-nums; text-align:center; white-space:nowrap;
       overflow:hidden; text-overflow:ellipsis; }
     .metrics[hidden] { display:none; }
@@ -41,8 +41,9 @@
     @keyframes ct-spin { to { transform:rotate(360deg); } }
     #tracker[data-phase="loading"] .metrics, #tracker[data-phase="loading"] .track { display:none; }
     #tracker[data-phase="loading"] .loading { display:flex; }
-    @container (max-width:370px) { #tracker { padding-inline:10px; }
-      .metrics { max-width:calc(100% - 20px); font-size:12px; } }
+    @container (max-width:660px) { #status { display:none !important; } }
+    @container (max-width:370px) { #tracker { padding-inline:11px; }
+      .metrics { max-width:calc(100% - 22px); font-size:12px; } }
     @media (prefers-reduced-motion:reduce) { #fill { transition:none; } .spinner { animation:none; } }
   `;
   const num = value => {
@@ -309,12 +310,20 @@
     ui.status.hidden = !overTarget;
     ui.fill.style.width = `${Math.min(100, displayed)}%`;
     // Warn yellow at 80%, progressing smoothly to the alert red at 100%.
-    if (hasRatio && displayed >= 100) ui.fill.style.backgroundColor = 'var(--ct-alert)';
+    if (hasRatio && displayed >= 100) {
+      ui.fill.style.setProperty('background-color', 'var(--ct-alert)');
+      ui.metrics.style.setProperty('color', 'var(--ct-alert)');
+    }
     else if (hasRatio && displayed >= 80) {
       const step = Math.min(200, Math.max(0, Math.floor((displayed - 80) * 10 + 1e-7)));
       const redWeight = step / 2;
-      ui.fill.style.backgroundColor = `color-mix(in srgb, var(--ct-warning) ${100 - redWeight}%, var(--ct-alert) ${redWeight}%)`;
-    } else ui.fill.style.removeProperty('background-color');
+      const warningColor = `color-mix(in srgb, var(--ct-warning) ${100 - redWeight}%, var(--ct-alert) ${redWeight}%)`;
+      ui.fill.style.setProperty('background-color', warningColor);
+      ui.metrics.style.setProperty('color', warningColor);
+    } else {
+      ui.fill.style.removeProperty('background-color');
+      ui.metrics.style.removeProperty('color');
+    }
     ui.progress.setAttribute('aria-valuenow', Math.min(100, displayed).toFixed(1));
     const status = overTarget ? ' Your chosen target was exceeded.' : '';
     ui.panel.setAttribute('aria-label', `Context estimate: ${num(values.tokens)} of ${num(target)} tokens (${pctLabel}).${status}`);

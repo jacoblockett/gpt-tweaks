@@ -68,6 +68,23 @@ async function run(){
   assert.equal(get('numbers').textContent,'128,000 tokens (25.0%)');
   state.flags={tokens:false,limit:false,percent:false};view.render(state);
   assert.equal(get('metrics').hidden,true);
+  // Restore the original 14px/19px metrics and 6px bar without an extra pill.
+  assert(source.includes('font-family:inherit; font-size:14px; font-weight:400; line-height:19px;'));
+  assert(source.includes('height:6px; flex:none; overflow:hidden;'));
+  assert(source.includes('padding:0 8px; border:0; border-radius:0; box-shadow:none;'));
+  assert(source.includes('height:60px; flex:none; margin-bottom:0'));
+  state.flags={tokens:true,limit:true,percent:true};
+  state.activeEntries=[['x',409600,1]];view.render(state);
+  assert.equal(get('metrics').style.getPropertyValue('color'), 'color-mix(in srgb, var(--ct-warning) 100%, var(--ct-alert) 0%)');
+  assert.equal(get('metrics').style.getPropertyValue('color'),get('fill').style.getPropertyValue('background-color'));
+  state.activeEntries=[['x',460800,1]];view.render(state);
+  assert.equal(get('metrics').style.getPropertyValue('color'),get('fill').style.getPropertyValue('background-color'));
+  state.activeEntries=[['x',512000,1]];view.render(state);
+  assert.equal(get('metrics').style.getPropertyValue('color'),'var(--ct-alert)');
+  state.activeEntries=[['x',128000,1]];view.render(state);
+  assert.equal(get('metrics').style.getPropertyValue('color'),'');
+  assert.equal(get('fill').style.getPropertyValue('background-color'),'');
+  console.log('PASS: restored original bar/typography and matching warning-to-alert text colors');
   console.log('PASS: centered progress-label text/spacing, background occlusion, display flags, no editor or message count');
 }
 run().catch(e=>{console.error(e);process.exit(1)});

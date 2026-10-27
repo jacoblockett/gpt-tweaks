@@ -220,15 +220,41 @@ code {
 	color: #c7aaff;
 }
 .feedback:empty { display: none; }
+/* Keep the reusable dropdown's behavior, but use Settings' own palette,
+   typography and control sizing rather than the GitHub dialog's colors. */
 .token-target {
-	flex: none; width: 164px; min-height: 45px; padding: 9px 16px;
+	flex: none; width: 164px; min-height: 40px; padding: 9px 12px;
 	text-align: right; font-size: 14px; font-variant-numeric: tabular-nums;
-	border: 1px solid #555; border-radius: 999px;
-	background: #292929; color: var(--text);
+	border: 1px solid #45434b; border-radius: 999px;
+	background: var(--control); color: var(--text);
 }
 .compact-select { width: 174px; }
-.token-target:focus, .compact-select .gt-select-trigger:focus-visible {
-	border-color: #777;
+.compact-select .gt-select-trigger {
+	min-height: 40px; padding: 9px 12px;
+	border-color: #45434b; background: var(--control);
+	color: var(--text); font-size: 14px;
+}
+.compact-select .gt-select-trigger > svg { color: var(--muted); }
+.token-target:hover:not(:disabled), .compact-select .gt-select-trigger:hover:not(:disabled) {
+	border-color: #625777;
+}
+.token-target:focus, .compact-select .gt-select-trigger[aria-expanded="true"] {
+	border-color: var(--accent);
+}
+.compact-select .gt-select-list {
+	background: var(--control); border-color: #45434b;
+	border-radius: 14px;
+}
+.compact-select .gt-select-option {
+	color: var(--text); font-size: 13.5px;
+}
+.compact-select .gt-select-option:hover, .compact-select .gt-select-option:focus-visible {
+	background: var(--hover);
+}
+.compact-select .gt-select-option[aria-selected="true"] {
+	background: var(--active);
+}
+.token-target:focus-visible, .compact-select .gt-select-trigger:focus-visible {
 	outline-color: var(--focus);
 }
 .token-target:invalid { border-color: #d77979; }
