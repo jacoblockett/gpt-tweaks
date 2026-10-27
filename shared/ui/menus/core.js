@@ -3,6 +3,7 @@
   if(globalThis.__gptTweaksMenus)return;
   const adapters=new Map();
   let observer=null,scanQueued=false,scanTimer=null,virtualRow=null;
+  let plusRoot=null,plusSelected=null,plusIndex=0,plusTouched=false;
   function clearVirtualRow(){
     if(!virtualRow)return;
     const row=virtualRow;
@@ -55,7 +56,7 @@
         span.append(config.icon(size));iconSlot.append(span);
       }
     }
-    const plus=globalThis.__gptTweaksPlusMenu(config,{visible,setMenuIcon,setVirtualRow});
+    const plus=globalThis.__gptTweaksPlusMenu(config,{visible,setMenuIcon,onPlusRowMounted});
     const slash=globalThis.__gptTweaksSlashMenu(config,{
       visible,localComposer,setMenuIcon,styleInjectedMenuRow:plus.styleInjectedMenuRow,
       mountMenuGroup:plus.mountMenuGroup,removeMenuGroup:plus.removeMenuGroup,
@@ -68,19 +69,97 @@
       isOpen:()=>!!config.isOpen?.()};
   }
   const visibleRow=row=>!!(row?.isConnected&&row.getClientRects().length);
+  const plusSelector='button[data-gtg-menu-option="true"]';
   const injectedSelector='button[data-gtg-menu-option="true"],button[data-gtg-slash="true"]';
   const nativeSelector='button[data-list-navigation-item="true"]';
+
+  // The plus menu spans several native sections. Own visual, pointer and
+  // keyboard selection across the complete menu; React still owns actions.
+  function plusRows(root){
+    return [...root.querySelectorAll('button[data-gtg-menu-option="true"],button[data-list-navigation-item="true"]')]
+      .filter(visibleRow);
+  }
+  function plusMenu(){
+    const row=[...document.querySelectorAll(plusSelector)].find(visibleRow);
+    const root=row?.closest('[data-mention-list-scroll-area]');
+    return root&&visibleRow(root)?root:null;
+  }
+  function selectPlus(row,fromUser=false,scroll=false){
+    const root=plusMenu();
+    if(!root)return;
+    const rows=plusRows(root);
+    const index=rows.indexOf(row);
+    if(index<0)return;
+    if(plusRoot!==root){
+      if(plusRoot?.isConnected)plusRoot.removeAttribute('data-gtg-plus-controlled');
+      plusRoot=root;plusSelected=null;plusIndex=0;plusTouched=false;
+    }
+    if(fromUser)plusTouched=true;
+    if(plusSelected===row&&row.dataset.gtgPlusSelected==='true'){
+      if(scroll)row.scrollIntoView?.({block:'nearest'});
+      return;
+    }
+    if(plusSelected)delete plusSelected.dataset.gtgPlusSelected;
+    plusSelected=row;plusIndex=index;
+    root.dataset.gtgPlusControlled='true';
+    row.dataset.gtgPlusSelected='true';
+    if(scroll)row.scrollIntoView?.({block:'nearest'});
+  }
+  function syncPlus(){
+    const root=plusMenu();
+    if(!root){
+      if(plusRoot?.isConnected)plusRoot.removeAttribute('data-gtg-plus-controlled');
+      plusRoot=null;plusSelected=null;plusIndex=0;plusTouched=false;
+      return;
+    }
+    const rows=plusRows(root);
+    if(!rows.length)return;
+    if(root!==plusRoot){plusRoot=null;plusSelected=null;plusIndex=0;plusTouched=false;}
+    // Async insertions cannot steal initial selection. After input, retain
+    // the selected row across other utility insertions and React remounts.
+    const target=!plusTouched?rows[0]:
+      rows.includes(plusSelected)?plusSelected:rows[Math.min(plusIndex,rows.length-1)];
+    selectPlus(target);
+  }
+  function onPlusRowMounted(){syncPlus();}
+
+  function interceptPlusKey(event){
+    const root=plusMenu();
+    if(!root)return false;
+    if(event.isComposing||event.altKey||event.metaKey||event.ctrlKey||
+       [...adapters.values()].some(adapter=>adapter.isOpen()))return false;
+    const key=event.key;
+    if(!['ArrowUp','ArrowDown','Enter',' ','Tab'].includes(key))return false;
+    const rows=plusRows(root);
+    if(!rows.length)return false;
+    if(plusRoot!==root||!rows.includes(plusSelected))syncPlus();
+    const selected=rows.includes(plusSelected)?plusSelected:rows[0];
+    if(key==='ArrowUp'||key==='ArrowDown'){
+      event.preventDefault();event.stopImmediatePropagation();
+      const step=key==='ArrowDown'?1:-1;
+      selectPlus(rows[(rows.indexOf(selected)+step+rows.length)%rows.length],true,true);
+      return true;
+    }
+    if(key==='Enter'||key===' '||(key==='Tab'&&selected.matches(plusSelector))){
+      event.preventDefault();event.stopImmediatePropagation();
+      selected.click();
+      return true;
+    }
+    return false;
+  }
 
   // ChatGPT owns native menu selection. Treat its visible rows and our
   // injected rows as one cyclic list while leaving native-to-native keys to
   // React. No synthetic React list indexes or reimplemented native menus.
   function interceptMenuKey(event){
-    if(event.defaultPrevented||event.isComposing||event.altKey||event.metaKey||
+    if(event.defaultPrevented)return;
+    if(interceptPlusKey(event))return;
+    if(event.isComposing||event.altKey||event.metaKey||
        event.ctrlKey||[...adapters.values()].some(adapter=>adapter.isOpen()))return;
     const key=event.key;
     if(key!=="ArrowUp"&&key!=="ArrowDown"&&key!=="Enter"&&key!=="Tab"&&key!==" "&&key!=="Escape")return;
 
-    const injected=[...document.querySelectorAll(injectedSelector)].filter(visibleRow);
+    const injected=[...document.querySelectorAll('button[data-gtg-slash="true"]')].filter(visibleRow);
     if(!injected.length)return;
     if(virtualRow&&!injected.includes(virtualRow))clearVirtualRow();
     const section=(virtualRow||injected[0]).parentElement;
@@ -88,14 +167,7 @@
     const buttons=[...section.children].filter(button=>visibleRow(button)&&button.matches('button'));
     const utilities=buttons.filter(button=>button.matches(injectedSelector));
     if(!utilities.length)return;
-    // The + menu's native items span multiple sections (e.g. primary
-    // actions and plugins). React wraps across the complete scroll area,
-    // not just the injected utility rows' section.
-    // Keep the slash menu's previously accepted section-scoped behavior.
-    const isPlus=utilities[0].dataset.gtgMenuOption==="true";
-    const nativeRoot=isPlus?
-      section.closest('[data-mention-list-scroll-area]')||section : section;
-    const native=[...nativeRoot.querySelectorAll(nativeSelector)].filter(visibleRow);
+    const native=[...section.querySelectorAll(nativeSelector)].filter(visibleRow);
     const active=utilities.includes(virtualRow)?virtualRow:null;
     const nativeSelected=native.find(row=>row===document.activeElement)||
       native.find(row=>row.getAttribute("aria-current")==="true")||
@@ -159,6 +231,7 @@
   function scanAll(){
     scanQueued=false;
     for(const adapter of adapters.values())adapter.scan();
+    syncPlus();
     syncSlash();
   }
   function scheduleScan(){
@@ -167,7 +240,19 @@
   // All registered utilities share one ChatGPT mutation observer and
   // one copy of the keyboard/focus listeners.
   window.addEventListener("keydown",interceptMenuKey,true);
-  document.addEventListener("mousemove",event=>{
+  function onPlusHover(event){
+    const root=plusMenu();
+    if(!root||!(event.target instanceof Element))return;
+    const row=event.target.closest(
+      'button[data-gtg-menu-option="true"],button[data-list-navigation-item="true"]');
+    if(row&&root.contains(row)&&row!==plusSelected)selectPlus(row,true);
+  }
+  // Delegation catches movement between cloned/React-replaced rows even
+  // when their individual pointerenter handlers are skipped.
+  document.addEventListener('pointerover',onPlusHover,true);
+  document.addEventListener('pointermove',onPlusHover,true);
+  document.addEventListener('mousemove',event=>{
+    onPlusHover(event);
     if(!virtualRow)return;
     const hovered=event.target instanceof Element?
       event.target.closest('button[data-list-navigation-item="true"]'):null;

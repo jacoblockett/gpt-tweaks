@@ -19,9 +19,20 @@
   pointer-events:none;
 }
 
+/* The plus menu's React items and injected items share one selected row.
+   Scope overrides to the menu scroll area, including its plugin sections.
+   React's retained keyboard highlight must never win over our active row. */
+[data-gtg-plus-controlled="true"] button:is([data-list-navigation-item="true"],[data-gtg-menu-option="true"]):not([data-gtg-plus-selected="true"]) {
+  background-color:transparent!important;
+  opacity:var(--opacity-menu-row,.75)!important;
+}
+[data-gtg-plus-controlled="true"] button:is([data-list-navigation-item="true"],[data-gtg-menu-option="true"])[data-gtg-plus-selected="true"] {
+  background-color:var(--bg-primary-ghost-hover,#444)!important;
+  opacity:1!important;
+}
+
 /* ChatGPT highlights only React-managed items. Hide its retained native
    highlight while the externally injected row is hovered or focused. */
-[data-mention-section-items="true"]:has(> [data-gtg-menu-option="true"]:is(:hover,:focus)) > button:not([data-gtg-menu-option="true"]).bg-primary-ghost-hover,
 [data-mention-section-items="true"]:has(> [data-gtg-slash="true"]:is(:hover,:focus)) > button:not([data-gtg-slash="true"]).bg-primary-ghost-hover {
   background-color: transparent!important;
   opacity: var(--opacity-menu-row,.75)!important;

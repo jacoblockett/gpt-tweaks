@@ -1,14 +1,17 @@
 (() => {
 "use strict";
 globalThis.__gptTweaksPlusMenu=(config,helpers)=>{
-const {visible,setMenuIcon,setVirtualRow}=helpers;
+const {visible,setMenuIcon,onPlusRowMounted}=helpers;
 const COMMAND_TITLE=config.title,ARCHIVE_DESCRIPTION=config.description;
 const isEnabled=config.isEnabled,launch=config.activate;
-  function styleInjectedMenuRow(button){
+  function styleInjectedMenuRow(button,kind="slash"){
     button.removeAttribute("aria-current");
     button.removeAttribute("aria-selected");
     button.classList.remove("bg-primary-ghost-hover","opacity-100");
     button.classList.add("menu-row-opacity");
+    // Plus-menu selection and hover are owned by the complete menu controller.
+    // Slash commands retain their existing per-row pointer appearance.
+    if(kind==="plus")return;
     const active=()=>{button.classList.add("bg-primary-ghost-hover","opacity-100");button.classList.remove("menu-row-opacity");};
     const inactive=()=>{
       if(button.matches(":hover,:focus"))return;
@@ -77,7 +80,7 @@ const isEnabled=config.isEnabled,launch=config.activate;
     detail.textContent=ARCHIVE_DESCRIPTION;
 
     setMenuIcon(iconSlot);
-    styleInjectedMenuRow(button);
+    styleInjectedMenuRow(button,"plus");
     button.addEventListener("mousedown",event=>event.preventDefault());
     button.addEventListener("click",event=>{
       event.preventDefault();
@@ -89,10 +92,7 @@ const isEnabled=config.isEnabled,launch=config.activate;
       launch("menu");
     });
     mountMenuGroup(section,button,"menu");
-    // The first visible option is selected initially. A later inserted row
-    // must not steal its keyboard highlight.
-    if(section.querySelector('[data-gtg-menu-option="true"]')===button)
-      setVirtualRow(button);
+    onPlusRowMounted();
   }
   async function scanMenu(){
     const labels=document.querySelectorAll('[data-mention-section-items="true"] > button[data-list-navigation-item="true"]');
