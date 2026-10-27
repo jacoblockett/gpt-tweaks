@@ -62,87 +62,70 @@
       setVirtualRow,clearVirtualRow,isVirtualRow:row=>virtualRow===row,
       countUtilities:()=>adapters.size
     });
-  function injectedNeighbor(row,direction){
-    let next=row;
-    for(;;){
-      next=direction<0?next.previousElementSibling:next.nextElementSibling;
-      if(!next)return null;
-      if(next.matches('button[data-gtg-menu-option="true"],button[data-gtg-slash="true"]'))return next;
-      if(next.matches('button[data-list-navigation-item="true"]'))return null;
-    }
-  }
-  function nativeNeighbor(row,direction){
-    let node=row;
-    for(;;){
-      node=direction<0?node.previousElementSibling:node.nextElementSibling;
-      if(!node)return null;
-      if(node.matches('button[data-list-navigation-item="true"]'))return node;
-    }
-  }
-  function interceptMenuKey(event){
-    if([...adapters.values()].some(adapter=>adapter.isOpen())||
-       event.isComposing||event.altKey||event.metaKey||event.ctrlKey)return;
-    const active=[...document.querySelectorAll('[data-gtg-menu-option="true"],[data-gtg-slash="true"]')]
-      .filter(row=>visible(row));
-    const registered=active.filter(row=>row.dataset.gtgUtilityId===config.id);
-    if(registered.length!==1){
-      if(virtualRow?.dataset.gtgUtilityId===config.id)clearVirtualRow();
-      return;
-    }
-    const row=registered[0];
-    if(virtualRow&&virtualRow.dataset.gtgUtilityId!==config.id)return;
-    if(virtualRow&&virtualRow!==row)clearVirtualRow();
-    const parent=row.parentElement;
-    const prev=nativeNeighbor(row,-1),next=nativeNeighbor(row,1);
-    if(!parent)return;
-    if(!prev&&!next&&row.dataset.gtgSlash!=="true")return;
-    const nativeRows=[...parent.querySelectorAll(':scope > button[data-list-navigation-item="true"]')];
-    const nativeSelected=nativeRows.find(node=>node.getAttribute("aria-current")==="true") ||
-      nativeRows.find(node=>node.classList.contains("bg-primary-ghost-hover"));
-    if(event.key==="Escape"){clearVirtualRow();return;}
-    if(virtualRow===row){
-      if(event.key==="Enter"||event.key==="Tab"||event.key===" "){
-        event.preventDefault();event.stopImmediatePropagation();
-        clearVirtualRow();row.click();return;
-      }
-      if(event.key==="ArrowDown"||event.key==="ArrowUp"){
-        const direction=event.key==="ArrowDown"?1:-1;
-        const nextInjected=injectedNeighbor(row,direction);
-        if(nextInjected){
-          event.preventDefault();event.stopImmediatePropagation();
-          setVirtualRow(nextInjected);
-          return;
-        }
-        if(!nativeRows.length){
-          event.preventDefault();event.stopImmediatePropagation();
-          return;
-        }
-        // React is still highlighting the adjacent item from which we entered.
-        // Let its original handler advance across the boundary in that direction.
-        const letNativeAdvance=direction===1&&nativeSelected===prev ||
-          direction===-1&&nativeSelected===next;
-        clearVirtualRow();
-        if(!letNativeAdvance){
-          event.preventDefault();event.stopImmediatePropagation();
-        }
-        return;
-      }
-      // Text editing, Backspace, etc. should not deselect the first result.
-      // updateSlash() clears the selection when the new query stops matching.
-      return;
-    }
-    // Only the injected row adjoining the native region can claim the
-    // boundary key. Otherwise the first registered utility skips later rows.
-    if((event.key==="ArrowDown"&&nativeSelected===prev&&!injectedNeighbor(row,-1))||
-       (event.key==="ArrowUp"&&nativeSelected===next&&!injectedNeighbor(row,1))){
-      event.preventDefault();event.stopImmediatePropagation();
-      setVirtualRow(row);
-    }
-  }
     function scan(){void plus.scanMenu();slash.ensureConnected();}
     return {scan,resetSlash:slash.resetSlash,updateSlash:slash.updateSlash,
       hasSlashMatch:slash.hasSlashMatch,handleDirectEnter:slash.handleDirectEnter,
-      interceptMenuKey,isOpen:()=>!!config.isOpen?.()};
+      isOpen:()=>!!config.isOpen?.()};
+  }
+  const visibleRow=row=>!!(row?.isConnected&&row.getClientRects().length);
+  const injectedSelector='button[data-gtg-menu-option="true"],button[data-gtg-slash="true"]';
+  const nativeSelector='button[data-list-navigation-item="true"]';
+
+  // ChatGPT owns native menu selection. Treat its visible rows and our
+  // injected rows as one cyclic list while leaving native-to-native keys to
+  // React. No synthetic React list indexes or reimplemented native menus.
+  function interceptMenuKey(event){
+    if(event.defaultPrevented||event.isComposing||event.altKey||event.metaKey||
+       event.ctrlKey||[...adapters.values()].some(adapter=>adapter.isOpen()))return;
+    const key=event.key;
+    if(key!=="ArrowUp"&&key!=="ArrowDown"&&key!=="Enter"&&key!=="Tab"&&key!==" "&&key!=="Escape")return;
+
+    const injected=[...document.querySelectorAll(injectedSelector)].filter(visibleRow);
+    if(!injected.length)return;
+    if(virtualRow&&!injected.includes(virtualRow))clearVirtualRow();
+    const section=(virtualRow||injected[0]).parentElement;
+    if(!section)return;
+    const buttons=[...section.children].filter(button=>visibleRow(button)&&button.matches('button'));
+    const utilities=buttons.filter(button=>button.matches(injectedSelector));
+    const native=buttons.filter(button=>button.matches(nativeSelector));
+    if(!utilities.length)return;
+    const active=utilities.includes(virtualRow)?virtualRow:null;
+    const nativeSelected=native.find(row=>row===document.activeElement)||
+      native.find(row=>row.getAttribute("aria-current")==="true")||
+      native.find(row=>row.classList.contains("bg-primary-ghost-hover"));
+    if(key==="Escape"){clearVirtualRow();return;}
+    if(active&&(key==="Enter"||key==="Tab"||key===" ")){
+      event.preventDefault();event.stopImmediatePropagation();
+      clearVirtualRow();active.click();return;
+    }
+    if(key!=="ArrowUp"&&key!=="ArrowDown")return;
+    const forward=key==="ArrowDown";
+    const choose=row=>{
+      event.preventDefault();event.stopImmediatePropagation();
+      setVirtualRow(row);
+    };
+    if(active){
+      const index=utilities.indexOf(active);
+      const next=utilities[index+(forward?1:-1)];
+      if(next){choose(next);return;}
+      if(!native.length){
+        choose(forward?utilities[0]:utilities[utilities.length-1]);
+        return;
+      }
+      // Crossing to the native edge can happen from either native anchor:
+      // keep the already-selected destination, or let React wrap there.
+      const destination=forward?native[0]:native[native.length-1];
+      if(nativeSelected===destination){
+        event.preventDefault();event.stopImmediatePropagation();
+      }
+      clearVirtualRow();
+      return;
+    }
+    if(!nativeSelected)return;
+    // Below the last native item comes our first item. Above the first
+    // native item comes our last item. Internal native movement is untouched.
+    if(forward&&nativeSelected===native[native.length-1])choose(utilities[0]);
+    else if(!forward&&nativeSelected===native[0])choose(utilities[utilities.length-1]);
   }
   function selectedSlashAdapter(){
     for(const adapter of adapters.values())
@@ -176,12 +159,7 @@
   }
   // All registered utilities share one ChatGPT mutation observer and
   // one copy of the keyboard/focus listeners.
-  window.addEventListener("keydown",event=>{
-    for(const adapter of adapters.values()){
-      if(event.defaultPrevented)break;
-      adapter.interceptMenuKey(event);
-    }
-  },true);
+  window.addEventListener("keydown",interceptMenuKey,true);
   document.addEventListener("mousemove",event=>{
     if(!virtualRow)return;
     const hovered=event.target instanceof Element?
