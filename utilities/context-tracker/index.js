@@ -14,10 +14,22 @@
   // Cache entry format is internal and independent of the extension version.
   const ESTIMATE_ALGORITHM = 'network-text-deduplicated-fullscan-contextfix-finalcount';
   const storage = globalThis.GPTTweaksContextStorage;
-  const view = globalThis.GPTTweaksContextIndicator(core);
+  async function updateTarget(next) {
+    try {
+      await storage.setTarget(next);
+      target = next;
+      render();
+      return true;
+    } catch (error) {
+      console.warn('[GPT Tweaks] Cannot update token target:', error);
+      render();
+      return false;
+    }
+  }
+  const view = globalThis.GPTTweaksContextIndicator(core, updateTarget);
   let enabled = true;
   let defaultVisible = false;
-  let flags = {percent:true, tokens:true, limit:true, messages:true};
+  let flags = {percent:true, tokens:true, limit:true};
 
   let target = DEFAULT_TARGET;
   let activeId = null;
@@ -399,7 +411,7 @@
       defaultVisible = settings.defaultVisible === true;
       if (Number.isSafeInteger(settings.target) && settings.target > 0) target = settings.target;
       flags = {percent:settings.percent !== false, tokens:settings.tokens !== false,
-        limit:settings.limit !== false, messages:settings.messages !== false};
+        limit:settings.limit !== false};
       view.setVisible(enabled && defaultVisible);
       render();
       if (enabled && !previouslyEnabled && activeId) {

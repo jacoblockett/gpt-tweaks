@@ -47,10 +47,10 @@ async function main(){
   assert(!JSON.stringify(emitted).includes('Answer more')); // No text across MAIN/ISOLATED boundary.
   // Isolated coordinator: mocked storage and view, one native page and optimistic send.
   const storageData=new Map(),snapshots=[],visibility=[],mounted=[];
-  let navChanges=()=>{};
+  let navChanges=()=>{}, targetCallback=()=>{};
   const isolated={console,document:{...doc,hidden:false,getElementById(){return null}},location:loc,globalThis:null,window:{addEventListener(){},navigation:{addEventListener(){} }},Event:E,CustomEvent:E,setTimeout,clearTimeout,AbortController,DOMException,MutationObserver:class {observe(){}disconnect(){}},chrome:{runtime:{onMessage:{addListener:fn=>navChanges=fn}}},
-    GPTTweaksContextStorage:{preferences:async()=>({enabled:true,defaultVisible:true,target:512000,percent:true,tokens:true,limit:true,messages:true}),load:async id=>storageData.get(id)||null,save:async(id,cache)=>{storageData.set(id,cache)}},
-    GPTTweaksContextIndicator:()=>({setVisible:v=>visibility.push(v),setConversation:id=>mounted.push(id),render:s=>snapshots.push({messages:core.metrics([...s.activeEntries,...s.streamEntries.values()]).messages,target:s.target}),isMounted:()=>true,mount(){},updateTheme(){},align(){}})};
+    GPTTweaksContextStorage:{preferences:async()=>({enabled:true,defaultVisible:true,target:512000,percent:true,tokens:true,limit:true,messages:true}),load:async id=>storageData.get(id)||null,save:async(id,cache)=>{storageData.set(id,cache)},setTarget:async v=>storageData.set("target",v)},
+    GPTTweaksContextIndicator:(core,updateTarget)=>{targetCallback=updateTarget;return ({setVisible:v=>visibility.push(v),setConversation:id=>mounted.push(id),render:s=>snapshots.push({messages:core.metrics([...s.activeEntries,...s.streamEntries.values()]).messages,target:s.target}),isMounted:()=>true,mount(){},updateTheme(){},align(){}})}};
   isolated.globalThis=isolated;isolated.CTCore=core;
   vm.runInNewContext(source('utilities/context-tracker/index.js'),isolated);
   await wait(80);
@@ -65,6 +65,9 @@ async function main(){
   navChanges({type:'gpt-tweaks:context:settings-changed'});
   await wait(25);
   assert(snapshots.every(s=>s.target===512000));
+  assert.equal(await targetCallback(512001),true);
+  assert.equal(storageData.get('target'),512001);
+  assert.equal(snapshots.at(-1).target,512001);
   // Background bridge explicitly restricts privileged reads and writes.
   const priv=new Map([['gpt-tweaks.github.oauth-token','private-test-token'],
     ['gpt-tweaks.context.target-tokens','750000']]);
@@ -83,6 +86,11 @@ async function main(){
   const validSender={id:'test-extension',url:`https://chatgpt.com/c/${uuid}`,tab:{id:7}};
   assert.equal((await rpc({type:'gpt-tweaks:context:preferences'},validSender)).data.target,750000);
   assert.equal((await rpc({type:'gpt-tweaks:context:preferences'},{...validSender,url:'https://github.com/'})).ok,false);
+  assert.equal((await rpc({type:'gpt-tweaks:context:set-target',target:0},validSender)).ok,false);
+  assert.equal((await rpc({type:'gpt-tweaks:context:set-target',target:1.5},validSender)).ok,false);
+  assert.equal((await rpc({type:'gpt-tweaks:context:set-target',target:512001},validSender)).ok,true);
+  assert.equal(priv.get('gpt-tweaks.context.target-tokens'),'512001');
+  assert.equal((await rpc({type:'gpt-tweaks:context:set-target',target:512001},{...validSender,url:'https://github.com/'})).ok,false);
   const record={version:1,algorithm:'network-text-deduplicated-fullscan-contextfix-finalcount',
     entries:[[user,8,1]],observedEntries:[],complete:true,updated:Date.now()};
   assert.equal((await rpc({type:'gpt-tweaks:context:save',id:uuid,cache:record},validSender)).ok,true);

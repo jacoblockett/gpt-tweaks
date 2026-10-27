@@ -6,7 +6,7 @@
   const prefix = "gpt-tweaks.context.";
   const cachePrefix = prefix + "conversation.";
   const idPattern = /^[a-f0-9-]{36}$/i;
-  const options = ["enabled", "default-visible", "percent", "tokens", "limit", "messages", "target-tokens"];
+  const options = ["enabled", "default-visible", "percent", "tokens", "limit", "target-tokens"];
   const preferenceKeys = options.map(name => prefix + name);
   function authorized(sender) {
     return sender.id === chrome.runtime.id && sender.tab?.id >= 0 &&
@@ -35,8 +35,14 @@
         const value = Number(saved[prefix + "target-tokens"]);
         return {enabled:readBool("enabled", true), defaultVisible:readBool("default-visible", false),
           percent:readBool("percent", true), tokens:readBool("tokens", true),
-          limit:readBool("limit", true), messages:readBool("messages", true),
+          limit:readBool("limit", true),
           target:Number.isSafeInteger(value) && value > 0 ? value : 512000};
+      }
+      case "gpt-tweaks:context:set-target": {
+        if (!Number.isSafeInteger(message.target) || message.target < 1)
+          throw new Error("Target must be a positive safe integer");
+        await chrome.storage.local.set({[prefix + "target-tokens"]:String(message.target)});
+        return true;
       }
       case "gpt-tweaks:context:load": {
         if (!idPattern.test(message.id || "")) throw new Error("Invalid conversation ID");
@@ -48,10 +54,6 @@
         if (!idPattern.test(message.id || "") || !validCache(message.cache))
           throw new Error("Invalid numeric context record");
         await chrome.storage.local.set({[cachePrefix + message.id.toLowerCase()]:message.cache});
-        return true;
-      }
-      case "gpt-tweaks:context:open-settings": {
-        await chrome.runtime.openOptionsPage();
         return true;
       }
       default: throw new Error("Unknown context tracker request");

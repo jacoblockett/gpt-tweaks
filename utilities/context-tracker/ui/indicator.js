@@ -4,7 +4,7 @@
   const sheet = `
     :host { display:block; position:relative; z-index:1; box-sizing:border-box;
       align-self:stretch; width:100%; max-width:100%; min-width:0;
-      height:60px; flex:none; margin-bottom:0; container-type:inline-size;
+      height:52px; flex:none; margin-bottom:0; container-type:inline-size;
       background-color:var(--composer-layout-surface-background, var(--ct-surface-fallback, #1b1b1b));
       -webkit-backdrop-filter:var(--composer-layout-surface-backdrop-filter, none);
       backdrop-filter:var(--composer-layout-surface-backdrop-filter, none);
@@ -14,32 +14,27 @@
       --ct-alert:var(--app-color-decoration-deleted, #fa423e);
       color:var(--color-text, #ededed); font:inherit; text-align:left; line-height:normal; }
     *, *::before, *::after { box-sizing:border-box; }
-    button { font:inherit; }
-    #tracker { width:100%; height:60px; border:0; padding:12px 18px;
-      background:transparent; color:inherit; border-radius:inherit;
-      display:flex; flex-direction:column; justify-content:center; gap:8px;
-      cursor:pointer; text-align:inherit; }
-    #tracker:hover { background:color-mix(in srgb, var(--color-text, #ededed) 2%, transparent); }
-    #tracker:focus-visible { outline:2px solid var(--ct-accent); outline-offset:2px; }
-    .metrics { display:grid; align-items:center;
-      grid-template-columns:minmax(0, 1fr) minmax(0, max-content) minmax(0, 1fr);
-      width:100%; column-gap:10px; font-family:inherit; font-size:14px;
-      font-weight:400; line-height:19px;
+    #tracker { display:flex; align-items:center; gap:14px; width:100%; height:52px;
+      border:0; padding:10px 18px; background:transparent; color:inherit; }
+    .metrics { display:inline-flex; align-items:center; gap:8px; flex:none;
+      min-width:0; font:inherit; font-size:13px; font-weight:400; line-height:20px;
       font-variant-numeric:tabular-nums; white-space:nowrap; }
-    .main-value { display:flex; align-items:center; justify-self:start;
-      gap:10px; min-width:0; max-width:100%; overflow:hidden; }
-    #percentage { color:inherit; font-weight:400; flex:none; }
+    .numbers { display:inline-flex; align-items:baseline; gap:0; }
+    .numbers[hidden], #percentage[hidden], #used[hidden], #target-wrap[hidden], #status[hidden] { display:none; }
+    #target { display:inline-block; min-width:1ch; border-radius:3px;
+      border-bottom:1px dotted color-mix(in srgb, currentColor 50%, transparent);
+      cursor:text; outline:none; white-space:nowrap; user-select:text; }
+    #target:hover { border-bottom-style:solid; }
+    #target:focus { outline:1px solid var(--ct-accent); outline-offset:3px;
+      border-bottom-color:transparent; }
+    #percentage { margin-left:5px; }
     #status { display:none; align-items:center; color:var(--ct-alert); font-weight:400;
-      padding:2px 7px; border-radius:999px; min-width:0; overflow:hidden;
-      text-overflow:ellipsis; white-space:nowrap;
+      padding:2px 7px; border-radius:999px;
       background:color-mix(in srgb, var(--ct-alert) 13%, transparent); font-size:12px; }
-    :host([data-over-target]) #status { display:inline-flex; }
-    #tokens { color:inherit; justify-self:center; min-width:0; max-width:100%;
-      overflow:hidden; text-overflow:ellipsis; text-align:center; }
-    #messages { color:inherit; justify-self:end; text-align:right; min-width:0;
-      max-width:100%; overflow:hidden; text-overflow:ellipsis; }
-    .track { display:block; width:100%; height:6px; flex:none; overflow:hidden;
-      background:color-mix(in srgb, var(--color-text, #ededed) 15%, transparent); border-radius:99px; }
+    :host([data-over-target]) #status:not([hidden]) { display:inline-flex; }
+    .track { display:block; flex:1 1 auto; width:100%; min-width:55px;
+      height:6px; overflow:hidden; background:color-mix(in srgb, var(--color-text, #ededed) 15%, transparent);
+      border-radius:99px; }
     #fill { display:block; width:0; height:100%; background:var(--ct-accent);
       border-radius:inherit; transition:width 220ms ease,background-color 180ms ease; }
     :host([data-over-target]) #fill { background:var(--ct-alert); }
@@ -52,12 +47,10 @@
     @keyframes ct-spin { to { transform:rotate(360deg); } }
     #tracker[data-phase="loading"] .metrics, #tracker[data-phase="loading"] .track { display:none; }
     #tracker[data-phase="loading"] .loading { display:flex; }
-    @container (max-width:660px) { #status { display:none !important; } }
-    @media (max-width:730px) {
-      #tracker { padding-inline:11px; } .metrics { column-gap:6px; font-size:12px; }
-      .main-value { gap:5px; } #status { display:none !important; }
-    }
-    @media (max-width:485px) { #tokens { font-size:11px; } }
+    @container (max-width:680px) { #tracker { gap:8px; padding-inline:11px; }
+      .metrics { gap:4px; font-size:12px; } #status { display:none !important; } }
+    @container (max-width:370px) { #tracker { flex-wrap:wrap; gap:2px; }
+      .track { flex-basis:100%; } }
     @media (prefers-reduced-motion:reduce) { #fill { transition:none; } .spinner { animation:none; } }
   `;
   const num = value => {
@@ -68,7 +61,15 @@
     return fraction === undefined ? grouped : `${grouped}.${fraction}`;
   };
 
-  globalThis.GPTTweaksContextIndicator = core => {
+  // Accept grouping separators and optional decimals; store a positive whole token.
+  const parseTarget = value => {
+    const raw = String(value).trim().replace(/,/g, '');
+    if (!/^\d+(?:\.\d+)?$/.test(raw)) return null;
+    const rounded = Math.max(1, Math.round(Number(raw)));
+    return Number.isSafeInteger(rounded) ? rounded : null;
+  };
+
+  globalThis.GPTTweaksContextIndicator = (core, saveTarget) => {
     let activeId = null;
     let currentState = null;
     let ui = null;
@@ -80,6 +81,8 @@
     let roundedComposer = [];
     let pendingMountObserver = null;
     let mountTimer = null;
+    let editingTarget = false;
+    let cancelTarget = false;
   function findDisclaimer() {
     const candidates = document.querySelectorAll('[data-markdown-copy="exclude"]');
     for (const e of candidates) {
@@ -95,23 +98,54 @@
     const css = new CSSStyleSheet();
     css.replaceSync(sheet);
     shadow.adoptedStyleSheets = [css];
-    const btn = document.createElement('button');
-    btn.id = 'tracker';
-    btn.type = 'button';
-    btn.setAttribute('aria-label', 'Conversation context estimate, open settings');
-    btn.innerHTML = `
-      <span class="metrics"><span class="main-value"><span id="percentage">Counting…</span><span id="status">Target Exceeded</span></span><span id="tokens">Estimating tokens</span><span id="messages">0 messages</span></span>
+    const panel = document.createElement('div');
+    panel.id = 'tracker';
+    panel.innerHTML = `
+      <span class="metrics"><span class="numbers" id="numbers">
+        <span id="used">0</span><span id="separator"> / </span><span id="target-wrap"><span id="target" contenteditable="plaintext-only" inputmode="decimal" role="textbox" aria-label="Edit target tokens" aria-multiline="false" spellcheck="false">512,000</span></span>
+        <span id="tokens-label"> Tokens</span><span id="percentage"> (0.0%)</span>
+      </span><span id="status">Target Exceeded</span></span>
       <span class="track" id="progress" role="progressbar" aria-label="Estimated conversation length against custom token target" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="fill"></span></span>
       <span class="loading" role="status"><span class="spinner" aria-hidden="true"></span>Calculating current session metrics</span>`;
-    shadow.append(btn);
-    btn.addEventListener('click', () => {
-      void chrome.runtime.sendMessage({type:'gpt-tweaks:context:open-settings'}).catch(error =>
-        console.warn('[GPT Tweaks] Cannot open context settings:', error));
+    shadow.append(panel);
+    const targetValue = shadow.querySelector('#target');
+    targetValue.addEventListener('focus', () => { editingTarget = true; cancelTarget = false; });
+    targetValue.addEventListener('keydown', event => {
+      // Prevent composer shortcuts while editing the target. Tab retains normal navigation.
+      if (event.key === 'Escape') {
+        cancelTarget = true;
+        event.preventDefault();
+        targetValue.blur();
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        targetValue.blur();
+      } else if (event.key !== 'Tab') event.stopPropagation();
     });
-    return {rootHost, btn,
+    targetValue.addEventListener('beforeinput', event => {
+      if (event.data && !/^[\d.,]+$/.test(event.data)) event.preventDefault();
+      // No line breaks in the numeric field.
+      if (event.inputType === 'insertParagraph' || event.inputType === 'insertLineBreak')
+        event.preventDefault();
+    });
+    targetValue.addEventListener('blur', () => {
+      editingTarget = false;
+      const candidate = cancelTarget ? null : parseTarget(targetValue.textContent);
+      cancelTarget = false;
+      if (!candidate || !currentState || candidate === currentState.target) {
+        render(); // Restore the current formatted value after cancel/invalid edits.
+        return;
+      }
+      targetValue.textContent = num(candidate);
+      void Promise.resolve(saveTarget(candidate)).then(ok => {
+        if (!ok) render();
+      }).catch(() => render());
+    });
+    return {rootHost, panel,
+      numbers:shadow.querySelector('#numbers'), used:shadow.querySelector('#used'),
+      separator:shadow.querySelector('#separator'), target:targetValue,
+      targetWrap:shadow.querySelector('#target-wrap'),
+      tokensLabel:shadow.querySelector('#tokens-label'),
       percent:shadow.querySelector('#percentage'),
-      tokenCount:shadow.querySelector('#tokens'),
-      msgCount:shadow.querySelector('#messages'),
       progress:shadow.querySelector('#progress'), fill:shadow.querySelector('#fill'),
       status:shadow.querySelector('#status')};
   }
@@ -302,32 +336,40 @@
 
   function render(state = currentState) {
     currentState = state;
-    if (!state) return;
+    if (!state || !ui || !host || !host.isConnected) return;
     const {activeEntries, observedEntries, streamEntries, target, complete,
       initialDiscovery, lastError, flags} = state;
-    if (!ui || !host || !host.isConnected) return;
     // Streaming entries replace, rather than add to, any matching history ID.
-    // Never persist provisional stream content in the cached history snapshot.
     const base = new Map(activeEntries.map(e => [e[0], e]));
     for (const [id, entry] of observedEntries) base.set(id, entry);
     for (const [id, entry] of streamEntries) base.set(id, entry);
     const values = core.metrics([...base.values()]);
+    // Message classification is retained in CTCore for a future separate utility.
     const hasRatio = target > 0;
     const percentage = hasRatio ? 100 * values.tokens / target : NaN;
     const displayed = hasRatio ? Math.max(0, percentage) : 0;
     const pctLabel = !hasRatio ? 'N/A' : !Number.isFinite(displayed) ? '∞%' :
       `${new Intl.NumberFormat('en-US', {minimumFractionDigits:1,maximumFractionDigits:1}).format(displayed)}%`;
     const noData = values.records === 0 && !complete;
-    ui.btn.dataset.phase = initialDiscovery && !lastError ? 'loading' : 'ready';
-    ui.percent.textContent = noData ? (lastError ? 'Unavailable' : '0.0% used') : `${pctLabel} used`;
-    ui.tokenCount.textContent = noData ? `${num(target)} token target` : `${num(values.tokens)} / ${num(target)} tokens`;
-    ui.msgCount.textContent = noData ? 'No history yet' : `${num(values.messages)} messages`;
+    ui.panel.dataset.phase = initialDiscovery && !lastError ? 'loading' : 'ready';
+    const show = flags || {};
+    ui.used.textContent = num(values.tokens);
+    if (!editingTarget) ui.target.textContent = num(target);
+    const showUsed = show.tokens !== false;
+    const showLimit = show.limit !== false;
+    ui.used.hidden = !showUsed;
+    ui.separator.hidden = !(showUsed && showLimit);
+    ui.targetWrap.hidden = !showLimit;
+    ui.tokensLabel.hidden = !(showUsed || showLimit);
+    ui.percent.hidden = show.percent === false;
+    ui.percent.textContent = ` (${pctLabel})`;
+    ui.numbers.hidden = !(showUsed || showLimit || show.percent !== false);
     const overTarget = hasRatio && !noData && displayed >= 100;
     if (overTarget) host.setAttribute('data-over-target', '');
     else host.removeAttribute('data-over-target');
+    ui.status.hidden = show.percent === false;
     ui.fill.style.width = `${Math.min(100, displayed)}%`;
-    // At 80% start warning yellow; advance toward the existing alert red by
-    // one color step per 0.1 percentage point (200 steps through 100%).
+    // Warn yellow at 80%, progressing smoothly to the alert red at 100%.
     if (hasRatio && displayed >= 100) ui.fill.style.backgroundColor = 'var(--ct-alert)';
     else if (hasRatio && displayed >= 80) {
       const step = Math.min(200, Math.max(0, Math.floor((displayed - 80) * 10 + 1e-7)));
@@ -336,18 +378,8 @@
     } else ui.fill.style.removeProperty('background-color');
     ui.progress.setAttribute('aria-valuenow', Math.min(100, displayed).toFixed(1));
     const status = overTarget ? ' Your chosen target was exceeded.' : '';
-    const show = flags || {};
-    ui.percent.style.display = show.percent === false ? 'none' : '';
-    ui.status.style.display = show.percent === false ? 'none' : '';
-    ui.tokenCount.style.display = show.tokens === false && show.limit === false ? 'none' : '';
-    ui.tokenCount.textContent = show.tokens === false
-      ? `${num(target)} token target` : show.limit === false
-      ? `${num(values.tokens)} tokens` : ui.tokenCount.textContent;
-    ui.msgCount.style.display = show.messages === false ? 'none' : '';
-    ui.btn.removeAttribute('title'); // The tracker has no hover tooltip.
-    ui.btn.setAttribute('aria-label', `Context tracker: ${pctLabel} used. ${num(values.messages)} messages.${status} Open settings.`);
+    ui.panel.setAttribute('aria-label', `Context estimate: ${num(values.tokens)} of ${num(target)} tokens (${pctLabel}).${status}`);
   }
-
 
     function setConversation(id) {
       if (activeId === id) return;
