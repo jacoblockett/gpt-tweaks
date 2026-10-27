@@ -7,6 +7,10 @@
   window.__ctHistoryBridgeV1 = true;
   const core = window.CTCore;
   const nativeFetch = window.fetch.bind(window);
+  let trackingEnabled = true;
+  document.addEventListener('ct-v1-tracker-enabled', event => {
+    trackingEnabled = event.detail === 'true';
+  });
   const nativePages = new Map();
   const knownHeaders = new Map();
   const inflight = new Map();
@@ -219,6 +223,7 @@
   }
 
   window.fetch = function (...args) {
+    if (!trackingEnabled) return nativeFetch(...args);
     const {url, method} = getArgs(args[0], args[1]);
     let id = null;
     let generation = false;
@@ -254,12 +259,14 @@
 
   // The isolated script can arrive after the initial network response.
   document.addEventListener('ct-v1-bridge-ready', () => {
+    if (!trackingEnabled) return;
     for (const [id, response] of nativePages) publish('native', {id, response});
   });
   document.addEventListener('ct-v1-history-cancel', event => {
     inflight.get(Number(event.detail))?.abort();
   });
   document.addEventListener('ct-v1-history-request', async event => {
+    if (!trackingEnabled) return;
     let request;
     try { request = JSON.parse(event.detail); } catch (_) { return; }
     if (!request || !validId(request.id) || !Number.isSafeInteger(request.seq)) return;

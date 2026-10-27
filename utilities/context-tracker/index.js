@@ -151,6 +151,7 @@
   }
 
   function onOutgoing(event) {
+    if (!enabled) return;
     let message;
     try { message = JSON.parse(event.detail); } catch (_) { return; }
     if (!Array.isArray(message?.entries)) return;
@@ -181,6 +182,7 @@
   }
 
   async function syncHistory(id, serial) {
+    if (!enabled) return;
     if (running) { queued = true; return; }
     if (Date.now() < historyRetryAfter) return;
     running = true;
@@ -339,7 +341,7 @@
     // fallback is one delayed request only, not a recurring fetch loop.
     document.dispatchEvent(new Event('ct-v1-bridge-ready'));
     firstSyncTimer = setTimeout(() => {
-      if (generation === serial && activeId === id && !running && !nativeSeed && !complete)
+      if (enabled && generation === serial && activeId === id && !running && !nativeSeed && !complete)
         void syncHistory(id, serial);
     }, 4500);
   }
@@ -350,6 +352,7 @@
   }
 
   function onStream(event) {
+    if (!enabled) return;
     let packet;
     try { packet = JSON.parse(event.detail); } catch (_) { return; }
     if (!packet || !['update', 'done'].includes(packet.type)) return;
@@ -388,13 +391,21 @@
   async function refreshPreferences() {
     try {
       const settings = await storage.preferences();
+      const previouslyEnabled = enabled;
       enabled = settings.enabled !== false;
+      document.dispatchEvent(new CustomEvent('ct-v1-tracker-enabled',
+        {detail:enabled ? 'true' : 'false'}));
+      if (!enabled) fetchController?.abort();
       defaultVisible = settings.defaultVisible === true;
       if (Number.isSafeInteger(settings.target) && settings.target > 0) target = settings.target;
       flags = {percent:settings.percent !== false, tokens:settings.tokens !== false,
         limit:settings.limit !== false, messages:settings.messages !== false};
       view.setVisible(enabled && defaultVisible);
       render();
+      if (enabled && !previouslyEnabled && activeId) {
+        document.dispatchEvent(new Event('ct-v1-bridge-ready'));
+        if (!running) void syncHistory(activeId, generation);
+      }
     } catch (error) {
       console.warn('[GPT Tweaks] Cannot load context tracker settings:', error);
     }
@@ -431,7 +442,7 @@
     }
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) return;
-      if (activeId && (!complete || Date.now() - lastSync > 30000)) {
+      if (enabled && activeId && (!complete || Date.now() - lastSync > 30000)) {
         void syncHistory(activeId, generation);
       }
       view.updateTheme();
