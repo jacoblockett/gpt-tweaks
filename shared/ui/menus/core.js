@@ -87,8 +87,15 @@
     if(!section)return;
     const buttons=[...section.children].filter(button=>visibleRow(button)&&button.matches('button'));
     const utilities=buttons.filter(button=>button.matches(injectedSelector));
-    const native=buttons.filter(button=>button.matches(nativeSelector));
     if(!utilities.length)return;
+    // The + menu's native items span multiple sections (e.g. primary
+    // actions and plugins). React wraps across the complete scroll area,
+    // not just the injected utility rows' section.
+    // Keep the slash menu's previously accepted section-scoped behavior.
+    const isPlus=utilities[0].dataset.gtgMenuOption==="true";
+    const nativeRoot=isPlus?
+      section.closest('[data-mention-list-scroll-area]')||section : section;
+    const native=[...nativeRoot.querySelectorAll(nativeSelector)].filter(visibleRow);
     const active=utilities.includes(virtualRow)?virtualRow:null;
     const nativeSelected=native.find(row=>row===document.activeElement)||
       native.find(row=>row.getAttribute("aria-current")==="true")||

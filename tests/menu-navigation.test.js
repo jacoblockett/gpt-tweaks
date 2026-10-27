@@ -30,13 +30,25 @@ class Row {
   removeAttribute(name){delete this.attributes[name];}
   click(){this.clicks++;}
 }
-function scenario(kind) {
+function scenario(kind,splitSections=false) {
   const utilities=[new Row(kind,'github-source'),new Row(kind,'token-estimator')];
-  for(let i=0;i<utilities.length;i++)
+  for(let i=0;i<utilities.length;i++){
     utilities[i].dataset.gtgUtilityId=utilities[i].id;
-  const natives=[0,1,2].map(i=>new Row('native','native-'+i));
-  const section={children:[...utilities,...natives]};
+    if(kind==='utility')utilities[i].dataset.gtgMenuOption='true';
+    else utilities[i].dataset.gtgSlash='true';
+  }
+  const natives=Array.from({length:splitSections?5:3},(_,i)=>
+    new Row('native','native-'+i));
+  const section={children:[...utilities,...natives.slice(0,3)]};
+  const plugins={children:splitSections?natives.slice(3):[]};
+  // Match ChatGPT's real plus-menu structure: primary and plugin sections
+  // share a scroll area, but injected rows are only in the primary section.
+  const scrollArea={querySelectorAll:()=>natives};
+  section.querySelectorAll=selector=>section.children.filter(row=>
+    selector.includes('data-list-navigation-item')&&row.kind==='native');
+  section.closest=selector=>splitSections&&selector==='[data-mention-list-scroll-area]'?scrollArea:null;
   for(const row of section.children)row.parentElement=section;
+  for(const row of plugins.children)row.parentElement=plugins;
   const eventHandlers=new Map();
   const document={
     documentElement:{},activeElement:null,
@@ -98,15 +110,17 @@ function scenario(kind) {
   nativeAt(0);
   step('ArrowUp','token-estimator',true);
   step('ArrowUp','github-source',true);
-  step('ArrowUp','native-2',false);
+  step('ArrowUp',natives[natives.length-1].id,false);
   step('ArrowDown','github-source',true);
   step('ArrowDown','token-estimator',true);
   step('ArrowDown','native-0',false);
   step('ArrowUp','token-estimator',true);
   step('ArrowDown','native-0',true);
-  nativeAt(2);
+  nativeAt(natives.length-1);
+  // The final plugin item must wrap to the first injected utility, not
+  // the first React-managed native item.
   step('ArrowDown','github-source',true);
-  step('ArrowUp','native-2',true);
+  step('ArrowUp',natives[natives.length-1].id,true);
   nativeAt(0);
   step('ArrowUp','token-estimator',true);
   step('ArrowUp','github-source',true);
@@ -120,5 +134,6 @@ function scenario(kind) {
   assert.equal(utilities[1].clicks,1);
 }
 scenario('utility');
+scenario('utility',true); // Plus menu with separate primary and plugin sections.
 scenario('slash');
-console.log('PASS: native/injected combined wraparound, both directions and seams, plus and slash, Enter and fallback');
+console.log('PASS: combined wraparound, real multi-section plus-menu bottom, slash and fallback');
