@@ -34,10 +34,9 @@ const isEnabled=config.isEnabled,launch=config.activate;
     if(!section)return;
     const oldDivider=section.querySelector('[data-gtg-menu-divider="'+kind+'"]');
     if(oldDivider){
-      // Keep utility rows in registration order even when asynchronous
-      // availability checks resolve out of order.
-      const following=[...section.querySelectorAll(':scope > [data-gtg-menu-order]')]
-        .find(row=>Number(row.dataset.gtgMenuOrder)>Number(button.dataset.gtgMenuOrder));
+      // Alphabetize GPT Tweaks rows regardless of script and async load order.
+      const following=[...section.querySelectorAll(':scope > [data-gtg-menu-title]')]
+        .find(row=>row.dataset.gtgMenuTitle.localeCompare(button.dataset.gtgMenuTitle,undefined,{sensitivity:"base"})>0);
       (following||oldDivider).before(button);
       return;
     }
@@ -67,7 +66,7 @@ const isEnabled=config.isEnabled,launch=config.activate;
       button.removeAttribute(attr);
     button.dataset.gtgMenuOption="true";
     button.dataset.gtgUtilityId=config.id;
-    button.dataset.gtgMenuOrder=String(config.order);
+    button.dataset.gtgMenuTitle=COMMAND_TITLE;
     // React uses this DOM attribute for scroll indexes based on its own data array.
     button.removeAttribute("data-list-navigation-item");
     button.type="button";
