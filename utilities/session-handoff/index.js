@@ -132,12 +132,16 @@
     await send(prompt);
     // Only consider the new answer, never a file in earlier conversation turns.
     await waitFor(()=>assistantMessages().length>before,10*60*1000);
+    let completedAt=null;
     const link=await waitFor(()=>{
-      if(generating())return null;
+      if(generating()){completedAt=null;return null;}
       for(const answer of assistantMessages().slice(before)){
         const found=fileLinks(answer)[0];
         if(found)return found;
       }
+      if(completedAt===null)completedAt=Date.now();
+      if(Date.now()-completedAt>10000)
+        throw Error("ChatGPT did not provide Session-Handoff.md");
       return null;
     },10*60*1000);
     // Give React time to finish committing the final file attachment.
