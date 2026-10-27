@@ -22,3 +22,4 @@ chrome.action.onClicked.addListener(() => {
 importScripts("../utilities/github-source/connection.js","../utilities/github-source/repositories.js","../utilities/github-source/service.js","./github-bridge.js");
 importScripts("./token-estimator-bridge.js");
 importScripts("./new-chat-bridge.js");
+importScripts("./session-handoff-bridge.js");
