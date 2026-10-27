@@ -121,7 +121,9 @@
     },10000);
   }
   function fileLinks(messageNode){
-    return [...messageNode.querySelectorAll("a[href],a[download]")].filter(link=>{
+    // File cards may live alongside the markdown under the same turn.
+    const scope=messageNode.closest('[data-turn-id]')||messageNode;
+    return [...scope.querySelectorAll("a[href],a[download]")].filter(link=>{
       const label=[link.textContent,link.getAttribute("download"),link.getAttribute("href")]
         .filter(Boolean).join(" ");
       try{return decodeURIComponent(label).toLowerCase().includes("session-handoff.md");}
@@ -131,29 +133,53 @@
   async function downloadMarkdown(link) {
     const raw=link.getAttribute("href");
     if(!raw)throw Error("File has no downloadable link");
-    const url=new URL(raw,location.href);
-    if(!["https:","http:","blob:","data:"].includes(url.protocol))
+    let url=new URL(raw,location.href);
+    if(url.protocol==="sandbox:"){
+      // sandbox: paths are not HTTP URLs. Resolve the originating assistant
+      // message through ChatGPT's interpreter file-download endpoint.
+      const parts=location.pathname.split("/");
+      const chat=parts[parts.indexOf("c")+1];
+      const messageId=link.closest('[data-message-id]')?.getAttribute("data-message-id");
+      if(!chat||!messageId||!url.pathname.startsWith("/mnt/data/"))
+        throw Error("Cannot resolve the generated handoff file");
+      const endpoint="/backend-api/conversation/"+encodeURIComponent(chat)+
+        "/interpreter/download?message_id="+encodeURIComponent(messageId)+
+        "&sandbox_path="+encodeURIComponent(url.pathname);
+      const ticket=await fetch(endpoint,{credentials:"include"});
+      if(!ticket.ok)throw Error("Unable to resolve handoff download ("+ticket.status+")");
+      const details=await ticket.json();
+      const download=details.download_url||details.metadata?.download_url;
+      if(!download)throw Error("Handoff download URL is unavailable");
+      url=new URL(download,location.origin);
+    }
+    if(url.protocol!=="https:"&&url.protocol!=="blob:"&&url.protocol!=="data:")
       throw Error("Handoff file URL cannot be read");
     const response=await fetch(url.href,{credentials:"include"});
     if(!response.ok||response.type==="opaque")throw Error("Unable to retrieve handoff file");
     const type=response.headers.get("content-type")||"";
-    if(/text\/html/i.test(type))throw Error("File download returned HTML");
+    if(type.toLowerCase().includes("text/html"))throw Error("File download returned HTML");
     const text=await response.text();
     if(text.length<80||text.length>512000)throw Error("Handoff content is missing or too large");
-    return text.replace(/\r\n/g,"\n");
+    return text.split(String.fromCharCode(13,10)).join("\n");
   }
   function generating() {
     return !!document.querySelector('button[data-testid="stop-button"],button[aria-label="Stop streaming"],button[aria-label="Stop generating"],button[aria-label="Stop response"]');
   }
   async function generate() {
-    const before=assistantMessages().length;
+    // Old turns can be virtualized away in long conversations. DOM counts
+    // are not monotonic, so identify new assistant messages by unique ID.
+    const before=new Set(assistantMessages().map(answer=>
+      answer.getAttribute("data-message-id")).filter(Boolean));
+    const newAnswers=()=>assistantMessages().filter(answer=>{
+      const id=answer.getAttribute("data-message-id");
+      return id&&!before.has(id);
+    });
     await send(prompt);
-    // Only consider the new answer, never a file in earlier conversation turns.
-    await waitFor(()=>assistantMessages().length>before,10*60*1000);
+    await waitFor(()=>newAnswers().length>0,10*60*1000);
     let completedAt=null;
     const link=await waitFor(()=>{
       if(generating()){completedAt=null;return null;}
-      for(const answer of assistantMessages().slice(before)){
+      for(const answer of newAnswers()){
         const found=fileLinks(answer)[0];
         if(found)return found;
       }
