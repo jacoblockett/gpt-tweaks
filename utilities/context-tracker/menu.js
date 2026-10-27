@@ -1,10 +1,10 @@
-/* Context Tracker uses the shared GitHub Source plus/slash menu registration. */
+/* Token Estimator uses the same shared plus/slash menu registration as GitHub Source. */
 (() => {
   "use strict";
-  const COMMAND="/status";
-  const TITLE="Status";
-  const DESCRIPTION="Show or hide the context tracker.";
-  function statusIcon(size) {
+  const COMMAND="/tokens";
+  const TITLE="Tokens";
+  const DESCRIPTION="Show or hide the token estimator.";
+  function tokensIcon(size) {
     const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
     for (const [name,value] of Object.entries({
       width:String(size),height:String(size),viewBox:"0 0 24 24",fill:"none",
@@ -20,13 +20,13 @@
     return svg;
   }
 
-  const {isEnabled,activate}=globalThis.GPTTweaksContextStatus;
+  const {isEnabled,activate}=globalThis.GPTTweaksContextTokens;
   globalThis.__gptTweaksMenus.register({
     id:"context-tracker",
     command:COMMAND,
     title:TITLE,
     description:DESCRIPTION,
-    icon:statusIcon,
+    icon:tokensIcon,
     isEnabled,
     activate
   });

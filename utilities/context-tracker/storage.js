@@ -8,6 +8,8 @@
   };
   globalThis.GPTTweaksContextStorage = Object.freeze({
     preferences:() => send("preferences"),
+    getVisibility:id => send("get-visibility", {id}),
+    setVisibility:(id, visible) => send("set-visibility", {id, visible}),
     load:id => send("load", {id}),
     save:(id, cache) => send("save", {id, cache})
   });

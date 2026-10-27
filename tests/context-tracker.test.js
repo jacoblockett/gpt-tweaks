@@ -46,11 +46,17 @@ async function main(){
   assert(stream.some(e=>e.type==='done'));
   assert(!JSON.stringify(emitted).includes('Answer more')); // No text across MAIN/ISOLATED boundary.
   // Isolated coordinator: mocked storage and view, one native page and optimistic send.
-  const storageData=new Map(),snapshots=[],visibility=[],mounted=[];
+  const storageData=new Map(),savedVisibility=new Map(),snapshots=[],visibility=[],mounted=[];
   const trackerSettings={enabled:true,defaultVisible:true,menu:true,slash:true,target:512000,percent:true,tokens:true,limit:true};
-  let navChanges=()=>{};
-  const isolated={console,document:{...doc,hidden:false,getElementById(){return null}},location:loc,globalThis:null,window:{addEventListener(){},navigation:{addEventListener(){} }},Event:E,CustomEvent:E,setTimeout,clearTimeout,AbortController,DOMException,MutationObserver:class {observe(){}disconnect(){}},chrome:{runtime:{onMessage:{addListener:fn=>navChanges=fn}}},
-    GPTTweaksContextStorage:{preferences:async()=>({...trackerSettings}),load:async id=>storageData.get(id)||null,save:async(id,cache)=>{storageData.set(id,cache)}},
+  let navChanges=()=>{},navigate=()=>{};
+  const isolated={console,document:{...doc,hidden:false,getElementById(){return null}},location:loc,globalThis:null,window:{addEventListener(){},navigation:{addEventListener(name,fn){if(name==="currententrychange")navigate=fn}}},Event:E,CustomEvent:E,setTimeout,clearTimeout,AbortController,DOMException,MutationObserver:class {observe(){}disconnect(){}},chrome:{runtime:{onMessage:{addListener:fn=>navChanges=fn}}},
+    GPTTweaksContextStorage:{
+      preferences:async()=>({...trackerSettings}),
+      getVisibility:async id=>savedVisibility.has(id)?savedVisibility.get(id):null,
+      setVisibility:async(id,visible)=>{savedVisibility.set(id,visible)},
+      load:async id=>storageData.get(id)||null,
+      save:async(id,cache)=>{storageData.set(id,cache)}
+    },
     GPTTweaksContextIndicator:core=>{return ({setVisible:v=>visibility.push(v),setConversation:id=>mounted.push(id),render:s=>snapshots.push({messages:core.metrics([...s.activeEntries,...s.streamEntries.values()]).messages,target:s.target}),isMounted:()=>true,mount(){},updateTheme(){},align(){}})}};
   isolated.globalThis=isolated;isolated.CTCore=core;
   vm.runInNewContext(source('utilities/context-tracker/index.js'),isolated);
@@ -63,33 +69,33 @@ async function main(){
   isolated.document.createElementNS=(ns,tag)=>({attrs:new Map(),setAttribute(k,v){this.attrs.set(k,v)},append(){}});
   vm.runInNewContext(source('utilities/context-tracker/menu.js'),isolated);
   assert.equal(registrations.length,1);
-  const status=registrations[0];
-  assert.equal(status.id,'context-tracker');
-  assert.equal(status.title,'Status');
-  assert.equal(status.command,'/status');
-  assert.equal(status.icon(20).attrs.get('viewBox'),'0 0 24 24');
-  assert.equal(await status.isEnabled('menu'),true);
-  assert.equal(await status.isEnabled('slash'),true);
-  status.activate('menu');
+  const tokens=registrations[0];
+  assert.equal(tokens.id,'context-tracker');
+  assert.equal(tokens.title,'Tokens');
+  assert.equal(tokens.command,'/tokens');
+  assert.equal(tokens.icon(20).attrs.get('viewBox'),'0 0 24 24');
+  assert.equal(await tokens.isEnabled('menu'),true);
+  assert.equal(await tokens.isEnabled('slash'),true);
+  tokens.activate('menu');
   assert.equal(visibility.at(-1),false);
-  status.activate('slash');
+  tokens.activate('slash');
   assert.equal(visibility.at(-1),true);
   trackerSettings.menu=false;
-  assert.equal(await status.isEnabled('menu'),false);
-  assert.equal(await status.isEnabled('slash'),true);
+  assert.equal(await tokens.isEnabled('menu'),false);
+  assert.equal(await tokens.isEnabled('slash'),true);
   trackerSettings.slash=false;
-  assert.equal(await status.isEnabled('slash'),false);
+  assert.equal(await tokens.isEnabled('slash'),false);
   trackerSettings.enabled=false;
-  assert.equal(await status.isEnabled('menu'),false);
+  assert.equal(await tokens.isEnabled('menu'),false);
   trackerSettings.enabled=true;
   trackerSettings.menu=true;
   trackerSettings.slash=true;
-  status.activate('menu');
+  tokens.activate('menu');
   const chosenVisibility=visibility.at(-1);
   navChanges({type:'gpt-tweaks:context:settings-changed'});
   await wait(25);
   assert.equal(visibility.at(-1),chosenVisibility);
-  status.activate('slash');
+  tokens.activate('slash');
   assert.equal(visibility.at(-1),true);
 
   doc.dispatchEvent(new E('ct-v1-outgoing',{detail:JSON.stringify({id:uuid,entries:[[user,4,1]]})}));
@@ -99,6 +105,51 @@ async function main(){
   await wait(50);
   assert(snapshots.some(s=>s.messages===2));
   assert.equal(storageData.get(uuid).entries.length,2);
+  // A manual choice survives updates to Show by default, including when
+  // Settings remains open. The next untouched chat samples the new default.
+  assert.equal(savedVisibility.get(uuid),true);
+  trackerSettings.defaultVisible=false;
+  navChanges({type:'gpt-tweaks:context:settings-changed'});
+  await wait(25);
+  assert.equal(visibility.at(-1),true);
+  const secondChat='bbbbbbbb-cccc-dddd-eeee-ffffffffffff';
+  loc.pathname='/c/'+secondChat;loc.href=loc.origin+loc.pathname;
+  navigate();await wait(40);
+  assert.equal(visibility.at(-1),false);
+  assert.equal(savedVisibility.has(secondChat),false);
+  // Changing the default while an untouched chat is open must NOT show it.
+  trackerSettings.defaultVisible=true;
+  navChanges({type:'gpt-tweaks:context:settings-changed'});
+  await wait(25);
+  assert.equal(visibility.at(-1),false);
+  tokens.activate('menu');
+  assert.equal(savedVisibility.get(secondChat),true);
+  tokens.activate('slash');
+  assert.equal(savedVisibility.get(secondChat),false);
+  // Revisit both touched chats: their explicit choices beat the new default.
+  loc.pathname='/c/'+uuid;loc.href=loc.origin+loc.pathname;
+  navigate();await wait(40);
+  assert.equal(visibility.at(-1),true);
+  loc.pathname='/c/'+secondChat;loc.href=loc.origin+loc.pathname;
+  navigate();await wait(40);
+  assert.equal(visibility.at(-1),false);
+  // A newly loaded untouched chat uses the current default again.
+  const thirdChat='22222222-3333-4444-aaaa-000000000000';
+  loc.pathname='/c/'+thirdChat;loc.href=loc.origin+loc.pathname;
+  navigate();await wait(40);
+  assert.equal(visibility.at(-1),true);
+  assert.equal(savedVisibility.has(thirdChat),false);
+  // A choice on the empty New chat screen follows the first send into the
+  // subsequently assigned conversation ID, rather than being discarded.
+  loc.pathname='/';loc.href=loc.origin+'/';
+  navigate();await wait(25);
+  tokens.activate('menu'); // Inverted from the current default (true).
+  doc.dispatchEvent(new E('ct-v1-activity'));
+  const firstSendChat='77777777-8888-9999-aaaa-bbbbbbbbbbbb';
+  loc.pathname='/c/'+firstSendChat;loc.href=loc.origin+loc.pathname;
+  navigate();await wait(40);
+  assert.equal(savedVisibility.get(firstSendChat),false);
+  assert.equal(visibility.at(-1),false);
   navChanges({type:'gpt-tweaks:context:settings-changed'});
   await wait(25);
   assert(snapshots.every(s=>s.target===512000));
@@ -119,6 +170,15 @@ async function main(){
     if(asynchronous===undefined)reject(Error('message not handled'));
   })}
   const validSender={id:'test-extension',url:`https://chatgpt.com/c/${uuid}`,tab:{id:7}};
+  // Per-conversation visibility is boolean-only, scoped to trusted ChatGPT tabs,
+  // and independent of cached token counts and default visibility preferences.
+  assert.equal((await rpc({type:'gpt-tweaks:context:get-visibility',id:uuid},validSender)).data,null);
+  assert.equal((await rpc({type:'gpt-tweaks:context:set-visibility',id:uuid,visible:false},validSender)).ok,true);
+  assert.equal((await rpc({type:'gpt-tweaks:context:get-visibility',id:uuid},validSender)).data,false);
+  assert.equal((await rpc({type:'gpt-tweaks:context:set-visibility',id:uuid,visible:'false'},validSender)).ok,false);
+  assert.equal((await rpc({type:'gpt-tweaks:context:get-visibility',id:'bad'},validSender)).ok,false);
+  assert.equal((await rpc({type:'gpt-tweaks:context:set-visibility',id:uuid,visible:true},
+    {...validSender,url:'https://github.com/'})).ok,false);
   assert.equal((await rpc({type:'gpt-tweaks:context:preferences'},validSender)).data.target,750000);
   assert.equal((await rpc({type:'gpt-tweaks:context:preferences'},validSender)).data.menu,true);
   assert.equal((await rpc({type:'gpt-tweaks:context:preferences'},validSender)).data.slash,true);
@@ -139,6 +199,7 @@ async function main(){
   await changeListener({'gpt-tweaks.context.target-tokens':{newValue:'600000'}},'local');
   await wait(20);
   assert.equal(tabBroadcasts,1);
+  console.log('PASS: per-chat visibility persists across navigation, defaults only on load, and settings do not change live visibility');
   console.log('PASS: storage authorization, numeric cache validation, scoped settings, GitHub credentials unchanged');
   console.log('PASS: core classification/dedupe, MAIN passive history/stream/outgoing, isolated reconciliation/storage/settings');
 }

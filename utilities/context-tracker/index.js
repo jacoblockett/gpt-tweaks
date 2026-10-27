@@ -17,7 +17,8 @@
   const view = globalThis.GPTTweaksContextIndicator(core);
   let enabled = true;
   let defaultVisible = false;
-  let visibility = null; // In-chat choice; null follows Show by default.
+  let initialVisibility = null; // Snapshot when the current chat is loaded.
+  let visibility = null; // Manual choice, null until the chat is touched.
   let flags = {percent:true, tokens:true, limit:true};
 
   let target = DEFAULT_TARGET;
@@ -295,12 +296,15 @@
     if (fetchController) fetchController.abort();
     running = false;
     queued = false;
-    // Each new conversation starts from its default; preserve a manual
-    // choice as an untitled chat receives its first conversation ID.
-    if (activeId && activeId !== id) {
+    // The default is sampled only when loading a conversation, not when
+    // the setting changes. Preserve an untitled chat's manual selection
+    // across its first send and assignment of a conversation ID.
+    const preserveUntitled = firstSend && activeId === null;
+    if (!preserveUntitled) {
       visibility = null;
-      view.setVisible(enabled && defaultVisible);
+      initialVisibility = defaultVisible;
     }
+    view.setVisible(enabled && (visibility ?? initialVisibility));
     activeId = id;
     activeEntries = [];
     complete = false;
@@ -330,6 +334,18 @@
     blankChatOutgoing.clear();
     blankChatStream.clear();
     const serial = generation;
+    // A manual choice belongs to the conversation, including later visits.
+    // Keep the display unmounted until its saved visibility has been read.
+    let savedVisibility = null;
+    try { savedVisibility = await storage.getVisibility(id); }
+    catch (error) { console.warn('[GPT Tweaks] Cannot load token estimator visibility:', error); }
+    if (generation !== serial) return;
+    if (visibility === null && typeof savedVisibility === 'boolean') visibility = savedVisibility;
+    else if (preserveUntitled && typeof visibility === 'boolean') {
+      void storage.setVisibility(id, visibility).catch(error =>
+        console.warn('[GPT Tweaks] Cannot save token estimator visibility:', error));
+    }
+    view.setVisible(enabled && (visibility ?? initialVisibility));
     view.setConversation(id);
     const cached = await load(id);
     if (generation !== serial) return;
@@ -395,20 +411,24 @@
     }
   }
 
-  function toggleStatus() {
+  function toggleTokens() {
     if (!enabled) return;
-    visibility = !(visibility ?? defaultVisible);
+    visibility = !(visibility ?? initialVisibility);
     view.setVisible(visibility);
+    if (activeId) {
+      void storage.setVisibility(activeId, visibility).catch(error =>
+        console.warn('[GPT Tweaks] Cannot save token estimator visibility:', error));
+    }
     render();
   }
 
   // Register via the same shared menu API as GitHub Source.
-  globalThis.GPTTweaksContextStatus = Object.freeze({
+  globalThis.GPTTweaksContextTokens = Object.freeze({
     isEnabled:async method => {
       const settings = await storage.preferences();
       return settings.enabled !== false && settings[method] !== false;
     },
-    activate:toggleStatus
+    activate:toggleTokens
   });
 
   async function refreshPreferences() {
@@ -420,13 +440,14 @@
         {detail:enabled ? 'true' : 'false'}));
       if (!enabled) fetchController?.abort();
       const nextDefault = settings.defaultVisible === true;
-      // Reset the manual override only when the visibility policy changes.
-      if (previouslyEnabled !== enabled || defaultVisible !== nextDefault) visibility = null;
+      // New defaults affect only subsequently loaded chats. Do not change
+      // this chat's display, whether or not it has been toggled manually.
+      if (initialVisibility === null) initialVisibility = nextDefault;
       defaultVisible = nextDefault;
       if (Number.isSafeInteger(settings.target) && settings.target > 0) target = settings.target;
       flags = {percent:settings.percent !== false, tokens:settings.tokens !== false,
         limit:settings.limit !== false};
-      view.setVisible(enabled && (visibility ?? defaultVisible));
+      view.setVisible(enabled && (visibility ?? initialVisibility));
       render();
       if (enabled && !previouslyEnabled && activeId) {
         document.dispatchEvent(new Event('ct-v1-bridge-ready'));

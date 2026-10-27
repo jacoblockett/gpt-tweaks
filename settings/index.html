@@ -33,10 +33,9 @@
 						Conversation
 					</a>
 					<div class="nav-child">
-						<a href="#context-tracker" class="nav-item" data-section="context-tracker">Context tracker</a>
-
 						<a href="#enhanced-copy" class="nav-item" data-section="enhanced-copy">Message copy enhancements</a>
 						<a href="#session-handoff" class="nav-item" data-section="session-handoff">Session handoff</a>
+						<a href="#context-tracker" class="nav-item" data-section="context-tracker">Token Estimator</a>
 					</div>
 
 					<a href="#github" class="nav-item" data-section="github">
@@ -90,11 +89,37 @@
 						</svg>
 						<h1>Conversation</h1>
 					</header>
+					<section id="enhanced-copy" class="feature" aria-labelledby="copy-title">
+						<div class="feature-heading">
+							<h2 id="copy-title">Message copy enhancements</h2>
+							<label class="switch" title="Enable enhanced message copy">
+								<input type="checkbox" id="copy-enabled" checked aria-label="Enable enhanced message copy" />
+								<span class="track"></span>
+							</label>
+						</div>
+						<p class="description">
+							Add options to copy the selected message, everything before it, everything after it, or the entire
+							conversation. “Before” and “after” include the selected message.
+						</p>
+					</section>
+					<section id="session-handoff" class="feature" aria-labelledby="handoff-title">
+						<div class="feature-heading">
+							<h2 id="handoff-title">Session handoff</h2>
+							<label class="switch" title="Enable session handoff">
+								<input type="checkbox" id="handoff-enabled" checked aria-label="Enable session handoff" />
+								<span class="track"></span>
+							</label>
+						</div>
+						<p class="description">
+							Use <code>/handoff</code> to summarize the current conversation, save the summary as a Markdown file, then
+							open a new chat with the handoff. Conversations in a project continue within that project.
+						</p>
+					</section>
 					<section id="context-tracker" class="feature" aria-labelledby="context-title">
 						<div class="feature-heading">
-							<h2 id="context-title">Context tracker</h2>
-							<label class="switch" title="Enable context tracker">
-								<input type="checkbox" id="context-enabled" checked aria-label="Enable context tracker" />
+							<h2 id="context-title">Token Estimator</h2>
+							<label class="switch" title="Enable token estimator">
+								<input type="checkbox" id="context-enabled" checked aria-label="Enable token estimator" />
 								<span class="track"></span>
 							</label>
 						</div>
@@ -107,32 +132,32 @@
 								<div class="setting-text">
 									<div class="setting-title">Show by default</div>
 									<div class="setting-description">
-										Display the tracker when opening a conversation. When off, open it from the + menu or with
-										<code>/status</code>.
+										Show the display by default when first opening a chat that has not been manually toggled. Otherwise, use the + menu or
+										<code>/tokens</code>.
 									</div>
 								</div>
-								<label class="switch" title="Show context tracker by default">
-									<input type="checkbox" id="context-default-visible" aria-label="Show context tracker by default" />
+								<label class="switch" title="Show token estimator by default">
+									<input type="checkbox" id="context-default-visible" aria-label="Show token estimator by default" />
 									<span class="track"></span>
 								</label>
 							</div>
 							<div class="setting-row">
 								<div class="setting-text">
 									<div class="setting-title">Attachment menu</div>
-									<div class="setting-description">Add a Status option to the + menu next to the message composer.</div>
+									<div class="setting-description">Add a Tokens option to the + menu next to the message composer.</div>
 								</div>
-								<label class="switch" title="Show Status in attachment menu">
-									<input type="checkbox" id="context-menu" checked aria-label="Show Status in attachment menu" />
+								<label class="switch" title="Show Tokens in attachment menu">
+									<input type="checkbox" id="context-menu" checked aria-label="Show Tokens in attachment menu" />
 									<span class="track"></span>
 								</label>
 							</div>
 							<div class="setting-row">
 								<div class="setting-text">
 									<div class="setting-title">Slash command</div>
-									<div class="setting-description">Use <code>/status</code> to show or hide the tracker.</div>
+									<div class="setting-description">Use <code>/tokens</code> to show or hide the tracker.</div>
 								</div>
-								<label class="switch" title="Enable status slash command">
-									<input type="checkbox" id="context-slash" checked aria-label="Enable slash status command" />
+								<label class="switch" title="Enable tokens slash command">
+									<input type="checkbox" id="context-slash" checked aria-label="Enable slash tokens command" />
 									<span class="track"></span>
 								</label>
 							</div>
@@ -198,32 +223,6 @@
 						</div>
 					</section>
 
-					<section id="enhanced-copy" class="feature" aria-labelledby="copy-title">
-						<div class="feature-heading">
-							<h2 id="copy-title">Message copy enhancements</h2>
-							<label class="switch" title="Enable enhanced message copy">
-								<input type="checkbox" id="copy-enabled" checked aria-label="Enable enhanced message copy" />
-								<span class="track"></span>
-							</label>
-						</div>
-						<p class="description">
-							Add options to copy the selected message, everything before it, everything after it, or the entire
-							conversation. “Before” and “after” include the selected message.
-						</p>
-					</section>
-					<section id="session-handoff" class="feature" aria-labelledby="handoff-title">
-						<div class="feature-heading">
-							<h2 id="handoff-title">Session handoff</h2>
-							<label class="switch" title="Enable session handoff">
-								<input type="checkbox" id="handoff-enabled" checked aria-label="Enable session handoff" />
-								<span class="track"></span>
-							</label>
-						</div>
-						<p class="description">
-							Use <code>/handoff</code> to summarize the current conversation, save the summary as a Markdown file, then
-							open a new chat with the handoff. Conversations in a project continue within that project.
-						</p>
-					</section>
 				</div>
 
 				<section class="github-category" aria-label="GitHub features">
