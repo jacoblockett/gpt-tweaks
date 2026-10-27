@@ -97,8 +97,7 @@
 							</label>
 						</div>
 						<p class="description">
-							Show a progress bar above the ChatGPT message composer with estimated token usage and the number of
-							messages in the current conversation.
+							Show a progress bar above the ChatGPT message composer with estimated token usage.
 						</p>
 						<div class="feature-body" id="context-controls">
 							<h3 class="subheading">Visibility</h3>
@@ -173,16 +172,6 @@
 									<span class="track"></span>
 								</label>
 							</div>
-							<div class="setting-row">
-								<div class="setting-text">
-									<div class="setting-title">Message count</div>
-									<div class="setting-description">Show the number of messages in the current conversation.</div>
-								</div>
-								<label class="switch" title="Show message count">
-									<input type="checkbox" id="context-show-messages" checked aria-label="Show message count" />
-									<span class="track"></span>
-								</label>
-							</div>
 							<h3 class="subheading group-heading">Token usage target</h3>
 							<div class="setting-row">
 								<div class="setting-text">
@@ -195,9 +184,11 @@
 								<input
 									id="context-target"
 									class="token-target"
-									type="number"
-									min="1"
-									step="1"
+									type="text"
+									inputmode="numeric"
+									pattern="[0-9]+"
+									autocomplete="off"
+									spellcheck="false"
 									value="512000"
 									required
 									aria-label="Target tokens" />

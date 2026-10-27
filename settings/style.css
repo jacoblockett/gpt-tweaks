@@ -229,7 +229,7 @@ code {
 	background: var(--control);
 	color: var(--text);
 }
-.token-target { width: 164px; text-align: right; font-variant-numeric: tabular-nums; }
+.token-target { width: 164px; text-align: right; font-size: 14px; font-variant-numeric: tabular-nums; }
 .compact-select { width: 174px; }
 .token-target:focus, .compact-select:focus {
 	border-color: var(--accent);

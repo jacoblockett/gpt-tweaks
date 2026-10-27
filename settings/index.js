@@ -50,8 +50,7 @@
 		slash: "gpt-tweaks.context.slash",
 		percent: "gpt-tweaks.context.percent",
 		tokens: "gpt-tweaks.context.tokens",
-		limit: "gpt-tweaks.context.limit",
-		messages: "gpt-tweaks.context.messages"
+		limit: "gpt-tweaks.context.limit"
 	}
 	const contextElements = {
 		enabled: $("context-enabled"),
@@ -60,8 +59,7 @@
 		slash: $("context-slash"),
 		percent: $("context-show-percent"),
 		tokens: $("context-show-tokens"),
-		limit: $("context-show-limit"),
-		messages: $("context-show-messages")
+		limit: $("context-show-limit")
 	}
 	const contextControls = $("context-controls")
 	const contextFeedback = $("context-feedback")
@@ -98,23 +96,40 @@
 	const savedTarget = Number(preferenceStore.getItem(contextTargetKey))
 	let lastValidTarget = Number.isSafeInteger(savedTarget) && savedTarget > 0 ? savedTarget : 512000
 	contextTarget.value = String(lastValidTarget)
-	function saveContextTarget() {
+	// Text field without number spinners; persist on blur rather than
+	// broadcasting every intermediate character through extension storage.
+	contextTarget.addEventListener("input", () => {
+		contextTarget.value = contextTarget.value.replace(/\D/g, "")
+		contextTarget.setCustomValidity("")
+	})
+	function commitContextTarget() {
 		const value = Number(contextTarget.value)
-		if (contextTarget.value.trim() !== "" && Number.isSafeInteger(value) && value > 0) {
+		if (contextTarget.value === "0") {
+			lastValidTarget = 1
+			preferenceStore.setItem(contextTargetKey, "1")
+		} else if (contextTarget.value !== "" && Number.isSafeInteger(value) && value > 0) {
 			lastValidTarget = value
 			preferenceStore.setItem(contextTargetKey, String(value))
-			contextTarget.setCustomValidity("")
-		} else {
-			contextTarget.setCustomValidity("Enter a positive whole number.")
 		}
+		contextTarget.value = String(lastValidTarget)
+		contextTarget.setCustomValidity("")
 	}
-	contextTarget.addEventListener("input", saveContextTarget)
-	contextTarget.addEventListener("blur", () => {
-		if (!contextTarget.validity.valid) {
-			contextTarget.value = String(lastValidTarget)
-			contextTarget.setCustomValidity("")
-		}
+	contextTarget.addEventListener("blur", commitContextTarget)
+	contextTarget.addEventListener("keydown", event => {
+		if (event.key === "Enter") { event.preventDefault(); contextTarget.blur() }
+		if (event.key === "Escape") { event.preventDefault(); contextTarget.value = String(lastValidTarget); contextTarget.blur() }
 	})
+	// Reflect inline composer edits if the settings page is already open.
+	if (globalThis.chrome?.storage?.onChanged) {
+		chrome.storage.onChanged.addListener((changes, area) => {
+			if (area !== "local" || !changes[contextTargetKey] || document.activeElement === contextTarget) return
+			const value = Number(changes[contextTargetKey].newValue)
+			if (Number.isSafeInteger(value) && value >= 1) {
+				lastValidTarget = value
+				contextTarget.value = String(value)
+			}
+		})
+	}
 	contextElements.enabled.addEventListener("change", () => {
 		contextTarget.disabled = !contextElements.enabled.checked
 	})
