@@ -9,7 +9,6 @@
   globalThis.GPTTweaksContextStorage = Object.freeze({
     preferences:() => send("preferences"),
     load:id => send("load", {id}),
-    save:(id, cache) => send("save", {id, cache}),
-    setTarget:target => send("set-target", {target})
+    save:(id, cache) => send("save", {id, cache})
   });
 })();

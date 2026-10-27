@@ -40,12 +40,14 @@
         "shared/ui/menus/plus.js",
         "shared/ui/menus/slash.js",
         "utilities/github-source/ui/scrollbar.js",
+        "shared/ui/select.js",
         "utilities/github-source/ui/revisions.js",
         "utilities/github-source/attachment.js",
         "utilities/github-source/ui/modal.js",
         "utilities/github-source/index.js"
       ],
       "css": [
+        "shared/ui/select.css",
         "shared/ui/menus/styles.css",
         "utilities/github-source/ui/styles.css"
       ],

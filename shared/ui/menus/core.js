@@ -46,7 +46,7 @@
   function resetSlash(){for(const adapter of adapters.values())adapter.resetSlash();}
   globalThis.__gptTweaksMenus=Object.freeze({register,resetSlash,composer:localComposer});
   function createAdapter(config){
-    const visible=el=>Boolean(el?.isConnected&&el.getClientRects().length);
+    const visible=el=>!!(el?.isConnected&&el.getClientRects().length);
     function setMenuIcon(iconSlot){
       iconSlot.replaceChildren();
       for(const [size,klass] of [[16,"CompactSource-d7ZD01"],[20,"LeadingSource-d79mNZ"]]){
@@ -140,7 +140,7 @@
     function scan(){void plus.scanMenu();slash.ensureConnected();}
     return {scan,resetSlash:slash.resetSlash,updateSlash:slash.updateSlash,
       hasSlashMatch:slash.hasSlashMatch,handleDirectEnter:slash.handleDirectEnter,
-      interceptMenuKey,isOpen:()=>Boolean(config.isOpen?.())};
+      interceptMenuKey,isOpen:()=>!!config.isOpen?.()};
   }
   function selectedSlashAdapter(){
     for(const adapter of adapters.values())

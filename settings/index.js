@@ -162,6 +162,8 @@
 	newChatMiddle.checked = preferenceStore.getItem(newChatKeys.middle) !== "false"
 	newChatSlash.checked = preferenceStore.getItem(newChatKeys.slash) !== "false"
 	newChatDestination.value = preferenceStore.getItem(newChatKeys.destination) === "window" ? "window" : "tab"
+	const destinationDropdown = globalThis.GPTTweaksSelect(newChatDestination,
+		$("new-chat-destination-trigger"), $("new-chat-destination-options"))
 	if (!newChatMiddle.checked && !newChatSlash.checked) newChatMiddle.checked = true
 
 	function syncNewChat() {
@@ -170,6 +172,7 @@
 		newChatMiddle.disabled = !active
 		newChatSlash.disabled = !active
 		newChatDestination.disabled = !active
+		destinationDropdown.sync()
 		preferenceStore.setItem(newChatKeys.enabled, String(active))
 		preferenceStore.setItem(newChatKeys.middle, String(newChatMiddle.checked))
 		preferenceStore.setItem(newChatKeys.slash, String(newChatSlash.checked))

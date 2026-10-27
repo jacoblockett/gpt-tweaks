@@ -5,9 +5,11 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="color-scheme" content="dark" />
 		<title>GPT Tweaks</title>
+		<link rel="stylesheet" href="../shared/ui/select.css" />
 		<link rel="stylesheet" href="style.css" />
 		<script src="storage.js" defer></script>
 		<script src="github.js" defer></script>
+		<script src="../shared/ui/select.js" defer></script>
 		<script src="index.js" defer></script>
 	</head>
 	<body>
@@ -376,13 +378,25 @@
 							</div>
 							<div class="setting-row">
 								<div class="setting-text">
-									<label for="new-chat-destination" class="setting-title">Open in</label>
+									<label for="new-chat-destination-trigger" class="setting-title">Open in</label>
 									<div class="setting-description">Choose how the new chat opens.</div>
 								</div>
-								<select id="new-chat-destination" class="compact-select">
-									<option value="tab" selected>New tab</option>
-									<option value="window">New window</option>
-								</select>
+								<div class="compact-select gt-select-wrap">
+									<select id="new-chat-destination" hidden>
+										<option value="tab" selected>New tab</option>
+										<option value="window">New window</option>
+									</select>
+									<button type="button" id="new-chat-destination-trigger" class="gt-select-trigger"
+										aria-label="Open new chat in" aria-haspopup="listbox" aria-expanded="false"
+										aria-controls="new-chat-destination-options">
+										<span>New tab</span>
+										<svg aria-hidden="true" width="18" height="18" viewBox="0 0 20 20" fill="none">
+											<path d="m5 7.5 5 5 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+										</svg>
+									</button>
+									<div id="new-chat-destination-options" class="gt-select-list" role="listbox"
+										aria-label="Open in" hidden></div>
+								</div>
 							</div>
 						</div>
 					</section>

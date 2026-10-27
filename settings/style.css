@@ -220,19 +220,15 @@ code {
 	color: #c7aaff;
 }
 .feedback:empty { display: none; }
-.token-target, .compact-select {
-	flex: none;
-	min-height: 40px;
-	padding: 9px 12px;
-	border: 1px solid #45434b;
-	border-radius: 8px;
-	background: var(--control);
-	color: var(--text);
+.token-target {
+	flex: none; width: 164px; min-height: 45px; padding: 9px 16px;
+	text-align: right; font-size: 14px; font-variant-numeric: tabular-nums;
+	border: 1px solid #555; border-radius: 999px;
+	background: #292929; color: var(--text);
 }
-.token-target { width: 164px; text-align: right; font-size: 14px; font-variant-numeric: tabular-nums; }
 .compact-select { width: 174px; }
-.token-target:focus, .compact-select:focus {
-	border-color: var(--accent);
+.token-target:focus, .compact-select .gt-select-trigger:focus-visible {
+	border-color: #777;
 	outline-color: var(--focus);
 }
 .token-target:invalid { border-color: #d77979; }
@@ -282,7 +278,7 @@ code {
 	min-height: 38px;
 	padding: 8px 14px;
 	border: 1px solid #625777;
-	border-radius: 8px;
+	border-radius: 999px;
 	background: var(--control);
 	color: var(--text);
 	font-size: 13px;

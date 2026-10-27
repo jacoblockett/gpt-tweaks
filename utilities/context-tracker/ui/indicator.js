@@ -14,27 +14,21 @@
       --ct-alert:var(--app-color-decoration-deleted, #fa423e);
       color:var(--color-text, #ededed); font:inherit; text-align:left; line-height:normal; }
     *, *::before, *::after { box-sizing:border-box; }
-    #tracker { display:flex; align-items:center; gap:14px; width:100%; height:52px;
-      border:0; padding:10px 18px; background:transparent; color:inherit; }
-    .metrics { display:inline-flex; align-items:center; gap:8px; flex:none;
-      min-width:0; font:inherit; font-size:13px; font-weight:400; line-height:20px;
-      font-variant-numeric:tabular-nums; white-space:nowrap; }
-    .numbers { display:inline-flex; align-items:baseline; gap:0; }
-    .numbers[hidden], #percentage[hidden], #used[hidden], #target-wrap[hidden], #status[hidden] { display:none; }
-    #target { display:inline-block; min-width:1ch; border-radius:3px;
-      border-bottom:1px dotted color-mix(in srgb, currentColor 50%, transparent);
-      cursor:text; outline:none; white-space:nowrap; user-select:text; }
-    #target:hover { border-bottom-style:solid; }
-    #target:focus { outline:1px solid var(--ct-accent); outline-offset:3px;
-      border-bottom-color:transparent; }
-    #percentage { margin-left:5px; }
-    #status { display:none; align-items:center; color:var(--ct-alert); font-weight:400;
-      padding:2px 7px; border-radius:999px;
-      background:color-mix(in srgb, var(--ct-alert) 13%, transparent); font-size:12px; }
-    :host([data-over-target]) #status:not([hidden]) { display:inline-flex; }
-    .track { display:block; flex:1 1 auto; width:100%; min-width:55px;
-      height:6px; overflow:hidden; background:color-mix(in srgb, var(--color-text, #ededed) 15%, transparent);
+    #tracker { position:relative; display:flex; align-items:center; justify-content:center;
+      width:100%; height:52px; border:0; padding:10px 18px;
+      background:transparent; color:inherit; }
+    .track { display:block; width:100%; min-width:0; height:6px; overflow:hidden;
+      background:color-mix(in srgb, var(--color-text, #ededed) 15%, transparent);
       border-radius:99px; }
+    .metrics { position:absolute; z-index:1; left:50%; top:50%; transform:translate(-50%,-50%);
+      max-width:calc(100% - 36px); padding:0 10px;
+      background:var(--composer-layout-surface-background, var(--ct-surface-fallback, #1b1b1b));
+      color:inherit; font:inherit; font-size:13px; font-weight:400; line-height:20px;
+      font-variant-numeric:tabular-nums; text-align:center; white-space:nowrap;
+      overflow:hidden; text-overflow:ellipsis; }
+    .metrics[hidden] { display:none; }
+    #status { display:none; margin-left:8px; font-size:12px; color:var(--ct-alert); }
+    :host([data-over-target]) #status:not([hidden]) { display:inline; }
     #fill { display:block; width:0; height:100%; background:var(--ct-accent);
       border-radius:inherit; transition:width 220ms ease,background-color 180ms ease; }
     :host([data-over-target]) #fill { background:var(--ct-alert); }
@@ -47,10 +41,8 @@
     @keyframes ct-spin { to { transform:rotate(360deg); } }
     #tracker[data-phase="loading"] .metrics, #tracker[data-phase="loading"] .track { display:none; }
     #tracker[data-phase="loading"] .loading { display:flex; }
-    @container (max-width:680px) { #tracker { gap:8px; padding-inline:11px; }
-      .metrics { gap:4px; font-size:12px; } #status { display:none !important; } }
-    @container (max-width:370px) { #tracker { flex-wrap:wrap; gap:2px; }
-      .track { flex-basis:100%; } }
+    @container (max-width:370px) { #tracker { padding-inline:10px; }
+      .metrics { max-width:calc(100% - 20px); font-size:12px; } }
     @media (prefers-reduced-motion:reduce) { #fill { transition:none; } .spinner { animation:none; } }
   `;
   const num = value => {
@@ -61,15 +53,7 @@
     return fraction === undefined ? grouped : `${grouped}.${fraction}`;
   };
 
-  // Accept grouping separators and optional decimals; store a positive whole token.
-  const parseTarget = value => {
-    const raw = String(value).trim().replace(/,/g, '');
-    if (!/^\d+(?:\.\d+)?$/.test(raw)) return null;
-    const rounded = Math.max(1, Math.round(Number(raw)));
-    return Number.isSafeInteger(rounded) ? rounded : null;
-  };
-
-  globalThis.GPTTweaksContextIndicator = (core, saveTarget) => {
+  globalThis.GPTTweaksContextIndicator = core => {
     let activeId = null;
     let currentState = null;
     let ui = null;
@@ -81,8 +65,6 @@
     let roundedComposer = [];
     let pendingMountObserver = null;
     let mountTimer = null;
-    let editingTarget = false;
-    let cancelTarget = false;
   function findDisclaimer() {
     const candidates = document.querySelectorAll('[data-markdown-copy="exclude"]');
     for (const e of candidates) {
@@ -101,53 +83,13 @@
     const panel = document.createElement('div');
     panel.id = 'tracker';
     panel.innerHTML = `
-      <span class="metrics"><span class="numbers" id="numbers">
-        <span id="used">0</span><span id="separator"> / </span><span id="target-wrap"><span id="target" contenteditable="plaintext-only" inputmode="decimal" role="textbox" aria-label="Edit target tokens" aria-multiline="false" spellcheck="false">512,000</span></span>
-        <span id="tokens-label"> Tokens</span><span id="percentage"> (0.0%)</span>
-      </span><span id="status">Target Exceeded</span></span>
       <span class="track" id="progress" role="progressbar" aria-label="Estimated conversation length against custom token target" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="fill"></span></span>
+      <span class="metrics" id="metrics"><span id="numbers">0 / 512,000 tokens (0.0%)</span><span id="status">Target Exceeded</span></span>
       <span class="loading" role="status"><span class="spinner" aria-hidden="true"></span>Calculating current session metrics</span>`;
     shadow.append(panel);
-    const targetValue = shadow.querySelector('#target');
-    targetValue.addEventListener('focus', () => { editingTarget = true; cancelTarget = false; });
-    targetValue.addEventListener('keydown', event => {
-      // Prevent composer shortcuts while editing the target. Tab retains normal navigation.
-      if (event.key === 'Escape') {
-        cancelTarget = true;
-        event.preventDefault();
-        targetValue.blur();
-      } else if (event.key === 'Enter') {
-        event.preventDefault();
-        targetValue.blur();
-      } else if (event.key !== 'Tab') event.stopPropagation();
-    });
-    targetValue.addEventListener('beforeinput', event => {
-      if (event.data && !/^[\d.,]+$/.test(event.data)) event.preventDefault();
-      // No line breaks in the numeric field.
-      if (event.inputType === 'insertParagraph' || event.inputType === 'insertLineBreak')
-        event.preventDefault();
-    });
-    targetValue.addEventListener('blur', () => {
-      editingTarget = false;
-      const candidate = cancelTarget ? null : parseTarget(targetValue.textContent);
-      cancelTarget = false;
-      if (!candidate || !currentState || candidate === currentState.target) {
-        render(); // Restore the current formatted value after cancel/invalid edits.
-        return;
-      }
-      targetValue.textContent = num(candidate);
-      void Promise.resolve(saveTarget(candidate)).then(ok => {
-        if (!ok) render();
-      }).catch(() => render());
-    });
-    return {rootHost, panel,
-      numbers:shadow.querySelector('#numbers'), used:shadow.querySelector('#used'),
-      separator:shadow.querySelector('#separator'), target:targetValue,
-      targetWrap:shadow.querySelector('#target-wrap'),
-      tokensLabel:shadow.querySelector('#tokens-label'),
-      percent:shadow.querySelector('#percentage'),
-      progress:shadow.querySelector('#progress'), fill:shadow.querySelector('#fill'),
-      status:shadow.querySelector('#status')};
+    return {rootHost, panel, metrics:shadow.querySelector('#metrics'),
+      numbers:shadow.querySelector('#numbers'), progress:shadow.querySelector('#progress'),
+      fill:shadow.querySelector('#fill'), status:shadow.querySelector('#status')};
   }
 
   function removeUI() {
@@ -185,7 +127,7 @@
     const element = form.querySelector('[class*="ComposerLayoutRoot-"]') ||
       form.querySelector('[class*="ComposerLayoutBody-"]') || composerRoot;
     const styles = [getComputedStyle(element), getComputedStyle(composerRoot), getComputedStyle(surface)];
-    const read = name => styles.map(style => style.getPropertyValue(name).trim()).find(Boolean);
+    const read = name => styles.map(style => style.getPropertyValue(name).trim()).find(value => value.length > 0);
     const nativeText = read('--color-text');
     if (nativeText) {
       host.style.setProperty('--color-text', nativeText);
@@ -353,21 +295,18 @@
     const noData = values.records === 0 && !complete;
     ui.panel.dataset.phase = initialDiscovery && !lastError ? 'loading' : 'ready';
     const show = flags || {};
-    ui.used.textContent = num(values.tokens);
-    if (!editingTarget) ui.target.textContent = num(target);
     const showUsed = show.tokens !== false;
     const showLimit = show.limit !== false;
-    ui.used.hidden = !showUsed;
-    ui.separator.hidden = !(showUsed && showLimit);
-    ui.targetWrap.hidden = !showLimit;
-    ui.tokensLabel.hidden = !(showUsed || showLimit);
-    ui.percent.hidden = show.percent === false;
-    ui.percent.textContent = ` (${pctLabel})`;
-    ui.numbers.hidden = !(showUsed || showLimit || show.percent !== false);
+    const showPercent = show.percent !== false;
+    const counts = showUsed && showLimit ? `${num(values.tokens)} / ${num(target)}` :
+      showUsed ? num(values.tokens) : showLimit ? num(target) : '';
+    ui.numbers.textContent = counts ? `${counts} tokens${showPercent ? ` (${pctLabel})` : ''}` :
+      showPercent ? pctLabel : '';
+    ui.metrics.hidden = !counts && !showPercent;
     const overTarget = hasRatio && !noData && displayed >= 100;
     if (overTarget) host.setAttribute('data-over-target', '');
     else host.removeAttribute('data-over-target');
-    ui.status.hidden = show.percent === false;
+    ui.status.hidden = !overTarget;
     ui.fill.style.width = `${Math.min(100, displayed)}%`;
     // Warn yellow at 80%, progressing smoothly to the alert red at 100%.
     if (hasRatio && displayed >= 100) ui.fill.style.backgroundColor = 'var(--ct-alert)';

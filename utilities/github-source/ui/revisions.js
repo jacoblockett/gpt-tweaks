@@ -45,7 +45,7 @@ globalThis.__gptTweaksCreateRevisions=helpers=>{
     const elements=[above];
     for(let index=start;index<end;index++){
       const choice=commitChoice(index),row=document.createElement("button");
-      row.type="button";row.className="gtg-revision-option";
+      row.type="button";row.className="gtg-revision-option gt-select-option";
       row.dataset.commitIndex=String(index);
       row.setAttribute("role","option");
       row.setAttribute("aria-selected",String(choice.value===id("gtg-commit").value));
@@ -122,46 +122,29 @@ globalThis.__gptTweaksCreateRevisions=helpers=>{
       trigger.disabled=select.disabled||!select.options.length;
     }
   }
+  // Branches use the same small dropdown control as the settings page.
+  // Commit history keeps its specialized ten-row virtualized list.
+  let branchDropdown=null;
+  function branchControl(){
+    const select=id("gtg-branch");
+    if(!select)return null;
+    if(!branchDropdown||branchDropdown.select!==select){
+      branchDropdown=globalThis.GPTTweaksSelect(select,id("gtg-branch-trigger"),id("gtg-branch-list"),{
+        bindTrigger:false,
+        beforeOpen:()=>{hideSuggestions();hideRevisionMenus();}
+      });
+    }
+    return branchDropdown;
+  }
   function showRevisionMenu(kind){
-    const select=id("gtg-"+kind),trigger=id("gtg-"+kind+"-trigger"),panel=id("gtg-"+kind+"-list");
+    if(kind==="branch"){branchControl()?.open();return;}
+    const select=id("gtg-commit"),trigger=id("gtg-commit-trigger"),panel=id("gtg-commit-list");
     if(!select||select.disabled||!select.options.length)return;
     hideSuggestions();hideRevisionMenus();
-    if(kind==="commit"){
-      showCommitMenu(trigger,panel);
-      return;
-    }
-    panel.replaceChildren();
-    for(const choice of select.options){
-      const row=document.createElement("button");
-      row.type="button";row.className="gtg-revision-option";
-      row.setAttribute("role","option");
-      row.setAttribute("aria-selected",String(choice.value===select.value));
-      row.textContent=choice.textContent;row.title=choice.textContent;
-      row.addEventListener("click",()=>{
-        const changed=select.value!==choice.value;
-        select.value=choice.value;
-        hideRevisionMenus();syncRevisionTriggers();
-        if(changed)select.dispatchEvent(new Event("change",{bubbles:true}));
-        trigger.focus();
-      });
-      panel.append(row);
-    }
-    panel.hidden=false;trigger.setAttribute("aria-expanded","true");
-    const rows=[...panel.querySelectorAll(".gtg-revision-option")];
-    (rows.find(x=>x.getAttribute("aria-selected")==="true")||rows[0])?.focus();
-    panel.onkeydown=event=>{
-      if(event.key==="Escape"){
-        event.preventDefault();hideRevisionMenus();trigger.focus();return;
-      }
-      if(!["ArrowDown","ArrowUp","Home","End"].includes(event.key))return;
-      event.preventDefault();
-      const index=rows.indexOf(document.activeElement);
-      const next=event.key==="Home"?0:event.key==="End"?rows.length-1:
-        (index+(event.key==="ArrowDown"?1:-1)+rows.length)%rows.length;
-      rows[next]?.focus();
-    };
+    showCommitMenu(trigger,panel);
   }
   function toggleRevisionMenu(kind){
+    if(kind==="branch"){branchControl()?.toggle();return;}
     if(id("gtg-"+kind+"-list").hidden)showRevisionMenu(kind);
     else hideRevisionMenus();
   }

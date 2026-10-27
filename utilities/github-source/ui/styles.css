@@ -156,23 +156,6 @@
   display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
   gap:13px;margin-top:18px;
 }
-#gtg-dialog .gtg-select-wrap {position:relative;}
-#gtg-dialog .gtg-select-trigger {
-  display:flex;align-items:center;justify-content:space-between;gap:8px;
-  width:100%;min-height:45px;padding:9px 16px;
-  border:1px solid #555;border-radius:999px;background:#292929;
-  color:#ededed;font:inherit;text-align:left;cursor:pointer;
-}
-#gtg-dialog .gtg-select-trigger > span {flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-#gtg-dialog .gtg-select-trigger > svg {position:static;transform:none;flex:none;pointer-events:none;}
-#gtg-dialog .gtg-select-trigger:disabled {opacity:.65;cursor:not-allowed;}
-#gtg-dialog .gtg-select-trigger[aria-expanded="true"] {border-color:#777;}
-#gtg-dialog .gtg-revision-list {
-  position:absolute;top:calc(100% + 8px);left:0;right:0;z-index:35;
-  max-height:min(260px,38vh);overflow:auto;padding:6px;
-  background:#2b2b2b;border:1px solid #454545;border-radius:15px;
-  box-shadow:0 14px 40px #0007;
-}
 #gtg-dialog #gtg-commit-list {
   max-height:min(360px,55vh);
   padding:0;
@@ -183,18 +166,6 @@
   padding:8px 11px;border-radius:0;
 }
 #gtg-dialog .gtg-commit-spacer {width:100%;pointer-events:none;}
-#gtg-dialog .gtg-revision-option {
-  display:block;width:100%;padding:9px 11px;border:0;border-radius:9px;
-  background:transparent;color:#ededed;font:inherit;text-align:left;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;
-}
-#gtg-dialog .gtg-revision-option:hover,
-#gtg-dialog .gtg-revision-option:focus-visible {background:#454545;}
-#gtg-dialog .gtg-revision-option[aria-selected="true"] {background:#3d3d3d;}
-#gtg-dialog .gtg-select-wrap svg {
-  position:absolute;right:17px;top:50%;transform:translateY(-50%);
-  pointer-events:none;color:#c6c6c6;
-}
 #gtg-dialog select {
   appearance:none;-webkit-appearance:none;background:#292929;
   color:#ededed;border:1px solid #555;border-radius:999px;

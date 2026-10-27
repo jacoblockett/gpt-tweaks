@@ -45,36 +45,29 @@ async function run(){
     Intl,Number,Map,Set};world.globalThis=world;
   vm.runInNewContext(src('utilities/context-tracker/tracker-core.js'),world);
   vm.runInNewContext(src('utilities/context-tracker/ui/indicator.js'),world);
-  const saves=[];let view;
+  let view;
   let state={activeEntries:[['x',128000,1]],observedEntries:new Map(),streamEntries:new Map(),
     target:512000,complete:true,initialDiscovery:false,lastError:'',flags:{tokens:true,limit:true,percent:true}};
-  view=world.GPTTweaksContextIndicator(world.CTCore,async v=>{saves.push(v);state.target=v;view.render(state);return true});
+  view=world.GPTTweaksContextIndicator(world.CTCore);
   view.setVisible(true);view.setConversation('12345678-1234-1234-1234-123456789abc');view.render(state);
   const marker=layout.children.find(x=>x.id==='ct-v1-marker');assert(marker);
   const panel=marker.children[0].children[0]; // Shadow root -> panel
   const get=id=>panel.ids.get(id);
   assert(!panel.source.includes('id="messages"'));
-  assert.equal(get('used').textContent,'128,000');
-  assert.equal(get('target').textContent,'512,000');
-  assert.equal(get('percentage').textContent,' (25.0%)');
-  assert.equal(get('tokens-label').textContent,''); // static text lives in the DOM, not a render overwrite.
-  assert(!panel.events.click); // Clicking the whole tracker never opens settings.
-  get('target').focus();get('target').textContent='100,000.7';get('target').blur();
-  await new Promise(r=>setTimeout(r,10));
-  assert.deepEqual(saves,[100001]);assert.equal(get('target').textContent,'100,001');
-  get('target').focus();get('target').textContent='0';get('target').blur();
-  await new Promise(r=>setTimeout(r,10));
-  assert.equal(saves.at(-1),1);
-  get('target').focus();get('target').textContent='something';get('target').blur();
-  assert.equal(get('target').textContent,'1');
-  get('target').focus();get('target').textContent='25';get('target').trigger('keydown',{key:'Escape',preventDefault(){}});
-  assert.equal(get('target').textContent,'1');
+  assert.equal(get('numbers').textContent,'128,000 / 512,000 tokens (25.0%)');
+  assert(!panel.source.includes('contenteditable'));
+  assert(!panel.events.click);
+  const source=marker.children[0].adoptedStyleSheets?.[0]?.source;
+  assert(source.includes('left:50%') && source.includes('transform:translate(-50%,-50%)'));
+  assert(source.includes('background:var(--composer-layout-surface-background'));
   state.flags={tokens:false,limit:false,percent:true};view.render(state);
-  assert.equal(get('used').hidden,true);assert.equal(get('target-wrap').hidden,true);
-  assert.equal(get('percentage').hidden,false);
+  assert.equal(get('numbers').textContent,'25.0%');
   state.flags={tokens:true,limit:true,percent:false};view.render(state);
-  assert.equal(get('used').hidden,false);assert.equal(get('target-wrap').hidden,false);
-  assert.equal(get('percentage').hidden,true);
-  console.log('PASS: composer horizontal indicator, target rounding/min/persistence, cancel/invalid, display switches, no message count or click-to-settings');
+  assert.equal(get('numbers').textContent,'128,000 / 512,000 tokens');
+  state.flags={tokens:true,limit:false,percent:true};view.render(state);
+  assert.equal(get('numbers').textContent,'128,000 tokens (25.0%)');
+  state.flags={tokens:false,limit:false,percent:false};view.render(state);
+  assert.equal(get('metrics').hidden,true);
+  console.log('PASS: centered progress-label text/spacing, background occlusion, display flags, no editor or message count');
 }
 run().catch(e=>{console.error(e);process.exit(1)});

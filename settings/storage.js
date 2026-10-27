@@ -3,7 +3,7 @@
 
 	// Browser extension settings persist in this Brave/Chromium profile.
 	// The standalone website preview keeps its original local/session storage behavior.
-	const extension = Boolean(globalThis.chrome?.runtime?.id && globalThis.chrome?.storage?.local)
+	const extension = !!(globalThis.chrome?.runtime?.id && globalThis.chrome?.storage?.local)
 	const values = Object.create(null)
 	const ready = extension
 		? chrome.storage.local.get(null).then(saved => Object.assign(values, saved))

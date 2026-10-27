@@ -21,7 +21,7 @@
     const form=target?.closest("form");
     const inputs=[...document.querySelectorAll('input[type="file"]')].filter(acceptsZip);
     // Prefer the active composer over unrelated file controls elsewhere in ChatGPT.
-    inputs.sort((a,b)=>Number(Boolean(form?.contains(b)))-Number(Boolean(form?.contains(a))));
+    inputs.sort((a,b)=>(form?.contains(b) ? 1 : 0)-(form?.contains(a) ? 1 : 0));
     for(const input of inputs){
       try{
         const dt=new DataTransfer();dt.items.add(file);input.files=dt.files;

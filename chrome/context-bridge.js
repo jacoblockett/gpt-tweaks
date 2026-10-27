@@ -38,12 +38,6 @@
           limit:readBool("limit", true),
           target:Number.isSafeInteger(value) && value > 0 ? value : 512000};
       }
-      case "gpt-tweaks:context:set-target": {
-        if (!Number.isSafeInteger(message.target) || message.target < 1)
-          throw new Error("Target must be a positive safe integer");
-        await chrome.storage.local.set({[prefix + "target-tokens"]:String(message.target)});
-        return true;
-      }
       case "gpt-tweaks:context:load": {
         if (!idPattern.test(message.id || "")) throw new Error("Invalid conversation ID");
         const key = cachePrefix + message.id.toLowerCase();

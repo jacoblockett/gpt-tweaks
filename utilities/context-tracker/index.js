@@ -14,19 +14,7 @@
   // Cache entry format is internal and independent of the extension version.
   const ESTIMATE_ALGORITHM = 'network-text-deduplicated-fullscan-contextfix-finalcount';
   const storage = globalThis.GPTTweaksContextStorage;
-  async function updateTarget(next) {
-    try {
-      await storage.setTarget(next);
-      target = next;
-      render();
-      return true;
-    } catch (error) {
-      console.warn('[GPT Tweaks] Cannot update token target:', error);
-      render();
-      return false;
-    }
-  }
-  const view = globalThis.GPTTweaksContextIndicator(core, updateTarget);
+  const view = globalThis.GPTTweaksContextIndicator(core);
   let enabled = true;
   let defaultVisible = false;
   let flags = {percent:true, tokens:true, limit:true};

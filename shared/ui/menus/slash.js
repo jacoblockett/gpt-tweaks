@@ -8,7 +8,7 @@ const utilityIcon=config.icon,isEnabled=config.isEnabled,launch=config.activate;
 let slashSuggestion=null,slashAllowed=false,slashFeatureEnabled=null;
   function resetSlash(){
     slashAllowed=false;
-    const owned=Boolean(slashSuggestion)||countUtilities()===1;
+    const owned=!!slashSuggestion||countUtilities()===1;
     if(slashSuggestion){
       if(isVirtualRow(slashSuggestion))clearVirtualRow();
       slashSuggestion.remove();slashSuggestion=null;
@@ -144,7 +144,7 @@ let slashSuggestion=null,slashAllowed=false,slashFeatureEnabled=null;
     // one-item fallback when native slash filtering returns no results.
     const nativeAvailable=[...document.querySelectorAll('[data-mention-section-id="commands"] [data-mention-section-items="true"] > button[data-list-navigation-item="true"]')]
       .some(el=>visible(el));
-    const wasFallback=Boolean(document.getElementById("gtg-command-fallback"));
+    const wasFallback=document.getElementById("gtg-command-fallback") !== null;
     if(slashSuggestion?.isConnected&&
        ((wasFallback&&nativeAvailable)||!visible(slashSuggestion))){
       if(isVirtualRow(slashSuggestion))clearVirtualRow();
@@ -267,7 +267,7 @@ let slashSuggestion=null,slashAllowed=false,slashFeatureEnabled=null;
       }).catch(()=>{});
     }
   }
-  function hasSlashMatch(){return Boolean(composerSlashMatch());}
+  function hasSlashMatch(){return !!composerSlashMatch();}
 
 function ensureConnected(){if(slashSuggestion&&!slashSuggestion.isConnected)slashSuggestion=null;}
 return {resetSlash,updateSlash,hasSlashMatch,handleDirectEnter,ensureConnected};
