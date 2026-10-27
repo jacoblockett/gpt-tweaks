@@ -24,6 +24,18 @@
         "https://chatgpt.com/*"
       ],
       "js": [
+        "utilities/context-tracker/tracker-core.js",
+        "utilities/context-tracker/history-bridge.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "https://chatgpt.com/*"
+      ],
+      "js": [
         "shared/ui/menus/core.js",
         "shared/ui/menus/plus.js",
         "shared/ui/menus/slash.js",
@@ -38,6 +50,23 @@
         "utilities/github-source/ui/styles.css"
       ],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://chatgpt.com/*"
+      ],
+      "js": [
+        "utilities/context-tracker/tracker-core.js",
+        "utilities/context-tracker/storage.js",
+        "utilities/context-tracker/ui/indicator.js",
+        "utilities/context-tracker/index.js"
+      ],
+      "css": [
+        "utilities/context-tracker/ui/styles.css"
+      ],
+      "run_at": "document_idle",
+      "world": "ISOLATED",
+      "all_frames": false
     }
   ]
 }

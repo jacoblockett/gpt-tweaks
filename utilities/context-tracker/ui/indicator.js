@@ -1,0 +1,376 @@
+/* Native-composer appearance and lifecycle for the context tracker. */
+(() => {
+  'use strict';
+  const sheet = `
+    :host { display:block; position:relative; z-index:1; box-sizing:border-box;
+      align-self:stretch; width:100%; max-width:100%; min-width:0;
+      height:60px; flex:none; margin-bottom:0; container-type:inline-size;
+      background-color:var(--composer-layout-surface-background, var(--ct-surface-fallback, #1b1b1b));
+      -webkit-backdrop-filter:var(--composer-layout-surface-backdrop-filter, none);
+      backdrop-filter:var(--composer-layout-surface-backdrop-filter, none);
+      border:0; border-radius:var(--ct-corner-radius, 28px) var(--ct-corner-radius, 28px) 0 0;
+      --ct-accent:var(--color-background-composer-primary, #7849d1);
+      --ct-warning:#eab308;
+      --ct-alert:var(--app-color-decoration-deleted, #fa423e);
+      color:var(--color-text, #ededed); font:inherit; text-align:left; line-height:normal; }
+    *, *::before, *::after { box-sizing:border-box; }
+    button { font:inherit; }
+    #tracker { width:100%; height:60px; border:0; padding:12px 18px;
+      background:transparent; color:inherit; border-radius:inherit;
+      display:flex; flex-direction:column; justify-content:center; gap:8px;
+      cursor:pointer; text-align:inherit; }
+    #tracker:hover { background:color-mix(in srgb, var(--color-text, #ededed) 2%, transparent); }
+    #tracker:focus-visible { outline:2px solid var(--ct-accent); outline-offset:2px; }
+    .metrics { display:grid; align-items:center;
+      grid-template-columns:minmax(0, 1fr) minmax(0, max-content) minmax(0, 1fr);
+      width:100%; column-gap:10px; font-family:inherit; font-size:14px;
+      font-weight:400; line-height:19px;
+      font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .main-value { display:flex; align-items:center; justify-self:start;
+      gap:10px; min-width:0; max-width:100%; overflow:hidden; }
+    #percentage { color:inherit; font-weight:400; flex:none; }
+    #status { display:none; align-items:center; color:var(--ct-alert); font-weight:400;
+      padding:2px 7px; border-radius:999px; min-width:0; overflow:hidden;
+      text-overflow:ellipsis; white-space:nowrap;
+      background:color-mix(in srgb, var(--ct-alert) 13%, transparent); font-size:12px; }
+    :host([data-over-target]) #status { display:inline-flex; }
+    #tokens { color:inherit; justify-self:center; min-width:0; max-width:100%;
+      overflow:hidden; text-overflow:ellipsis; text-align:center; }
+    #messages { color:inherit; justify-self:end; text-align:right; min-width:0;
+      max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+    .track { display:block; width:100%; height:6px; flex:none; overflow:hidden;
+      background:color-mix(in srgb, var(--color-text, #ededed) 15%, transparent); border-radius:99px; }
+    #fill { display:block; width:0; height:100%; background:var(--ct-accent);
+      border-radius:inherit; transition:width 220ms ease,background-color 180ms ease; }
+    :host([data-over-target]) #fill { background:var(--ct-alert); }
+    :host([data-over-target]) .track { box-shadow:0 0 0 1px color-mix(in srgb,var(--ct-alert) 28%,transparent); }
+    .loading { display:none; align-items:center; justify-content:center; gap:11px;
+      font-size:14px; height:100%; color:inherit; white-space:nowrap; }
+    .spinner { width:16px; height:16px; border-radius:50%; flex:none;
+      border:2px solid color-mix(in srgb, var(--color-text, #ededed) 35%, transparent);
+      border-top-color:var(--ct-accent); animation:ct-spin 700ms linear infinite; }
+    @keyframes ct-spin { to { transform:rotate(360deg); } }
+    #tracker[data-phase="loading"] .metrics, #tracker[data-phase="loading"] .track { display:none; }
+    #tracker[data-phase="loading"] .loading { display:flex; }
+    @container (max-width:660px) { #status { display:none !important; } }
+    @media (max-width:730px) {
+      #tracker { padding-inline:11px; } .metrics { column-gap:6px; font-size:12px; }
+      .main-value { gap:5px; } #status { display:none !important; }
+    }
+    @media (max-width:485px) { #tokens { font-size:11px; } }
+    @media (prefers-reduced-motion:reduce) { #fill { transition:none; } .spinner { animation:none; } }
+  `;
+  const num = value => {
+    const raw = String(value);
+    if (raw.includes('e')) return raw; // Preserve tiny/huge numeric targets.
+    const [whole, fraction] = raw.split('.');
+    const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return fraction === undefined ? grouped : `${grouped}.${fraction}`;
+  };
+
+  globalThis.GPTTweaksContextIndicator = core => {
+    let activeId = null;
+    let currentState = null;
+    let ui = null;
+    let host = null;
+    let visible = false;
+    let disclaimerContainer = null;
+    let disclaimerContainerDisplay = null;
+    let composerObserver = null;
+    let roundedComposer = [];
+    let pendingMountObserver = null;
+    let mountTimer = null;
+  function findDisclaimer() {
+    const candidates = document.querySelectorAll('[data-markdown-copy="exclude"]');
+    for (const e of candidates) {
+      if (e.children.length === 0 && /^ChatGPT can make mistakes\./.test(e.textContent.trim())) return e;
+    }
+    return null;
+  }
+
+  function createUI() {
+    const rootHost = document.createElement('div');
+    rootHost.id = 'ct-v1-marker';
+    const shadow = rootHost.attachShadow({mode:'closed'});
+    const css = new CSSStyleSheet();
+    css.replaceSync(sheet);
+    shadow.adoptedStyleSheets = [css];
+    const btn = document.createElement('button');
+    btn.id = 'tracker';
+    btn.type = 'button';
+    btn.setAttribute('aria-label', 'Conversation context estimate, open settings');
+    btn.innerHTML = `
+      <span class="metrics"><span class="main-value"><span id="percentage">Counting…</span><span id="status">Target Exceeded</span></span><span id="tokens">Estimating tokens</span><span id="messages">0 messages</span></span>
+      <span class="track" id="progress" role="progressbar" aria-label="Estimated conversation length against custom token target" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="fill"></span></span>
+      <span class="loading" role="status"><span class="spinner" aria-hidden="true"></span>Calculating current session metrics</span>`;
+    shadow.append(btn);
+    btn.addEventListener('click', () => {
+      void chrome.runtime.sendMessage({type:'gpt-tweaks:context:open-settings'}).catch(error =>
+        console.warn('[GPT Tweaks] Cannot open context settings:', error));
+    });
+    return {rootHost, btn,
+      percent:shadow.querySelector('#percentage'),
+      tokenCount:shadow.querySelector('#tokens'),
+      msgCount:shadow.querySelector('#messages'),
+      progress:shadow.querySelector('#progress'), fill:shadow.querySelector('#fill'),
+      status:shadow.querySelector('#status')};
+  }
+
+  function removeUI() {
+    pendingMountObserver?.disconnect();
+    pendingMountObserver = null;
+    clearTimeout(mountTimer);
+    mountTimer = null;
+    composerObserver?.disconnect();
+    composerObserver = null;
+    restoreComposerCorners();
+    if (host?.isConnected) host.remove();
+    if (disclaimerContainer) {
+      if (disclaimerContainerDisplay?.value) {
+        disclaimerContainer.style.setProperty('display', disclaimerContainerDisplay.value,
+          disclaimerContainerDisplay.priority);
+      } else disclaimerContainer.style.removeProperty('display');
+    }
+    disclaimerContainer = null;
+    disclaimerContainerDisplay = null;
+  }
+
+  function findComposerForm() {
+    return document.querySelector('form[data-chatgpt-composer][data-composer-placement="thread"]') ||
+      document.querySelector('[data-composer-body]')?.closest('form') || null;
+  }
+
+  function updateComposerTheme(form) {
+    if (!host || !ui) return;
+    const composerRoot = form.querySelector('[data-composer-dark]');
+    const surface = composerRoot?.parentElement;
+    if (!surface) return;
+    // Composer-specific variables can be scoped below our sibling's parent.
+    // Copy their computed values onto the host so the tracker uses the exact
+    // same native surface, including when switching light/dark themes.
+    const element = form.querySelector('[class*="ComposerLayoutRoot-"]') ||
+      form.querySelector('[class*="ComposerLayoutBody-"]') || composerRoot;
+    const styles = [getComputedStyle(element), getComputedStyle(composerRoot), getComputedStyle(surface)];
+    const read = name => styles.map(style => style.getPropertyValue(name).trim()).find(Boolean);
+    const nativeText = read('--color-text');
+    if (nativeText) {
+      host.style.setProperty('--color-text', nativeText);
+    }
+    const background = read('--composer-layout-surface-background');
+    for (const element of [host]) {
+      if (background) element.style.setProperty('--composer-layout-surface-background', background);
+      else element.style.removeProperty('--composer-layout-surface-background');
+    }
+    const nativeBackground = styles.map(style => style.backgroundColor)
+      .find(color => color && color !== 'transparent' && color !== 'rgba(0, 0, 0, 0)');
+    if (nativeBackground) {
+      host.style.setProperty('--ct-surface-fallback', nativeBackground);
+    }
+    const backdrop = read('--composer-layout-surface-backdrop-filter');
+    if (backdrop) host.style.setProperty('--composer-layout-surface-backdrop-filter', backdrop);
+    else host.style.removeProperty('--composer-layout-surface-backdrop-filter');
+    // The send button uses this native theme variable. Preserve it directly
+    // rather than sampling a potentially different voice button background.
+    const accent = read('--color-background-composer-primary');
+    for (const element of [host]) {
+      if (accent) element.style.setProperty('--color-background-composer-primary', accent);
+      else element.style.removeProperty('--color-background-composer-primary');
+    }
+  }
+
+  function joinComposerCorners(composerRoot, surface) {
+    // The standalone native input has rounded top corners. As a continuous
+    // two-part control, the tracker owns the top corners instead. Restore
+    // native inline declarations when the extension unmounts.
+    for (const element of new Set([surface, composerRoot])) {
+      const saved = {};
+      for (const name of ['border-top-left-radius', 'border-top-right-radius']) {
+        saved[name] = {
+          value:element.style.getPropertyValue(name),
+          priority:element.style.getPropertyPriority(name)
+        };
+        element.style.setProperty(name, '0px', 'important');
+      }
+      roundedComposer.push({element, saved});
+    }
+  }
+
+  function restoreComposerCorners() {
+    for (const {element, saved} of roundedComposer) {
+      for (const [name, {value, priority}] of Object.entries(saved)) {
+        if (value) element.style.setProperty(name, value, priority);
+        else element.style.removeProperty(name);
+      }
+    }
+    roundedComposer = [];
+  }
+
+  function alignWithComposer(surface) {
+    // A layout's apparent spacing may come from margins or other rules,
+    // not just row-gap. Measure the actual seam after insertion.
+    host.style.marginBottom = '0px';
+    const seam = surface.getBoundingClientRect().top - host.getBoundingClientRect().bottom;
+    if (Number.isFinite(seam)) host.style.marginBottom = `${-seam - 1}px`;
+  }
+
+  function scheduleMount() {
+    if (mountTimer !== null || !activeId || !visible) return;
+    mountTimer = setTimeout(() => {
+      mountTimer = null;
+      mount();
+    }, 80);
+  }
+
+  function awaitComposer() {
+    if (pendingMountObserver || !activeId || !visible) return;
+    // Observe only during hydration or a React composer replacement. Once the
+    // control is mounted, stop observing the document subtree entirely.
+    const root = document.body || document.documentElement;
+    if (!root) return;
+    pendingMountObserver = new MutationObserver(scheduleMount);
+    // ChatGPT can hydrate an existing composer by changing its attributes
+    // without inserting a new node. Observe only while the tracker is absent.
+    pendingMountObserver.observe(root, {
+      childList:true, subtree:true, attributes:true,
+      attributeFilter:['class', 'style', 'data-composer-dark', 'data-composer-placement', 'data-composer-layout']
+    });
+  }
+
+  function watchComposer(form, layout) {
+    composerObserver?.disconnect();
+    composerObserver = new MutationObserver(() => {
+      const currentSurface = form.querySelector('[data-composer-dark]')?.parentElement;
+      if (!host?.isConnected || !form.isConnected || !currentSurface ||
+          host.nextElementSibling !== currentSurface || host.parentElement !== currentSurface.parentElement) {
+        scheduleMount();
+      } else {
+        // Attribute-only layout changes can alter the seam after mounting.
+        alignWithComposer(currentSurface);
+      }
+    });
+    // Observe immediate composer layout changes and ancestor replacement,
+    // not the chat transcript or other unrelated document mutations.
+    composerObserver.observe(layout, {childList:true, attributes:true, attributeFilter:['class']});
+    composerObserver.observe(layout.parentElement, {childList:true});
+    for (let ancestor = form; ancestor; ancestor = ancestor.parentElement) {
+      composerObserver.observe(ancestor, {childList:true});
+      if (ancestor === document.body) break;
+    }
+  }
+
+  function hideDisclaimer() {
+    if (disclaimerContainer?.isConnected) return;
+    const disclaimer = findDisclaimer();
+    if (!disclaimer?.parentElement) return;
+    disclaimerContainer = disclaimer.parentElement;
+    disclaimerContainerDisplay = {
+      value: disclaimerContainer.style.getPropertyValue('display'),
+      priority: disclaimerContainer.style.getPropertyPriority('display')
+    };
+    disclaimerContainer.style.setProperty('display', 'none', 'important');
+  }
+
+  function mount() {
+    if (!activeId || !visible) { removeUI(); return; }
+    const form = findComposerForm();
+    if (!form) { awaitComposer(); return; }
+    const composerRoot = form.querySelector('[data-composer-dark]');
+    const surface = composerRoot?.parentElement;
+    const layout = surface?.parentElement;
+    // Never fall back to the outer form. Its gap creates a visible seam and
+    // causes the native full-width footer backdrop to obscure transcript text.
+    if (!surface || !layout || getComputedStyle(layout).display !== 'flex') {
+      awaitComposer(); return;
+    }
+    if (!ui) { ui = createUI(); host = ui.rootHost; }
+    if (host.isConnected && host.parentElement === layout && host.nextElementSibling === surface) {
+      hideDisclaimer(); return;
+    }
+
+    removeUI();
+    hideDisclaimer();
+    const rootRadius = Number.parseFloat(getComputedStyle(composerRoot).borderTopLeftRadius) || 0;
+    const surfaceRadius = Number.parseFloat(getComputedStyle(surface).borderTopLeftRadius) || 0;
+    host.style.setProperty('--ct-corner-radius', `${Math.max(0, rootRadius || surfaceRadius || 28)}px`);
+    layout.insertBefore(host, surface);
+    alignWithComposer(surface);
+    joinComposerCorners(composerRoot, surface);
+    watchComposer(form, layout);
+    updateComposerTheme(form);
+    render();
+  }
+
+  function render(state = currentState) {
+    currentState = state;
+    if (!state) return;
+    const {activeEntries, observedEntries, streamEntries, target, complete,
+      initialDiscovery, lastError, flags} = state;
+    if (!ui || !host || !host.isConnected) return;
+    // Streaming entries replace, rather than add to, any matching history ID.
+    // Never persist provisional stream content in the cached history snapshot.
+    const base = new Map(activeEntries.map(e => [e[0], e]));
+    for (const [id, entry] of observedEntries) base.set(id, entry);
+    for (const [id, entry] of streamEntries) base.set(id, entry);
+    const values = core.metrics([...base.values()]);
+    const hasRatio = target > 0;
+    const percentage = hasRatio ? 100 * values.tokens / target : NaN;
+    const displayed = hasRatio ? Math.max(0, percentage) : 0;
+    const pctLabel = !hasRatio ? 'N/A' : !Number.isFinite(displayed) ? '∞%' :
+      `${new Intl.NumberFormat('en-US', {minimumFractionDigits:1,maximumFractionDigits:1}).format(displayed)}%`;
+    const noData = values.records === 0 && !complete;
+    ui.btn.dataset.phase = initialDiscovery && !lastError ? 'loading' : 'ready';
+    ui.percent.textContent = noData ? (lastError ? 'Unavailable' : '0.0% used') : `${pctLabel} used`;
+    ui.tokenCount.textContent = noData ? `${num(target)} token target` : `${num(values.tokens)} / ${num(target)} tokens`;
+    ui.msgCount.textContent = noData ? 'No history yet' : `${num(values.messages)} messages`;
+    const overTarget = hasRatio && !noData && displayed >= 100;
+    if (overTarget) host.setAttribute('data-over-target', '');
+    else host.removeAttribute('data-over-target');
+    ui.fill.style.width = `${Math.min(100, displayed)}%`;
+    // At 80% start warning yellow; advance toward the existing alert red by
+    // one color step per 0.1 percentage point (200 steps through 100%).
+    if (hasRatio && displayed >= 100) ui.fill.style.backgroundColor = 'var(--ct-alert)';
+    else if (hasRatio && displayed >= 80) {
+      const step = Math.min(200, Math.max(0, Math.floor((displayed - 80) * 10 + 1e-7)));
+      const redWeight = step / 2;
+      ui.fill.style.backgroundColor = `color-mix(in srgb, var(--ct-warning) ${100 - redWeight}%, var(--ct-alert) ${redWeight}%)`;
+    } else ui.fill.style.removeProperty('background-color');
+    ui.progress.setAttribute('aria-valuenow', Math.min(100, displayed).toFixed(1));
+    const status = overTarget ? ' Your chosen target was exceeded.' : '';
+    const show = flags || {};
+    ui.percent.style.display = show.percent === false ? 'none' : '';
+    ui.status.style.display = show.percent === false ? 'none' : '';
+    ui.tokenCount.style.display = show.tokens === false && show.limit === false ? 'none' : '';
+    ui.tokenCount.textContent = show.tokens === false
+      ? `${num(target)} token target` : show.limit === false
+      ? `${num(values.tokens)} tokens` : ui.tokenCount.textContent;
+    ui.msgCount.style.display = show.messages === false ? 'none' : '';
+    ui.btn.removeAttribute('title'); // The tracker has no hover tooltip.
+    ui.btn.setAttribute('aria-label', `Context tracker: ${pctLabel} used. ${num(values.messages)} messages.${status} Open settings.`);
+  }
+
+
+    function setConversation(id) {
+      if (activeId === id) return;
+      removeUI();
+      activeId = id;
+      if (id && visible) mount();
+    }
+    function setVisible(next) {
+      visible = !!next;
+      if (!visible) removeUI();
+      else if (activeId) mount();
+    }
+    function updateTheme() {
+      if (!host?.isConnected) return;
+      const form = findComposerForm();
+      if (form) updateComposerTheme(form);
+    }
+    function align() {
+      const root = findComposerForm()?.querySelector('[data-composer-dark]');
+      const surface = root?.parentElement;
+      if (host?.isConnected && surface && host.nextElementSibling === surface) alignWithComposer(surface);
+    }
+    return {setConversation, setVisible, mount, render, updateTheme, align,
+      isMounted:() => !!host?.isConnected};
+  };
+})();

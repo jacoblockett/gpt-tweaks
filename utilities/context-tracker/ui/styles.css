@@ -1,0 +1,5 @@
+/* The footer backdrop must not cover the transcript/jump arrow while the
+   context indicator is joined to the composer. */
+[data-thread-scroll-footer]:has(#ct-v1-marker) > [aria-hidden="true"].bg-surface {
+  background: transparent !important;
+}
