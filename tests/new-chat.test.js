@@ -35,8 +35,8 @@ class Element {
   constructor(isSidebar=true,projectId=null){this.isSidebar=isSidebar;this.projectId=projectId;}
   closest(selector) {
     if(selector.startsWith('button['))return this;
-    if(selector==='[data-app-action-sidebar-project-id]')
-      return this.projectId?{getAttribute:()=>this.projectId}:null;
+    if(selector==='[data-sidebar-project-container-id^="project:"]')
+      return this.projectId?{getAttribute:()=> 'project:'+this.projectId}:null;
     return this.isSidebar?this:null;
   }
   getAttribute(name){

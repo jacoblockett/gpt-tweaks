@@ -36,9 +36,11 @@
     if(!(target instanceof Element))return null;
     const button=target.closest('button[aria-label="New chat"],button[aria-label^="New chat in "]');
     if(!button||!button.closest('#app-shell-sidebar,[data-app-shell-titlebar]'))return null;
-    const projectRow=button.closest('[data-app-action-sidebar-project-id]');
-    if(button.getAttribute("aria-label")!=="New chat"&&!projectRow)return null;
-    const projectId=projectRow?.getAttribute("data-app-action-sidebar-project-id")||null;
+    // Project New chat buttons are siblings of the project title row.
+    // Their shared container carries "project:<id>" in the captured DOM.
+    const projectContainer=button.closest('[data-sidebar-project-container-id^="project:"]');
+    const projectId=projectContainer?.getAttribute("data-sidebar-project-container-id")?.slice(8)||null;
+    if(button.getAttribute("aria-label")!=="New chat"&&!projectId)return null;
     return {projectId};
   }
   function onMiddleClick(event) {
