@@ -86,8 +86,9 @@
       if(!document.execCommand("insertText",false,text))
         throw Error("ChatGPT rejected composer insertion");
     }
-    if(editorText(node).length<Math.min(text.length,30))
-      throw Error("Composer did not accept the handoff text");
+    const normalized=value=>value.replace(/[\\s\\u00a0]+/g,"");
+    if(normalized(editorText(node))!==normalized(text))
+      throw Error("Composer did not accept the complete handoff text");
   }
   async function send(text) {
     const node=await waitFor(editor);
@@ -130,14 +131,18 @@
     const before=assistantMessages().length;
     await send(prompt);
     // Only consider the new answer, never a file in earlier conversation turns.
-    const reply=await waitFor(()=>assistantMessages()[before],10*60*1000);
+    await waitFor(()=>assistantMessages().length>before,10*60*1000);
     const link=await waitFor(()=>{
       if(generating())return null;
-      return fileLinks(reply)[0]||null;
+      for(const answer of assistantMessages().slice(before)){
+        const found=fileLinks(answer)[0];
+        if(found)return found;
+      }
+      return null;
     },10*60*1000);
     // Give React time to finish committing the final file attachment.
     await new Promise(resolve=>setTimeout(resolve,750));
-    if(!reply.isConnected||generating())throw Error("Handoff response changed before capture");
+    if(!link.isConnected||generating())throw Error("Handoff response changed before capture");
     return downloadMarkdown(link);
   }
   async function activate(method) {
