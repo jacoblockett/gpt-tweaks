@@ -240,7 +240,7 @@
     const input=id("gtg-repo");
     let selected=null;
     for(const pick of repositoryOptions()){
-      const active=Boolean(name)&&pick.dataset.repoName===name;
+      const active=!!name&&pick.dataset.repoName===name;
       pick.closest(".gtg-option-row").classList.toggle("gtg-keyboard-active",active);
       pick.setAttribute("aria-selected",String(active));
       if(active)selected=pick;
@@ -408,5 +408,5 @@
       status("Could not find that repository.",true);
     }
   }
-  globalThis.__gptTweaksGitHubSourceUI={launch,isEnabled};
+  globalThis.__gptTweaksGitHubSourceUI={launch,isEnabled,isOpen:()=>modal !== null};
 })();

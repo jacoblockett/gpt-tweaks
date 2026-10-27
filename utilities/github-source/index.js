@@ -26,7 +26,7 @@
     return svg;
   }
 
-  const {launch,isEnabled}=globalThis.__gptTweaksGitHubSourceUI;
+  const {launch,isEnabled,isOpen}=globalThis.__gptTweaksGitHubSourceUI;
   globalThis.__gptTweaksMenus.register({
     id:"github-source",
     command:COMMAND,
@@ -34,7 +34,7 @@
     description:ARCHIVE_DESCRIPTION,
     icon:githubIcon,
     isEnabled,
-    isOpen:()=>Boolean(modal),
+    isOpen,
     activate:launch
   });
 
