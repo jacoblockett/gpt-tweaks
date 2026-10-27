@@ -5,19 +5,28 @@ const vm=require('node:vm');
 const path=require('node:path');
 const source=fs.readFileSync(path.join(__dirname,'../utilities/session-handoff/index.js'),'utf8');
 
-async function scenario(withButton) {
+async function scenario(withButton,sandbox=false) {
   let draft='',submitted=0,prepared=0,notices=0,navigation=null;
-  const replies=[];
+  // The number of hydrated message nodes stays unchanged after submission.
+  const replies=[{getAttribute:key=>key==='data-message-id'?'old-message':null}];
+  const requested=[];
   const filename='Session-Handoff.md';
   const handoff='# Session handoff\n'+'Current goal and recent context. '.repeat(8);
   const anchor={
     textContent:filename,isConnected:true,
-    getAttribute:key=>key==='href'?'https://chatgpt.com/test/Session-Handoff.md':null
+    getAttribute:key=>key==='href'?
+      sandbox?'sandbox:/mnt/data/Session-Handoff.md':'https://chatgpt.com/test/Session-Handoff.md':null,
+    closest:()=>null
   };
   const submit=()=>{
     submitted++;
     draft='';
-    replies.push({isConnected:true,querySelectorAll:()=>[anchor]});
+    replies.splice(0,replies.length,{
+      isConnected:true,
+      getAttribute:key=>key==='data-message-id'?'new-message':null,
+      closest:()=>null,
+      querySelectorAll:()=>[anchor]
+    });
   };
   const button={
     disabled:false,getAttribute:()=>null,getClientRects:()=>[{}],click:submit
@@ -56,6 +65,7 @@ async function scenario(withButton) {
   const location={
     pathname:'/g/g-p-example/c/42',
     href:'https://chatgpt.com/g/g-p-example/c/42',
+    origin:'https://chatgpt.com',
     assign:path=>{navigation=path}
   };
   const warnings=[];
@@ -63,10 +73,17 @@ async function scenario(withButton) {
     chrome,document,window:{addEventListener(){}},globalThis:context,
     location,URL,Date,Event,
     setInterval,clearInterval,setTimeout,
-    fetch:async()=>({
-      ok:true,type:'basic',headers:{get:()=> 'text/markdown'},
-      text:async()=>handoff
-    }),
+    fetch:async url=>{
+      requested.push(String(url));
+      if(sandbox&&String(url).includes('/interpreter/download'))
+        return {ok:true,json:async()=>({
+          download_url:'https://chatgpt.com/backend-api/estuary/content?id=test'
+        })};
+      return {
+        ok:true,type:'basic',headers:{get:()=> 'text/markdown'},
+        text:async()=>handoff
+      };
+    },
     console:{warn:(...args)=>warnings.push(args)}
   });
   await new Promise(resolve=>setTimeout(resolve,10));
@@ -77,10 +94,16 @@ async function scenario(withButton) {
   assert.equal(notices,0,'no handoff error UI');
   assert.equal(warnings.length,0);
   assert.equal(draft,'');
+  if(sandbox){
+    assert.ok(requested[0].includes('/conversation/42/interpreter/download'));
+    assert.ok(requested[0].includes('message_id=new-message'));
+    assert.ok(requested[0].includes('sandbox_path=%2Fmnt%2Fdata%2FSession-Handoff.md'));
+    assert.ok(requested[1].includes('/estuary/content'));
+  }
 }
 (async()=>{
-  await scenario(true);
-  await scenario(false);
+  await scenario(true,false);
+  await scenario(false,true);
   const plus=fs.readFileSync(path.join(__dirname,'../shared/ui/menus/plus.js'),'utf8');
   const slash=fs.readFileSync(path.join(__dirname,'../shared/ui/menus/slash.js'),'utf8');
   assert.match(plus,/localeCompare\(button\.dataset\.gtgMenuTitle/);
