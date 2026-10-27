@@ -2,32 +2,54 @@
   "use strict";
   if(globalThis.GPTTweaksNewChat)return;
 
-  let preferences=null,loading=null;
+  let preferences=null,loading=null,invalidated=false;
+  function reportError(label,error) {
+    // Existing tabs can retain the previous content script after an extension
+    // update or reload. That script cannot communicate with the new worker.
+    if(/Extension context invalidated/i.test(String(error?.message||error))){
+      invalidated=true;
+      preferences=null;
+      return;
+    }
+    console.warn("[GPT Tweaks] "+label,error);
+  }
   function refresh() {
+    if(invalidated)return Promise.resolve(null);
     if(loading)return loading;
-    loading=chrome.runtime.sendMessage({type:"gpt-tweaks:new-chat:preferences"})
-      .then(result=>{
-        preferences=result?.ok?result.data:null;
-        return preferences;
-      })
-      .catch(error=>{
-        preferences=null;
-        console.warn("[GPT Tweaks] New chat settings unavailable:",error);
-        return null;
-      }).finally(()=>{loading=null;});
+    try {
+      loading=Promise.resolve(chrome.runtime.sendMessage({type:"gpt-tweaks:new-chat:preferences"}))
+        .then(result=>{
+          preferences=result?.ok?result.data:null;
+          return preferences;
+        })
+        .catch(error=>{
+          preferences=null;
+          reportError("New chat settings unavailable:",error);
+          return null;
+        })
+        .finally(()=>{loading=null;});
+    } catch(error) {
+      preferences=null;
+      reportError("New chat settings unavailable:",error);
+      return Promise.resolve(null);
+    }
     return loading;
   }
   function enabled(method) {
     return !!(preferences?.enabled&&preferences[method]);
   }
   function open(method,projectId=null) {
-    if(!enabled(method))return;
-    void chrome.runtime.sendMessage({
-      type:"gpt-tweaks:new-chat:open",method,pathname:location.pathname,
-      ...(projectId?{projectId}:{})
-    }).then(result=>{
-      if(!result?.ok)console.warn("[GPT Tweaks] Unable to open new chat:",result?.error);
-    }).catch(error=>console.warn("[GPT Tweaks] Unable to open new chat:",error));
+    if(!enabled(method)||invalidated)return;
+    try {
+      void Promise.resolve(chrome.runtime.sendMessage({
+        type:"gpt-tweaks:new-chat:open",method,pathname:location.pathname,
+        ...(projectId?{projectId}:{})
+      })).then(result=>{
+        if(!result?.ok)console.warn("[GPT Tweaks] Unable to open new chat:",result?.error);
+      }).catch(error=>reportError("Unable to open new chat:",error));
+    } catch(error) {
+      reportError("Unable to open new chat:",error);
+    }
   }
 
   // Native New chat controls exist in the sidebar, project rows, and
