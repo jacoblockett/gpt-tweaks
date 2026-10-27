@@ -86,7 +86,7 @@
       if(!document.execCommand("insertText",false,text))
         throw Error("ChatGPT rejected composer insertion");
     }
-    const normalized=value=>value.replace(/[\\s\\u00a0]+/g,"");
+    const normalized=value=>value.replace(/[\s\u00a0]+/g,"");
     if(normalized(editorText(node))!==normalized(text))
       throw Error("Composer did not accept the complete handoff text");
   }
