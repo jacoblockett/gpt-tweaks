@@ -42,7 +42,7 @@
 	syncFeature()
 
 	await globalThis.__gptTweaksInitGitHubSettings($,preferenceStore);
-	// Conversation context-tracker preferences
+	// Conversation Token Estimator preferences (stable context storage keys)
 	const contextKeys = {
 		enabled: "gpt-tweaks.context.enabled",
 		defaultVisible: "gpt-tweaks.context.default-visible",

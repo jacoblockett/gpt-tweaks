@@ -43,8 +43,8 @@ async function run(){
     MutationObserver:class{observe(){}disconnect(){}},
     getComputedStyle:e=>({display:'flex',borderTopLeftRadius:'28px',backgroundColor:'rgb(43,43,43)',getPropertyValue:k=>''}),
     Intl,Number,Map,Set};world.globalThis=world;
-  vm.runInNewContext(src('utilities/context-tracker/tracker-core.js'),world);
-  vm.runInNewContext(src('utilities/context-tracker/ui/indicator.js'),world);
+  vm.runInNewContext(src('utilities/token-estimator/estimator-core.js'),world);
+  vm.runInNewContext(src('utilities/token-estimator/ui/indicator.js'),world);
   let view;
   let state={activeEntries:[['x',128000,1]],observedEntries:new Map(),streamEntries:new Map(),
     target:512000,complete:true,initialDiscovery:false,lastError:'',flags:{tokens:true,limit:true,percent:true}};

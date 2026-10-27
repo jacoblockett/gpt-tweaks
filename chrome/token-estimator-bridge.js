@@ -66,7 +66,7 @@
         await chrome.storage.local.set({[cachePrefix + message.id.toLowerCase()]:message.cache});
         return true;
       }
-      default: throw new Error("Unknown context tracker request");
+      default: throw new Error("Unknown token estimator request");
     }
   }
   chrome.runtime.onMessage.addListener((message, sender, respond) => {

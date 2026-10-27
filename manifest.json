@@ -24,8 +24,8 @@
         "https://chatgpt.com/*"
       ],
       "js": [
-        "utilities/context-tracker/tracker-core.js",
-        "utilities/context-tracker/history-bridge.js"
+        "utilities/token-estimator/estimator-core.js",
+        "utilities/token-estimator/history-bridge.js"
       ],
       "run_at": "document_start",
       "world": "MAIN",
@@ -58,14 +58,14 @@
         "https://chatgpt.com/*"
       ],
       "js": [
-        "utilities/context-tracker/tracker-core.js",
-        "utilities/context-tracker/storage.js",
-        "utilities/context-tracker/ui/indicator.js",
-        "utilities/context-tracker/index.js",
-        "utilities/context-tracker/menu.js"
+        "utilities/token-estimator/estimator-core.js",
+        "utilities/token-estimator/storage.js",
+        "utilities/token-estimator/ui/indicator.js",
+        "utilities/token-estimator/index.js",
+        "utilities/token-estimator/menu.js"
       ],
       "css": [
-        "utilities/context-tracker/ui/styles.css"
+        "utilities/token-estimator/ui/styles.css"
       ],
       "run_at": "document_idle",
       "world": "ISOLATED",

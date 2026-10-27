@@ -1,4 +1,4 @@
-/* Native-composer appearance and lifecycle for the context tracker. */
+/* Native-composer appearance and lifecycle for the token estimator. */
 (() => {
   'use strict';
   const sheet = `
@@ -321,7 +321,7 @@
       ui.metrics.style.removeProperty('color');
     }
     ui.progress.setAttribute('aria-valuenow', Math.min(100, displayed).toFixed(1));
-    ui.panel.setAttribute('aria-label', `Context estimate: ${num(values.tokens)} of ${num(target)} tokens (${pctLabel}).`);
+    ui.panel.setAttribute('aria-label', `Token estimate: ${num(values.tokens)} of ${num(target)} tokens (${pctLabel}).`);
   }
 
     function setConversation(id) {

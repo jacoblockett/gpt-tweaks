@@ -7,7 +7,7 @@ const user='11111111-2222-3333-4444-555555555555';
 const assistant='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 async function main(){
   const pure={console,globalThis:null};pure.globalThis=pure;
-  vm.runInNewContext(source('utilities/context-tracker/tracker-core.js'),pure);
+  vm.runInNewContext(source('utilities/token-estimator/estimator-core.js'),pure);
   const core=pure.CTCore;
   assert.equal(core.summarizePage([{id:user,author:{role:'user'},content:{parts:['Hello','world']}},{id:assistant,author:{role:'assistant'},channel:'final',recipient:'all',end_turn:true,content:{parts:['Hi']}},{id:'t1',author:{role:'tool'},content:{parts:['tool reply']}}]).reduce((n,e)=>n+e[2],0),2);
   assert.equal(core.summarizeMessage({id:'x',author:{role:'user'},metadata:{is_visually_hidden_from_conversation:true},content:{parts:['abc']}})[2],0);
@@ -31,8 +31,8 @@ async function main(){
   };
   class E {constructor(type,opts={}){this.type=type;this.detail=opts.detail}}
   const world={console,window:null,globalThis:null,document:doc,location:loc,fetch,Response,Request,Headers,URL,AbortController,TextDecoder,CustomEvent:E,Event:E,setTimeout,clearTimeout};world.window=world;world.globalThis=world;
-  vm.runInNewContext(source('utilities/context-tracker/tracker-core.js'),world);
-  vm.runInNewContext(source('utilities/context-tracker/history-bridge.js'),world);
+  vm.runInNewContext(source('utilities/token-estimator/estimator-core.js'),world);
+  vm.runInNewContext(source('utilities/token-estimator/history-bridge.js'),world);
   await world.fetch(`https://chatgpt.com/backend-api/conversations/${uuid}`);
   await wait();
   assert(headersSeen);
@@ -59,7 +59,7 @@ async function main(){
     },
     GPTTweaksContextIndicator:core=>{return ({setVisible:v=>visibility.push(v),setConversation:id=>mounted.push(id),render:s=>snapshots.push({messages:core.metrics([...s.activeEntries,...s.streamEntries.values()]).messages,target:s.target}),isMounted:()=>true,mount(){},updateTheme(){},align(){}})}};
   isolated.globalThis=isolated;isolated.CTCore=core;
-  vm.runInNewContext(source('utilities/context-tracker/index.js'),isolated);
+  vm.runInNewContext(source('utilities/token-estimator/index.js'),isolated);
   await wait(80);
   assert(visibility.includes(true));assert(mounted.includes(uuid));
   // Exercise the real first-class menu utility registration contract, not a
@@ -67,10 +67,10 @@ async function main(){
   const registrations=[];
   isolated.__gptTweaksMenus={register:config=>registrations.push(config)};
   isolated.document.createElementNS=(ns,tag)=>({attrs:new Map(),setAttribute(k,v){this.attrs.set(k,v)},append(){}});
-  vm.runInNewContext(source('utilities/context-tracker/menu.js'),isolated);
+  vm.runInNewContext(source('utilities/token-estimator/menu.js'),isolated);
   assert.equal(registrations.length,1);
   const tokens=registrations[0];
-  assert.equal(tokens.id,'context-tracker');
+  assert.equal(tokens.id,'token-estimator');
   assert.equal(tokens.title,'Tokens');
   assert.equal(tokens.command,'/tokens');
   assert.equal(tokens.icon(20).attrs.get('viewBox'),'0 0 24 24');
@@ -164,7 +164,7 @@ async function main(){
     storage:{local:{get:async keys=>Object.fromEntries((Array.isArray(keys)?keys:[keys]).filter(k=>priv.has(k)).map(k=>[k,priv.get(k)])),
       set:async record=>{for(const [k,v] of Object.entries(record))priv.set(k,v)}},
       onChanged:{addListener:f=>changeListener=f}}};
-  vm.runInNewContext(source('chrome/context-bridge.js'),{chrome:chromeMock,console});
+  vm.runInNewContext(source('chrome/token-estimator-bridge.js'),{chrome:chromeMock,console});
   function rpc(msg,sender){return new Promise((resolve,reject)=>{
     const asynchronous=bgListener(msg,sender,resolve);
     if(asynchronous===undefined)reject(Error('message not handled'));

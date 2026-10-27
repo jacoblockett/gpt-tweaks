@@ -32,5 +32,6 @@
 ## Canonical directories
 - `chrome/`: Chrome/Brave extension lifecycle and browser communication bridges.
 - `settings/`: the entire independent settings website and its dedicated controllers.
+- `utilities/token-estimator/`: Token Estimator estimation, history, UI and menu registration; retain legacy `gpt-tweaks.context.*` storage keys and `ct-v1-*` events for compatibility.
 - `utilities/github-source/`: GitHub services, archive attachment and owning UI.
 - `shared/ui/menus/`: actually reusable plus/slash menu components.

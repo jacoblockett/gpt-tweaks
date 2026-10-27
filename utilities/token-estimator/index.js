@@ -277,7 +277,7 @@
         history404Streak++;
         historyRetryAfter = Date.now() + Math.min(300000, 15000 * 2 ** Math.min(5, history404Streak - 1));
       }
-      console.warn('[ChatGPT Context Tracker] Cannot load history:', lastError);
+      console.warn('[GPT Tweaks Token Estimator] Cannot load history:', lastError);
       if (newerEntries.length) await save(id, activeEntries, false);
     } finally {
       if (generation === serial) {
@@ -454,7 +454,7 @@
         if (!running) void syncHistory(activeId, generation);
       }
     } catch (error) {
-      console.warn('[GPT Tweaks] Cannot load context tracker settings:', error);
+      console.warn('[GPT Tweaks] Cannot load token estimator settings:', error);
     }
   }
   async function start() {

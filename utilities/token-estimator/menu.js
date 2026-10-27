@@ -22,7 +22,7 @@
 
   const {isEnabled,activate}=globalThis.GPTTweaksContextTokens;
   globalThis.__gptTweaksMenus.register({
-    id:"context-tracker",
+    id:"token-estimator",
     command:COMMAND,
     title:TITLE,
     description:DESCRIPTION,
