@@ -25,7 +25,8 @@
       ],
       "js": [
         "utilities/token-estimator/estimator-core.js",
-        "utilities/token-estimator/history-bridge.js"
+        "utilities/token-estimator/history-bridge.js",
+        "utilities/session-handoff/stream-bridge.js"
       ],
       "run_at": "document_start",
       "world": "MAIN",
