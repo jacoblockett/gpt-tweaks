@@ -27,8 +27,6 @@
       font-variant-numeric:tabular-nums; text-align:center; white-space:nowrap;
       overflow:hidden; text-overflow:ellipsis; }
     .metrics[hidden] { display:none; }
-    #status { display:none; margin-left:8px; font-size:12px; color:var(--ct-alert); }
-    :host([data-over-target]) #status:not([hidden]) { display:inline; }
     #fill { display:block; width:0; height:100%; background:var(--ct-accent);
       border-radius:inherit; transition:width 220ms ease,background-color 180ms ease; }
     :host([data-over-target]) #fill { background:var(--ct-alert); }
@@ -41,7 +39,6 @@
     @keyframes ct-spin { to { transform:rotate(360deg); } }
     #tracker[data-phase="loading"] .metrics, #tracker[data-phase="loading"] .track { display:none; }
     #tracker[data-phase="loading"] .loading { display:flex; }
-    @container (max-width:660px) { #status { display:none !important; } }
     @container (max-width:370px) { #tracker { padding-inline:11px; }
       .metrics { max-width:calc(100% - 22px); font-size:12px; } }
     @media (prefers-reduced-motion:reduce) { #fill { transition:none; } .spinner { animation:none; } }
@@ -85,12 +82,12 @@
     panel.id = 'tracker';
     panel.innerHTML = `
       <span class="track" id="progress" role="progressbar" aria-label="Estimated conversation length against custom token target" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="fill"></span></span>
-      <span class="metrics" id="metrics"><span id="numbers">0 / 512,000 tokens (0.0%)</span><span id="status">Target Exceeded</span></span>
+      <span class="metrics" id="metrics"><span id="numbers">0 / 512,000 tokens (0.0%)</span></span>
       <span class="loading" role="status"><span class="spinner" aria-hidden="true"></span>Calculating current session metrics</span>`;
     shadow.append(panel);
     return {rootHost, panel, metrics:shadow.querySelector('#metrics'),
       numbers:shadow.querySelector('#numbers'), progress:shadow.querySelector('#progress'),
-      fill:shadow.querySelector('#fill'), status:shadow.querySelector('#status')};
+      fill:shadow.querySelector('#fill')};
   }
 
   function removeUI() {
@@ -307,7 +304,6 @@
     const overTarget = hasRatio && !noData && displayed >= 100;
     if (overTarget) host.setAttribute('data-over-target', '');
     else host.removeAttribute('data-over-target');
-    ui.status.hidden = !overTarget;
     ui.fill.style.width = `${Math.min(100, displayed)}%`;
     // Warn yellow at 80%, progressing smoothly to the alert red at 100%.
     if (hasRatio && displayed >= 100) {
@@ -325,8 +321,7 @@
       ui.metrics.style.removeProperty('color');
     }
     ui.progress.setAttribute('aria-valuenow', Math.min(100, displayed).toFixed(1));
-    const status = overTarget ? ' Your chosen target was exceeded.' : '';
-    ui.panel.setAttribute('aria-label', `Context estimate: ${num(values.tokens)} of ${num(target)} tokens (${pctLabel}).${status}`);
+    ui.panel.setAttribute('aria-label', `Context estimate: ${num(values.tokens)} of ${num(target)} tokens (${pctLabel}).`);
   }
 
     function setConversation(id) {
