@@ -42,7 +42,11 @@
       if(init?.headers)new Headers(init.headers).forEach((value,key)=>headers.set(key,value));
       // Reuse only benign routing context; never expose auth or proof headers.
       const routing=new Headers();
-      for(const key of ["chatgpt-account-id","chatgpt-project-id","oai-device-id","oai-did","originator"]){
+      for(const key of [
+        "chatgpt-account-id","chatgpt-project-id","oai-device-id","oai-did",
+        "oai-language","originator","x-openai-codex-window-type",
+        "x-openai-web-frontend","x-openai-rate-limit-join-workspace"
+      ]){
         if(headers.has(key))routing.set(key,headers.get(key));
       }
       return {conversationId,userId:outgoing.id,headers:routing};
@@ -84,16 +88,34 @@
     return match[1];
   }
   async function finishedMessage(info) {
-    const url="/backend-api/conversations/"+encodeURIComponent(info.conversationId);
-    for(let attempt=0;attempt<5;attempt++){
-      const response=await nativeFetch(url,{credentials:"include",headers:info.headers});
-      if(!response.ok)throw Error("Conversation verification failed (HTTP "+response.status+")");
-      const history=await response.json();
-      const reply=completedReply(history,info.userId);
-      if(reply)return reply;
-      if(attempt!==4)await new Promise(resolve=>setTimeout(resolve,250*(attempt+1)));
+    // Match the successful ChatGPT history request captured in the HAR and
+    // already used by the Token Estimator. An unparameterized URL returned
+    // HTTP 404 in the live handoff test.
+    const url=new URL("/backend-api/conversations/"+
+      encodeURIComponent(info.conversationId),location.origin);
+    url.searchParams.set("num_turns","2");
+    url.searchParams.set("include_has_versions","true");
+    const headers=new Headers(info.headers);
+    headers.set("accept","application/json");
+    let lastStatus=null;
+    for(let attempt=0;attempt<7;attempt++){
+      const response=await nativeFetch(url.href,{
+        method:"GET",credentials:"include",cache:"no-store",headers
+      });
+      lastStatus=response.status;
+      if(response.ok){
+        const history=await response.json();
+        const reply=completedReply(history,info.userId);
+        if(reply)return reply;
+      }else if(response.status!==404){
+        throw Error("Conversation verification failed (HTTP "+response.status+")");
+      }
+      // A 404 immediately after generation can also mean the completed
+      // conversation has not propagated to the history service yet.
+      if(attempt<6)await new Promise(resolve=>setTimeout(resolve,250*(attempt+1)));
     }
-    throw Error("Completed handoff message was not found in conversation history");
+    throw Error("Completed handoff reply unavailable in conversation history"+
+      (lastStatus===404?" (HTTP 404)":""));
   }
   async function readMarkdown(info,reply) {
     const path=sandboxPath(reply);
