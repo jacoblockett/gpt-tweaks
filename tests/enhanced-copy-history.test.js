@@ -15,13 +15,14 @@ const user=(id,text)=>({id,author:{role:'user'},content:{content_type:'text',par
 const assistant=(id,text)=>({id,author:{role:'assistant'},recipient:'all',
   end_turn:true,channel:'final',content:{content_type:'text',parts:[text]}});
 function setup({failPage=false,onlyFirst=false,repeatCursor=false}={}){
-  const listeners=new Map(),results=[],urls=[],headers=[];
+  const listeners=new Map(),results=[],urls=[],headers=[],progress=[];
   class Event {constructor(type,options={}){this.type=type;this.detail=options.detail;}}
   const document={
     documentElement:{dataset:{themeAccountId:'account123',codexWindowType:'browser'}},
     addEventListener(type,fn){listeners.set(type,[...(listeners.get(type)||[]),fn]);},
     dispatchEvent(event){
       if(event.type==='gpt-tweaks:copy:result')results.push(JSON.parse(event.detail));
+      if(event.type==='gpt-tweaks:copy:progress')progress.push(event.detail);
       for(const fn of listeners.get(event.type)||[])fn(event);
     }
   };
@@ -58,12 +59,14 @@ function setup({failPage=false,onlyFirst=false,repeatCursor=false}={}){
       await new Promise(resolve=>setTimeout(resolve,2));
     return results.find(result=>result.id===id);
   }
-  return {request,urls,headers,window};
+  return {request,urls,headers,window,progress};
 }
 (async()=>{
   const test=setup();
   const before=await test.request('before');
   assert.equal(before.ok,true);
+  assert.equal(test.progress.length,1,'pagination notifies UI that more history is needed');
+  assert.equal(test.progress[0],before.id,'notification is scoped to the active request');
   assert.match(before.text,/Question 1[\s\S]*js[\s\S]*42[\s\S]*Question 2/);
   assert.doesNotMatch(before.text,/Answer 2/);
   const after=await test.request('after');
@@ -96,6 +99,9 @@ function setup({failPage=false,onlyFirst=false,repeatCursor=false}={}){
   const unavailable=await setup({failPage:true}).request('all',[],null);
   assert.equal(unavailable.ok,false,'failed older page must never yield partial copy');
   assert.match(unavailable.error,/HTTP 404/);
+  const immediate=setup({onlyFirst:true});
+  await immediate.request('all',[],null);
+  assert.equal(immediate.progress.length,0,'a single-page history must not announce extra loading');
   const missing=await setup({onlyFirst:true}).request('before',[ids[0]],'user');
   assert.equal(missing.ok,false);
   assert.match(missing.error,/could not be matched/);
