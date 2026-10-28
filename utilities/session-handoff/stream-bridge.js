@@ -1,12 +1,12 @@
-// The handoff utility owns this MAIN-world bridge. It observes only its own
-// generation, leaves ChatGPT's response untouched, and reads its finished file.
+// MAIN-world observer for the current handoff generation only. The original
+// response remains untouched; completed Markdown travels to the isolated
+// handoff utility. No conversation-history or file-download requests are made.
 (() => {
   "use strict";
   if(window.__gptTweaksHandoffStream)return;
   window.__gptTweaksHandoffStream=true;
 
   const nativeFetch=window.fetch.bind(window);
-  const filename="Session-Handoff.md";
   const marker="為本對話製交接文件";
   let armed=null;
 
@@ -24,142 +24,139 @@
     if(armed?.id===event.detail)armed=null;
   });
 
-  function requestData(input,init) {
+  function isHandoff(input,init) {
     try {
-      const url=new URL(typeof input==="string"||input instanceof URL?input:input?.url,location.href);
-      if(url.origin!==location.origin||!["/backend-api/f/conversation","/backend-api/conversation"].includes(url.pathname))
-        return null;
-      if(String(init?.method||input?.method||"GET").toUpperCase()!=="POST")return null;
+      const raw=typeof input==="string"||input instanceof URL?input:input?.url;
+      const url=new URL(raw,location.href);
+      if(url.origin!==location.origin||
+         !["/backend-api/f/conversation","/backend-api/conversation"].includes(url.pathname)||
+         String(init?.method||input?.method||"GET").toUpperCase()!=="POST")
+        return false;
       const body=typeof init?.body==="string"?JSON.parse(init.body):null;
-      const outgoing=body?.messages?.find(m=>
-        m.author?.role==="user"&&
-        m.content?.parts?.some(part=>typeof part==="string"&&part.includes(marker)));
-      if(!outgoing?.id)return null;
-      const conversationId=body.conversation_id||
-        location.pathname.match(/(?:^|\/)c\/([0-9a-f-]{36})(?:\/|$)/i)?.[1];
-      if(!/^[0-9a-f-]{36}$/i.test(conversationId||""))return null;
-      const headers=new Headers(input instanceof Request?input.headers:undefined);
-      if(init?.headers)new Headers(init.headers).forEach((value,key)=>headers.set(key,value));
-      // Reuse only benign routing context; never expose auth or proof headers.
-      const routing=new Headers();
-      for(const key of [
-        "chatgpt-account-id","chatgpt-project-id","oai-device-id","oai-did",
-        "oai-language","originator","x-openai-codex-window-type",
-        "x-openai-web-frontend","x-openai-rate-limit-join-workspace"
-      ]){
-        if(headers.has(key))routing.set(key,headers.get(key));
-      }
-      return {conversationId,userId:outgoing.id,headers:routing};
-    }catch{return null;}
+      return !!body?.messages?.some(message=>message.author?.role==="user"&&
+        message.content?.parts?.some(part=>typeof part==="string"&&part.includes(marker)));
+    }catch{return false;}
   }
-  async function streamEnded(response) {
-    if(!response.ok||!response.body||
-       !/text\/event-stream/i.test(response.headers.get("content-type")||""))
+
+  async function collectMarkdown(response) {
+    if(!response?.ok||!response.body||
+       !/text\/event-stream/i.test(response.headers?.get("content-type")||""))
       throw Error("Handoff generation did not return a successful event stream");
+
     const reader=response.body.getReader();
+    const decoder=new TextDecoder();
+    const messages=new Map();
+    let currentId=null,buffer="",dataLines=[],streamEnded=false;
+
+    function takeMessage(message) {
+      if(!message||typeof message.id!=="string"||!message.author?.role)return;
+      currentId=message.id;
+      messages.set(message.id,message);
+    }
+    // Follow the same ChatGPT delta shapes already handled by Token Estimator.
+    function applyOperation(op) {
+      if(!op||typeof op.p!=="string")return;
+      if(op.p===""&&op.v?.message){takeMessage(op.v.message);return;}
+      if(!op.p.startsWith("/message/")||!currentId)return;
+      const message=messages.get(currentId);
+      if(!message)return;
+      const keys=op.p.slice(9).split("/").map(key=>
+        key.replace(/~1/g,"/").replace(/~0/g,"~"));
+      if(!["content","author","recipient","channel","metadata","end_turn","status"].includes(keys[0])||
+         keys.length>8||keys.some(key=>["__proto__","constructor","prototype"].includes(key)))
+        return;
+      let parent=message;
+      for(let i=0;i<keys.length-1;i++){
+        const key=keys[i];
+        if(parent[key]==null)parent[key]=/^\d+$/.test(keys[i+1])?[]:{};
+        if(!parent[key]||typeof parent[key]!=="object")return;
+        parent=parent[key];
+      }
+      const key=keys[keys.length-1];
+      if(op.o==="append"){
+        if(typeof op.v==="string")
+          parent[key]=(typeof parent[key]==="string"?parent[key]:"")+op.v;
+        else if(Array.isArray(parent[key]))parent[key].push(op.v);
+      }else if(op.o==="add"&&key==="-"&&Array.isArray(parent)){
+        parent.push(op.v);
+      }else if(op.o==="add"||op.o==="replace"){
+        parent[key]=op.v;
+      }
+    }
+    function handle(raw) {
+      if(!raw||raw==="[DONE]")return;
+      let packet;
+      try{packet=JSON.parse(raw);}catch{return;}
+      if(packet?.message)takeMessage(packet.message);
+      if(packet?.v?.message)takeMessage(packet.v.message);
+      if(Array.isArray(packet?.v))
+        for(const op of packet.v)applyOperation(op);
+      else if(packet?.o)applyOperation(packet);
+    }
+    function acceptLine(line) {
+      if(line.endsWith("\r"))line=line.slice(0,-1);
+      if(!line){
+        if(dataLines.length)handle(dataLines.join("\n"));
+        dataLines=[];
+      }else if(line.startsWith("data:")){
+        dataLines.push(line.slice(5).trimStart());
+      }
+    }
     try {
       while(true){
-        const {done}=await reader.read();
-        if(done)return;
+        const {value,done}=await reader.read();
+        if(done){streamEnded=true;break;}
+        buffer+=decoder.decode(value,{stream:true});
+        let boundary;
+        while((boundary=buffer.indexOf("\n"))!==-1){
+          acceptLine(buffer.slice(0,boundary));
+          buffer=buffer.slice(boundary+1);
+        }
+        if(buffer.length>8_000_000)throw Error("Handoff response stream exceeded parser limit");
       }
+      buffer+=decoder.decode();
+      if(buffer)acceptLine(buffer);
+      acceptLine("");
     }catch(error){
-      // ChatGPT may abort its SSE transport after committing the answer.
-      // An aborted transport is not proof of a failed final turn; the saved
-      // conversation record below is the authority for that distinction.
+      // Browser transport may abort after the final end_turn delta.
+      // Accept only if a completed final message was already observed.
       if(error?.name!=="AbortError")throw error;
-    }finally{reader.releaseLock();}
-  }
-  function completedReply(history,userId) {
-    if(!Array.isArray(history?.messages))return null;
-    const userIndex=history.messages.findIndex(m=>m.id===userId&&m.author?.role==="user");
-    if(userIndex<0)return null;
-    const after=history.messages.slice(userIndex+1);
-    const reply=after.findLast(m=>m.author?.role==="assistant" &&
-      m.recipient==="all" && m.end_turn===true);
-    return reply||null;
-  }
-  function sandboxPath(reply) {
-    if(reply.status!=="finished_successfully"||reply.metadata?.is_complete!==true)
-      throw Error("ChatGPT did not complete the handoff response successfully");
-    const parts=reply.content?.parts;
-    const text=Array.isArray(parts)?parts.filter(part=>typeof part==="string").join("\n"):"";
-    const match=text.match(/sandbox:(\/mnt\/data\/Session-Handoff\.md)(?=[)#\s]|$)/);
-    if(!match)throw Error("The completed response did not include Session-Handoff.md");
-    return match[1];
-  }
-  async function finishedMessage(info) {
-    // Match the successful ChatGPT history request captured in the HAR and
-    // already used by the Token Estimator. An unparameterized URL returned
-    // HTTP 404 in the live handoff test.
-    const url=new URL("/backend-api/conversations/"+
-      encodeURIComponent(info.conversationId),location.origin);
-    url.searchParams.set("num_turns","2");
-    url.searchParams.set("include_has_versions","true");
-    const headers=new Headers(info.headers);
-    headers.set("accept","application/json");
-    let lastStatus=null;
-    for(let attempt=0;attempt<7;attempt++){
-      const response=await nativeFetch(url.href,{
-        method:"GET",credentials:"include",cache:"no-store",headers
-      });
-      lastStatus=response.status;
-      if(response.ok){
-        const history=await response.json();
-        const reply=completedReply(history,info.userId);
-        if(reply)return reply;
-      }else if(response.status!==404){
-        throw Error("Conversation verification failed (HTTP "+response.status+")");
-      }
-      // A 404 immediately after generation can also mean the completed
-      // conversation has not propagated to the history service yet.
-      if(attempt<6)await new Promise(resolve=>setTimeout(resolve,250*(attempt+1)));
+    }finally{
+      try{reader.releaseLock();}catch{}
     }
-    throw Error("Completed handoff reply unavailable in conversation history"+
-      (lastStatus===404?" (HTTP 404)":""));
-  }
-  async function readMarkdown(info,reply) {
-    const path=sandboxPath(reply);
-    const params=new URLSearchParams({
-      download_intent:"false",message_id:reply.id,sandbox_path:path
+
+    const replies=[...messages.values()].filter(message=>{
+      const channel=message.channel||message.metadata?.channel;
+      const status=typeof message.status==="string"?message.status:message.status?.type;
+      return message.author?.role==="assistant"&&
+        (!message.recipient||message.recipient==="all")&&
+        (!channel||channel==="final")&&message.end_turn===true&&
+        (status==null||status==="finished_successfully")&&
+        message.metadata?.is_complete!==false;
     });
-    const url="/backend-api/conversation/"+encodeURIComponent(info.conversationId)+
-      "/interpreter/download?"+params;
-    const ticket=await nativeFetch(url,{credentials:"include",headers:info.headers});
-    if(!ticket.ok)throw Error("Handoff file lookup failed (HTTP "+ticket.status+")");
-    const details=await ticket.json();
-    if(details.status!=="success"||details.file_name!==filename||
-       !/^text\/(markdown|plain)(?:;|$)/i.test(details.mime_type||"")||
-       typeof details.download_url!=="string")
-      throw Error("Handoff download metadata was invalid");
-    const destination=new URL(details.download_url,location.origin);
-    if(destination.origin!==location.origin||destination.protocol!=="https:")
-      throw Error("Handoff download address was not trusted");
-    const response=await nativeFetch(destination.href,{credentials:"include",
-      headers:info.headers.has("chatgpt-account-id")?
-        {"chatgpt-account-id":info.headers.get("chatgpt-account-id")}:undefined});
-    if(!response.ok)throw Error("Handoff file download failed (HTTP "+response.status+")");
-    if(/text\/html/i.test(response.headers.get("content-type")||""))
-      throw Error("Handoff file download returned HTML");
-    const text=(await response.text()).replace(/\r\n/g,"\n");
+    const reply=replies[replies.length-1];
+    if(!reply)throw Error("No completed final handoff reply was found in the generation stream");
+    const parts=reply.content?.parts;
+    if(!Array.isArray(parts)||!parts.every(part=>typeof part==="string"))
+      throw Error("Final handoff reply did not contain plain Markdown text");
+    const text=parts.join("\n").replace(/\r\n/g,"\n").trim();
     if(text.length<80||text.length>512000)
-      throw Error("Handoff Markdown is missing or too large");
+      throw Error("Completed handoff text is missing or too large");
+    if(/sandbox:\/mnt\/data\/|\]\(sandbox:/i.test(text))
+      throw Error("Handoff response contained a file reference instead of text");
     return text;
   }
-  window.fetch=function(...args){
-    if(!armed)return nativeFetch(...args);
-    const info=requestData(args[0],args[1]);
-    if(!info)return nativeFetch(...args);
+
+  window.fetch=function(...args) {
+    if(!armed||!isHandoff(args[0],args[1]))return nativeFetch(...args);
     const {id}=armed;
     armed=null;
     const result=nativeFetch(...args);
     void result.then(async response=>{
-      // Observe a clone exactly like the Token Estimator; no impact on the
-      // original SSE stream, even when token estimation is disabled.
-      await streamEnded(response.clone());
-      const reply=await finishedMessage(info);
-      const text=await readMarkdown(info,reply);
+      // Observe a clone: ChatGPT and Token Estimator continue unmodified.
+      const text=await collectMarkdown(response.clone());
       report(id,true,text);
-    }).catch(reason=>report(id,false,reason));
+    }).catch(error=>report(id,false,error));
     return result;
   };
 })();
