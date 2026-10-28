@@ -55,7 +55,7 @@ class Node{
 function text(value){return {nodeType:3,nodeValue:value,textContent:value,parentElement:null};}
 function node(tag,attrs={},...children){return new Node(tag,attrs,children);}
 const uuid=n=>n.toString(16).padStart(8,"0")+"-2222-3333-4444-555555555555";
-function makeTurn(n,userText,assistantText,{state="complete",rich=false}={}){
+function makeTurn(n,userText,assistantText,{state="complete",rich=false,staticIcon=false}={}){
   const userUnit=node("div",{"data-chatgpt-search-unit-key":"fallback-turn-"+n+":0:user",
     "data-chatgpt-search-message-ids":uuid(n*2)});
   const bubble=node("div",{"data-user-message-bubble":"true"},
@@ -67,6 +67,7 @@ function makeTurn(n,userText,assistantText,{state="complete",rich=false}={}){
     node("div",{"data-markdown-copy":"contents"},
       node("p",{},text("Answer: "),node("strong",{},text(assistantText)))));
   if(rich)markdown.append(node("button",{},text("Interactive content")));
+  if(staticIcon)markdown.append(node("svg",{"data-d-component":"icon"}));
   assistantUnit.append(markdown);
   const button=node("button",{"aria-label":"Copy"});
   assistantUnit.append(button);
@@ -77,7 +78,8 @@ function makeTurn(n,userText,assistantText,{state="complete",rich=false}={}){
 }
 function context(numbers,options={}){
   const turns=numbers.map(n=>makeTurn(n,"Question "+n,"**bold "+n+"**",
-    {state:options.incomplete===n?"streaming":"complete",rich:options.rich===n}));
+    {state:options.incomplete===n?"streaming":"complete",rich:options.rich===n,
+      staticIcon:options.staticIcon===n}));
   const root=node("main",{},...turns.map(t=>t.turn));
   const scrolling=options.unknownScroll?null:{scrollHeight:2000,clientHeight:500,
     scrollTop:options.notAtEnd?200:1500};
@@ -118,6 +120,11 @@ const finalStatus=noStatus.turns[2].turn.querySelector("[data-talvt-turn-state]"
 delete finalStatus.attributes["data-talvt-turn-state"];
 assert.equal(noStatus.read("after",noStatus.info(1)),null,
   "a missing completion marker must not copy a possibly partial response");
+const iconCase=context([48,49,50],{staticIcon:50});
+const iconText=iconCase.read("after",iconCase.info(1));
+assert.ok(iconText,"static DIL icon does not force a history request");
+assert.match(iconText,/\\[Icon\\]/,
+  "non-text icons are represented explicitly rather than silently dropped");
 const rich=context([48,49,50],{rich:50});
 assert.equal(rich.read("after",rich.info(1)),null,"interactive content triggers fallback");
 assert.equal(recent.read("all",recent.info(1)),null,
