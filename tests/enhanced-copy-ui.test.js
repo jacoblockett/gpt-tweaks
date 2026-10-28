@@ -67,7 +67,7 @@ class Node {
   }
 }
 let active=null,nativeCopies=0,dispatch=()=>{};
-async function scenario(role,isEnabled=true){
+async function scenario(role,isEnabled=true,withMessageId=true){
   const listeners=new Map(),requests=[],writes=[];
   const body=new Node('body');
   const doc={
@@ -85,11 +85,11 @@ async function scenario(role,isEnabled=true){
   class Event {constructor(type,options={}){this.type=type;this.detail=options.detail;}}
   const unit=new Node('div',{
     'data-chatgpt-search-unit-key':'fallback-turn-1:0:'+role,
-    'data-chatgpt-search-message-ids':role==='user'?userId:assistantId
+    'data-chatgpt-search-message-ids':withMessageId?(role==='user'?userId:assistantId):''
   });
   const control=new Node('div',{class:'turn-action-controls'});
   const button=new Node('button',{'aria-label':role==='user'?'Copy message':'Copy'});
-  if(role==='assistant'){
+  if(role==='assistant'&&withMessageId){
     const selected=new Node('div',{'data-chatgpt-selection-message-id':assistantId});
     unit.append(selected);
   }
@@ -137,10 +137,10 @@ async function scenario(role,isEnabled=true){
   menu.children[0].click();
   assert.equal(nativeCopies,1,'first option reuses native copy');
   button.click();menu=body.children.find(node=>node.id==='gtg-copy-menu');
-  menu.children[2].click();
+  menu.children[withMessageId?2:3].click();
   assert.equal(requests.length,1);
-  assert.equal(requests[0].scope,'after');
-  assert.equal(requests[0].messageId,role==='user'?userId:assistantId);
+  assert.equal(requests[0].scope,withMessageId?'after':'all');
+  assert.equal(requests[0].messageId,withMessageId?(role==='user'?userId:assistantId):undefined);
   doc.dispatchEvent(new Event('gpt-tweaks:copy:result',{detail:JSON.stringify({
     id:requests[0].id,ok:true,text:'## User\n\nHello'
   })}));
@@ -153,6 +153,8 @@ async function scenario(role,isEnabled=true){
   await scenario('user');
   await scenario('assistant');
   await scenario('user',false);
+  await scenario('user',true,false);
+  await scenario('assistant',true,false);
   const manifest=JSON.parse(fs.readFileSync(path.join(__dirname,'../manifest.json'),'utf8'));
   assert.ok(manifest.permissions.includes('clipboardWrite'));
   assert.ok(fs.readFileSync(path.join(__dirname,'../chrome/background.js'),'utf8')
@@ -163,5 +165,5 @@ async function scenario(role,isEnabled=true){
   assert.ok(manifest.content_scripts.some(entry=>entry.world==='ISOLATED'&&
     entry.js.includes('utilities/enhanced-copy/index.js')&&
     entry.css.includes('utilities/enhanced-copy/ui/menu.css')));
-  console.log('PASS: user/assistant copy interception, native copy, range request, clipboard and manifest');
+  console.log('PASS: user/assistant interception, native copy, selected range, unanchored whole-history copy, clipboard and manifest');
 })().catch(error=>{console.error(error);process.exitCode=1});
