@@ -7,7 +7,7 @@
   window.__gptTweaksHandoffStream=true;
 
   const nativeFetch=window.fetch.bind(window);
-  const marker="為本對話製交接文件";
+  const marker="GPT Tweaks session handoff request.";
   let armed=null;
 
   function report(id,ok,value) {
