@@ -16,9 +16,9 @@
     "",
     "務求完整而精簡。已知與推測分明，勿臆造、重述或遺漏要事。新會話即使無舊對話記錄，亦應能據此理解全局。",
     "",
-    "建立 `Session-Handoff.md`，內載完整交接內容。",
+    "直接於回覆正文輸出完整交接文本，保留 Markdown 格式。勿建立、附加或連結檔案。",
     "",
-    "**回覆唯附此 Markdown 檔。勿加文字、預覽、解釋或結語。**"
+    "**回覆唯交接正文。勿加前言、解釋、附件、下載連結或結語。**"
   ].join("\n");
   const intake="Read the session handoff below, ask only about unresolved issues you cannot reconcile yourself, and otherwise acknowledge receipt and readiness to continue without starting any work.";
   const message=(action,extra={})=>chrome.runtime.sendMessage({
@@ -119,7 +119,7 @@
       return current&&!editorText(current);
     },10000);
   }
-  function awaitGeneratedFile() {
+  function awaitHandoffText() {
     const id=crypto.randomUUID().replaceAll("-","");
     let settle,fail,timeout;
     const promise=new Promise((resolve,reject)=>{settle=resolve;fail=reject;});
@@ -129,7 +129,7 @@
       if(packet?.id!==id)return;
       cleanup();
       if(packet.ok&&typeof packet.text==="string")settle(packet.text);
-      else fail(Error(packet.error||"Handoff file retrieval failed"));
+      else fail(Error(packet.error||"Handoff text capture failed"));
     };
     function cleanup(){
       clearTimeout(timeout);
@@ -151,7 +151,7 @@
     };
   }
   async function generate() {
-    const watch=awaitGeneratedFile();
+    const watch=awaitHandoffText();
     try {
       const [,text]=await Promise.all([send(prompt),watch.promise]);
       return text;
