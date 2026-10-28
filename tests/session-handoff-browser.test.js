@@ -14,13 +14,17 @@ async function scenario(withButton,success=true) {
   }
   let arm=null;
   const submit=()=>{
+    assert.ok(draft.includes('勿建立、附加或連結檔案'),
+      'handoff must request a text-only response');
+    assert.ok(!draft.includes('建立 `Session-Handoff.md`'),
+      'handoff must not request a generated file');
     submitted++;draft='';
     // MAIN-world stream observer publishes the result after submission.
     queueMicrotask(()=>dispatch({
       type:'gpt-tweaks:handoff:result',
       detail:JSON.stringify(success?
         {id:arm,ok:true,text:handoff}:
-        {id:arm,ok:false,error:'No Session-Handoff.md in completed reply'})
+        {id:arm,ok:false,error:'No completed handoff text in reply'})
     }));
   };
   const button={disabled:false,getAttribute:()=>null,getClientRects:()=>[1],click:submit};
