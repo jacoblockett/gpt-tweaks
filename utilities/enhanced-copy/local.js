@@ -146,7 +146,8 @@
     return {role,text:text.trim().replace(/\n{3,}/g,"\n\n")};
   }
   function messagesForTurn(turn){
-    if(turn.querySelector('[data-talvt-turn-state]:not([data-talvt-turn-state="complete"])'))
+    const status=turn.querySelector("[data-talvt-turn-state]");
+    if(!status||status.getAttribute("data-talvt-turn-state")!=="complete")
       return null;
     const units=[...turn.querySelectorAll("[data-chatgpt-search-unit-key]")];
     if(!units.length)return null;
