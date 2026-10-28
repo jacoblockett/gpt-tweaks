@@ -1,4 +1,4 @@
-/* Copy Entire Chat belongs to the conversation's native top-right More menu.
+/* Copy Entire Chat belongs to the conversation's native top-right Chat actions menu.
  * Message Copy buttons remain entirely owned by ChatGPT. */
 (() => {
   "use strict";
@@ -6,7 +6,7 @@
   globalThis.GPTTweaksEnhancedCopy=true;
 
   const setting="gpt-tweaks.copy.enabled";
-  const triggerSelector='[data-app-shell-main-titlebar] button[aria-label="More"][aria-haspopup="menu"]';
+  const triggerSelector='[data-app-shell-main-titlebar] button[aria-label="Chat actions"][aria-haspopup="menu"]';
   const idPattern=/^[a-f0-9-]{36}$/i;
   let enabled=false,invalidated=false,pending=null,toast=null,toastTimer=null;
   let menuObserver=null,menuTimer=null;
@@ -40,6 +40,9 @@
       path("M5.3 10.6L8.9 14.2L16 7.1",
         {stroke:"currentColor","stroke-width":"1.7",
           "stroke-linecap":"round","stroke-linejoin":"round"});
+    }else if(state==="copy"){
+      path("M7 6.5h7.5a2 2 0 0 1 2 2V15a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8.5a2 2 0 0 1 2-2ZM5 13H4.5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2H12a2 2 0 0 1 2 2v1.5",
+        {stroke:"currentColor","stroke-width":"1.5","stroke-linejoin":"round"});
     }else{
       path("M6 6L15 15M15 6L6 15",
         {stroke:"currentColor","stroke-width":"1.7",
@@ -149,23 +152,19 @@
     };
     visit(item);
     if(!renamed)item.textContent="Copy Entire Chat";
-    // Use a neutral copy glyph instead of retaining Archive's icon.
-    const icon=item.querySelector("svg");
-    if(icon){
-      const ns="http://www.w3.org/2000/svg";
-      const svg=document.createElementNS(ns,"svg");
-      svg.setAttribute("width","16");
-      svg.setAttribute("height","16");
-      svg.setAttribute("viewBox","0 0 21 21");
-      svg.setAttribute("fill","none");
-      svg.setAttribute("aria-hidden","true");
-      const path=document.createElementNS(ns,"path");
-      path.setAttribute("d","M7 6.5h7.5a2 2 0 0 1 2 2V15a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8.5a2 2 0 0 1 2-2ZM5 13H4.5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2H12a2 2 0 0 1 2 2v1.5");
-      path.setAttribute("stroke","currentColor");
-      path.setAttribute("stroke-width","1.5");
-      path.setAttribute("stroke-linejoin","round");
-      svg.append(path);
-      icon.replaceWith(svg);
+    // Archive uses a CSS-masked span, not an SVG. Replace the actual
+    // captured menu icon slot so the cloned row never retains Archive's icon.
+    const slot=item.querySelector('[data-leading-icon-slot="menu"]');
+    if(slot){
+      const native=document.querySelector(
+        'button[aria-label="Copy"] svg, button[aria-label="Copy message"] svg');
+      const icon=native?.cloneNode(true)||svgIcon("copy");
+      icon.setAttribute("width","16");
+      icon.setAttribute("height","16");
+      icon.setAttribute("class","icon-sm shrink-0");
+      icon.setAttribute("aria-hidden","true");
+      icon.removeAttribute("data-gtg-copy-icon");
+      slot.replaceChildren(icon);
     }
     function activate(event){
       event.preventDefault();
@@ -187,21 +186,24 @@
 
   function inject(trigger){
     if(!enabled||!trigger.isConnected||
-       !idPattern.test(conversationId()||""))return false;
-    // The header's More button is the interaction boundary. ChatGPT's
-    // portaled menu IDs are not guaranteed to equal aria-controls/labelledby.
-    // Match the native Archive/Delete section in the visible opened menu.
-    for(const menu of document.querySelectorAll('[role="menu"]')){
-      if(!menu.isConnected||!menu.getClientRects().length)continue;
-      const archive=menuItem(menu,"Archive");
-      const remove=menuItem(menu,"Delete");
-      if(!archive||!remove||archive.parentElement!==remove.parentElement)
-        continue;
-      if(!menu.querySelector("[data-gtg-copy-entire]"))
-        archive.parentElement.insertBefore(createAction(archive),archive);
-      return true;
-    }
-    return false;
+       !idPattern.test(conversationId()||"")||
+       trigger.getAttribute("aria-expanded")!=="true")return false;
+    // Verified from the captured opened-menu HTML: Chat actions'
+    // aria-controls is the id of the portaled Radix menu; the menu's
+    // aria-labelledby points back to this precise trigger.
+    const menuId=trigger.getAttribute("aria-controls");
+    const menu=menuId?document.getElementById(menuId):null;
+    if(!menu||menu.getAttribute("role")!=="menu"||
+       !menu.hasAttribute("data-radix-menu-content")||
+       menu.getAttribute("data-state")!=="open"||
+       menu.getAttribute("aria-labelledby")!==trigger.id)return false;
+    const archive=menuItem(menu,"Archive");
+    const remove=menuItem(menu,"Delete");
+    if(!archive||!remove||archive.parentElement!==menu||
+       remove.parentElement!==menu)return false;
+    if(!menu.querySelector("[data-gtg-copy-entire]"))
+      menu.insertBefore(createAction(archive),archive);
+    return true;
   }
   function stopMenuWatch(){
     menuObserver?.disconnect();
