@@ -83,10 +83,10 @@
 
   globalThis.GPTTweaksNewChat=Object.freeze({
     isEnabled:async method=>{
-      if(method!=="slash")return false;
+      if(method!=="slash"&&method!=="menu")return false;
       if(!preferences)await refresh();
-      return enabled("slash");
+      return enabled(method);
     },
-    activate:method=>{if(method==="slash")open("slash");}
+    activate:method=>{if(method==="slash"||method==="menu")open(method);}
   });
 })();
