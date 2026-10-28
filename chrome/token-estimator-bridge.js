@@ -7,7 +7,7 @@
   const cachePrefix = prefix + "conversation.";
   const visibilityPrefix = prefix + "visibility.";
   const idPattern = /^[a-f0-9-]{36}$/i;
-  const options = ["enabled", "default-visible", "menu", "slash", "percent", "tokens", "limit", "target-tokens"];
+  const options = ["enabled", "default-visible", "menu", "slash", "percent", "tokens", "limit", "target-enabled", "target-tokens"];
   const preferenceKeys = options.map(name => prefix + name);
   function authorized(sender) {
     return sender.id === chrome.runtime.id && sender.tab?.id >= 0 &&
@@ -37,7 +37,7 @@
         return {enabled:readBool("enabled", true), defaultVisible:readBool("default-visible", false),
           menu:readBool("menu", true), slash:readBool("slash", true),
           percent:readBool("percent", true), tokens:readBool("tokens", true),
-          limit:readBool("limit", true),
+          limit:readBool("limit", true), targetEnabled:readBool("target-enabled", true),
           target:Number.isSafeInteger(value) && value > 0 ? value : 512000};
       }
       case "gpt-tweaks:context:get-visibility": {
