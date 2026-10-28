@@ -65,7 +65,7 @@ async function scenario({complete=true,abort=false,file=false,status='finished_s
   await window.fetch('/backend-api/f/conversation',{
     method:'POST',body:JSON.stringify({messages:[
       {id:'user-1',author:{role:'user'},content:{parts:[matching?
-        '為本對話製交接文件，供新會話承續。':'ordinary unrelated message']}}
+        'GPT Tweaks session handoff request. Summarize this conversation.':'ordinary unrelated message']}}
     ]})
   });
   for(let i=0;i<100&&!results.length;i++)await Promise.resolve();
