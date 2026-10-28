@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "description": "UI and UX tweaks to ChatGPT's online web interface.",
   "permissions": [
-    "storage"
+    "storage",
+    "clipboardWrite"
   ],
   "action": {
     "default_title": "Open GPT Tweaks settings"
