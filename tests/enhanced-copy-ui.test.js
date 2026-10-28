@@ -19,6 +19,8 @@ class Node{
     this.events=new Map();this.id=attrs.id||'';this.tabIndex=-1;
   }
   get children(){return this.childNodes.filter(x=>x.nodeType===1);}
+  get className(){return this.getAttribute('class')||'';}
+  set className(v){this.setAttribute('class',v);}
   get textContent(){return this.childNodes.map(x=>x.textContent).join('');}
   set textContent(v){this.childNodes=[new TextNode(v)];}
   getAttribute(name){return name==='id'?this.id:(this.attrs[name]??null);}
@@ -29,6 +31,7 @@ class Node{
     if(selector==='[role="menu"]'||selector==='[role="menuitem"]')
       return this.getAttribute('role')===selector.match(/"([^"]+)"/)[1];
     if(selector==='[data-gtg-copy-entire]')return this.hasAttribute('data-gtg-copy-entire');
+    if(selector==='[data-gtg-copy-icon]')return this.hasAttribute('data-gtg-copy-icon');
     if(selector==='[id]')return !!this.id;
     if(selector==='svg')return this.tagName==='SVG';
     if(selector==='.gtg-copy-toast-icon'||selector==='.gtg-copy-toast-label')
