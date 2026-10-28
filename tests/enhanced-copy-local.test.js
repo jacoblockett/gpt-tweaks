@@ -113,6 +113,11 @@ assert.ok(small.read("after",small.info(1)),
   "a fully rendered short thread does not require an artificial scrollbar");
 const incomplete=context([48,49,50],{incomplete:50});
 assert.equal(incomplete.read("after",incomplete.info(1)),null,"streaming final response triggers fallback");
+const noStatus=context([48,49,50]);
+const finalStatus=noStatus.turns[2].turn.querySelector("[data-talvt-turn-state]");
+delete finalStatus.attributes["data-talvt-turn-state"];
+assert.equal(noStatus.read("after",noStatus.info(1)),null,
+  "a missing completion marker must not copy a possibly partial response");
 const rich=context([48,49,50],{rich:50});
 assert.equal(rich.read("after",rich.info(1)),null,"interactive content triggers fallback");
 assert.equal(recent.read("all",recent.info(1)),null,
