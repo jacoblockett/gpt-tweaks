@@ -199,26 +199,24 @@
     clipboardFallback(text);
   }
   function copyRange(info,scope){
-    if(!info.conversationId){
-      closeMenu();
-      failCopy("Cannot identify conversation URL",scope,info.button);
-      return;
-    }
-    if(scope!=="all"&&!info.messageIds.length&&!info.turnKey){
-      closeMenu();
-      failCopy("Cannot identify selected message",scope,info.button);
-      return;
-    }
     closeMenu();
     clearFeedback();
-    // A fully rendered, complete range is copied directly from the page.
-    // No history request, loading toast, or spinner is needed in that case.
+    // Locally rendered text needs neither a conversation ID nor a network
+    // message ID. Only the fallback history reader requires those identities.
     let local=null;
     try{local=globalThis.GPTTweaksEnhancedCopyLocal?.read(scope,info)||null;}
     catch(error){console.warn("[GPT Tweaks] Local copy unavailable:",error);}
     if(local!==null){
       void copyText(local).then(()=>finishCopy(info.button,scope),
         error=>failCopy(error,scope,info.button));
+      return;
+    }
+    if(!info.conversationId){
+      failCopy("Cannot identify conversation URL",scope,info.button);
+      return;
+    }
+    if(scope!=="all"&&!info.messageIds.length&&!info.turnKey){
+      failCopy("Cannot identify selected message",scope,info.button);
       return;
     }
     const id=crypto.randomUUID().replaceAll("-","");
