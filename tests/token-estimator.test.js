@@ -7,6 +7,7 @@ const user='11111111-2222-3333-4444-555555555555';
 const assistant='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 async function main(){
   const pure={console,globalThis:null};pure.globalThis=pure;
+  vm.runInNewContext(source('shared/conversation/content.js'),pure);
   vm.runInNewContext(source('utilities/token-estimator/estimator-core.js'),pure);
   const core=pure.CTCore;
   assert.equal(core.summarizePage([{id:user,author:{role:'user'},content:{parts:['Hello','world']}},{id:assistant,author:{role:'assistant'},channel:'final',recipient:'all',end_turn:true,content:{parts:['Hi']}},{id:'t1',author:{role:'tool'},content:{parts:['tool reply']}}]).reduce((n,e)=>n+e[2],0),2);
@@ -31,6 +32,8 @@ async function main(){
   };
   class E {constructor(type,opts={}){this.type=type;this.detail=opts.detail}}
   const world={console,window:null,globalThis:null,document:doc,location:loc,fetch,Response,Request,Headers,URL,AbortController,TextDecoder,CustomEvent:E,Event:E,setTimeout,clearTimeout};world.window=world;world.globalThis=world;
+  vm.runInNewContext(source('shared/conversation/content.js'),world);
+  vm.runInNewContext(source('shared/conversation/history.js'),world);
   vm.runInNewContext(source('utilities/token-estimator/estimator-core.js'),world);
   vm.runInNewContext(source('utilities/token-estimator/history-bridge.js'),world);
   await world.fetch(`https://chatgpt.com/backend-api/conversations/${uuid}`);
