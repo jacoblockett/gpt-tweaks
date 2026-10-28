@@ -19,7 +19,7 @@
   let defaultVisible = false;
   let initialVisibility = null; // Snapshot when the current chat is loaded.
   let visibility = null; // Manual choice, null until the chat is touched.
-  let flags = {percent:true, tokens:true, limit:true};
+  let flags = {percent:true, tokens:true, limit:true, targetEnabled:true};
 
   let target = DEFAULT_TARGET;
   let activeId = null;
@@ -446,7 +446,7 @@
       defaultVisible = nextDefault;
       if (Number.isSafeInteger(settings.target) && settings.target > 0) target = settings.target;
       flags = {percent:settings.percent !== false, tokens:settings.tokens !== false,
-        limit:settings.limit !== false};
+        limit:settings.limit !== false, targetEnabled:settings.targetEnabled !== false};
       view.setVisible(enabled && (visibility ?? initialVisibility));
       render();
       if (enabled && !previouslyEnabled && activeId) {
