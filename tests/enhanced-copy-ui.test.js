@@ -145,7 +145,9 @@ async function scenario(role,isEnabled=true,withMessageId=true,mode='normal'){
   const navigator={clipboard:{writeText:async text=>writes.push(text)}};
   vm.runInNewContext(source,{document:doc,window,navigator,chrome,
     location:{pathname:'/c/'+conversation},
-    globalThis:{},Event,CustomEvent:Event,crypto:{randomUUID:()=> '12345678-1234-1234-1234-123456789012'},
+    globalThis:mode==='local'?{GPTTweaksEnhancedCopyLocal:{
+      read:scope=>scope==='after'?'## Assistant\\n\\nFrom rendered messages':null
+    }}:{},Event,CustomEvent:Event,crypto:{randomUUID:()=> '12345678-1234-1234-1234-123456789012'},
     setTimeout:schedule,clearTimeout:id=>timers.delete(id),console});
   await new Promise(resolve=>setTimeout(resolve,0));
   button.click();
@@ -184,6 +186,24 @@ async function scenario(role,isEnabled=true,withMessageId=true,mode='normal'){
   menu.children[scope==='after'?2:3].click();
   assert.ok(!body.children.find(node=>node.id==='gtg-copy-menu'),
     'menu closes immediately when history copy begins');
+  if(mode==='local'){
+    assert.equal(requests.length,0,'rendered copy never requests history');
+    assert.equal(button.dataset.gtgCopyState,undefined,
+      'rendered copy never enters loading state');
+    assert.equal(body.children.find(node=>node.id==='gtg-copy-toast'),undefined,
+      'rendered copy never shows a loading toast');
+    await new Promise(resolve=>setTimeout(resolve,0));
+    assert.deepEqual(writes,['## Assistant\\n\\nFrom rendered messages']);
+    assert.equal(button.dataset.gtgCopyState,'copied');
+    assert.equal(body.children.find(node=>node.id==='gtg-copy-toast')?.children[0].textContent,
+      'Messages from this point on copied.');
+    advance(3000);
+    assert.equal(button.dataset.gtgCopyState,undefined);
+    assert.equal(button.children.length,1);
+    assert.equal(button.children[0],nativeIcon);
+    nativeCopies=0;
+    return;
+  }
   assert.equal(button.dataset.gtgCopyState,'loading','origin button shows spinner');
   icon=button.querySelector('svg[data-gtg-copy-icon]');
   assert.equal(icon.getAttribute('viewBox'),'0 0 24 24',
@@ -287,6 +307,7 @@ async function scenario(role,isEnabled=true,withMessageId=true,mode='normal'){
   await scenario('user',true,false);
   await scenario('assistant',true,false);
   await scenario('assistant',true,true,'fast');
+  await scenario('assistant',true,true,'local');
   await scenario('assistant',true,true,'error');
   await scenario('assistant',true,true,'timeout');
   await scenario('user',true,true,'dismiss');
@@ -302,6 +323,9 @@ async function scenario(role,isEnabled=true,withMessageId=true,mode='normal'){
     main.js.indexOf('utilities/token-estimator/estimator-core.js'));
   assert.ok(main.js.includes('utilities/enhanced-copy/history-bridge.js'));
   assert.ok(manifest.content_scripts.some(entry=>entry.world==='ISOLATED'&&
+    entry.js.indexOf('utilities/enhanced-copy/local.js')>=0&&
+    entry.js.indexOf('utilities/enhanced-copy/local.js')<
+      entry.js.indexOf('utilities/enhanced-copy/index.js')&&
     entry.js.includes('shared/conversation/content.js')&&
     entry.js.includes('utilities/enhanced-copy/index.js')&&
     entry.css.includes('utilities/enhanced-copy/ui/menu.css')));
