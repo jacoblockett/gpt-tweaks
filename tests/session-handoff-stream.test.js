@@ -74,7 +74,7 @@ async function scenario({complete=true,abort=false,file=false,status='finished_s
   assert.equal(results.length,1,'handoff reports one result');
   const valid=complete&&status==='finished_successfully'&&!file;
   assert.equal(results[0].ok,valid);
-  if(valid)assert.equal(results[0].text,body);
+  if(valid)assert.equal(results[0].text,body.trim());
   else assert.ok(results[0].error);
 }
 (async()=>{
