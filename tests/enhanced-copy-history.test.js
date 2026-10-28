@@ -158,7 +158,7 @@ function setup({failPage=false,onlyFirst=false,repeatCursor=false,pages=null}={}
     'after must stop at page two, not traverse all six pages');
   assert.equal((partialSuffix.text.match(/## (User|Assistant)/g)||[]).length,4,
     'after includes exactly the selected record and three newer records');
-  assert.match(partialSuffix.text,/Question 8[\\s\\S]*Answer 11/);
+  assert.match(partialSuffix.text,/Question 8[\s\S]*Answer 11/);
   assert.doesNotMatch(partialSuffix.text,/Question 6/);
   assert.equal(suffixCase.progress.length,1,'only an actual second page triggers progress');
 
