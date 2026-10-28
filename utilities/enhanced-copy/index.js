@@ -1,14 +1,14 @@
-/* Copy Entire Chat belongs to the conversation's native top-right Chat actions menu.
+/* Copy entire chat belongs to the conversation's native top-right Chat actions menu.
  * Message Copy buttons remain entirely owned by ChatGPT. */
 (() => {
   "use strict";
   if(globalThis.GPTTweaksEnhancedCopy)return;
-  globalThis.GPTTweaksEnhancedCopy=true;
-
-  const setting="gpt-tweaks.copy.enabled";
+  const settingsPrefix="gpt-tweaks.copy.";
   const triggerSelector='[data-app-shell-main-titlebar] button[aria-label="Chat actions"][aria-haspopup="menu"]';
   const idPattern=/^[a-f0-9-]{36}$/i;
-  let enabled=false,invalidated=false,pending=null,toast=null,toastTimer=null;
+  let enabled=false,loaded=false,invalidated=false,loading=null;
+  let options={actions:true,menu:true,slash:true};
+  let pending=null,toast=null,toastTimer=null;
   let menuObserver=null,menuTimer=null;
 
   function conversationId(){
@@ -108,8 +108,8 @@
     document.dispatchEvent(new CustomEvent("gpt-tweaks:copy:cancel",{detail:id}));
     clearToast();
   }
-  function startCopy(){
-    if(pending)return;
+  function startCopy(method="actions"){
+    if(!enabled||!options[method]||pending)return;
     const conversation=conversationId();
     if(!idPattern.test(conversation||"")){
       showToast("error","Couldn't identify this chat.");
@@ -139,19 +139,19 @@
     item.removeAttribute("aria-disabled");
     item.removeAttribute("aria-keyshortcuts");
     item.setAttribute("role","menuitem");
-    item.setAttribute("aria-label","Copy Entire Chat");
+    item.setAttribute("aria-label","Copy entire chat");
     item.setAttribute("data-gtg-copy-entire","");
     item.tabIndex=0;
     for(const child of item.querySelectorAll("[id]"))child.removeAttribute("id");
     let renamed=false;
     const visit=node=>{
       if(node.nodeType===3&&/\bArchive(?: chat)?\b/i.test(node.nodeValue||"")){
-        node.nodeValue=node.nodeValue.replace(/\bArchive(?: chat)?\b/i,"Copy Entire Chat");
+        node.nodeValue=node.nodeValue.replace(/\bArchive(?: chat)?\b/i,"Copy entire chat");
         renamed=true;
       }else for(const child of node.childNodes)visit(child);
     };
     visit(item);
-    if(!renamed)item.textContent="Copy Entire Chat";
+    if(!renamed)item.textContent="Copy entire chat";
     // Archive uses a CSS-masked span, not an SVG. Replace the actual
     // captured menu icon slot so the cloned row never retains Archive's icon.
     const slot=item.querySelector('[data-leading-icon-slot="menu"]');
@@ -172,7 +172,7 @@
       // Escape closes ChatGPT's portaled native menu without replacing it.
       item.closest('[role="menu"]')?.dispatchEvent(new KeyboardEvent(
         "keydown",{key:"Escape",code:"Escape",bubbles:true,cancelable:true}));
-      startCopy();
+      startCopy("actions");
     }
     item.addEventListener("click",activate);
     item.addEventListener("keydown",event=>{
@@ -185,7 +185,7 @@
   }
 
   function inject(trigger){
-    if(!enabled||!trigger.isConnected||
+    if(!enabled||!options.actions||!trigger.isConnected||
        !idPattern.test(conversationId()||"")||
        trigger.getAttribute("aria-expanded")!=="true")return false;
     // Verified from the captured opened-menu HTML: Chat actions'
@@ -213,7 +213,7 @@
   }
   function watchMenu(trigger){
     stopMenuWatch();
-    if(!enabled)return;
+    if(!enabled||!options.actions)return;
     menuObserver=new MutationObserver(()=>{
       if(inject(trigger))stopMenuWatch();
     });
@@ -233,16 +233,28 @@
 
   async function refresh(){
     if(invalidated)return;
-    try{
-      const response=await chrome.runtime.sendMessage({type:"gpt-tweaks:copy:preferences"});
-      if(!response?.ok)throw Error(response?.error||"Enhanced Copy preferences unavailable");
-      enabled=response.enabled===true;
-    }catch(error){
-      enabled=false;
-      if(/Extension context invalidated/i.test(String(error)))invalidated=true;
-      else console.warn("[GPT Tweaks] Cannot read copy settings",error);
-    }
-    if(!enabled){stopMenuWatch();cancelCopy();}
+    if(loading)return loading;
+    loading=(async()=>{
+      try{
+        const response=await chrome.runtime.sendMessage({type:"gpt-tweaks:copy:preferences"});
+        if(!response?.ok)throw Error(response?.error||"Copy preferences unavailable");
+        enabled=response.enabled===true;
+        options={actions:response.actions===true,menu:response.menu===true,
+          slash:response.slash===true};
+        loaded=true;
+      }catch(error){
+        enabled=false;
+        loaded=false;
+        if(/Extension context invalidated/i.test(String(error)))invalidated=true;
+        else console.warn("[GPT Tweaks] Cannot read copy settings",error);
+      }
+      if(!enabled){stopMenuWatch();cancelCopy();}
+      else if(!options.actions){
+        stopMenuWatch();
+        document.querySelectorAll("[data-gtg-copy-entire]").forEach(item=>item.remove());
+      }
+    })();
+    try{await loading;}finally{loading=null;}
   }
   document.addEventListener("pointerdown",onMenuTrigger,true);
   document.addEventListener("click",onMenuTrigger,true);
@@ -284,9 +296,19 @@
     if(!document.hidden)void refresh();
   });
   chrome.storage?.onChanged?.addListener((changes,area)=>{
-    if(area==="local"&&changes[setting]){
-      enabled=changes[setting].newValue!==false&&changes[setting].newValue!=="false";
-      if(!enabled){stopMenuWatch();cancelCopy();}
+    if(area!=="local"||
+       !["enabled","actions","menu","slash"].some(method=>changes[settingsPrefix+method]))
+      return;
+    void refresh();
+  });
+  globalThis.GPTTweaksEnhancedCopy=Object.freeze({
+    isEnabled:async method=>{
+      if(method!=="menu"&&method!=="slash")return false;
+      if(!loaded)await refresh();
+      return enabled&&options[method]&&idPattern.test(conversationId()||"");
+    },
+    activate:method=>{
+      if(method==="menu"||method==="slash")startCopy(method);
     }
   });
   void refresh();
