@@ -30,7 +30,7 @@ function setup({failPage=false,onlyFirst=false}={}){
     if(failPage&&before)return {ok:false,status:404};
     return {ok:true,json:async()=>!before?{
       messages:[user(ids[2],'Question 2'),assistant(ids[3],'Answer 2'),
-        assistant('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','Internal',)],
+        {...assistant('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','Internal'),metadata:{is_visually_hidden_from_conversation:true}}],
       page_info:{has_previous_page:!onlyFirst,start_cursor:'older'}
     }:{
       messages:[user(ids[0],'Question 1'),assistant(ids[1],'Answer 1'),user(ids[2],'Question 2')],
