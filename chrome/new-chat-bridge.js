@@ -3,7 +3,7 @@
 // Privileged tab/window creation and new-chat preferences stay in the worker.
 (() => {
   const prefix="gpt-tweaks.new-chat.";
-  const keys=["enabled","middle-click","slash","destination"].map(name=>prefix+name);
+  const keys=["enabled","middle-click","slash","destination","menu"].map(name=>prefix+name);
   const projectPattern=/^g-p-[A-Za-z0-9_-]+$/;
   function allowedSender(sender) {
     if(sender?.id!==chrome.runtime.id||!Number.isInteger(sender.tab?.id))return false;
@@ -15,6 +15,7 @@
       enabled:saved[keys[0]]!=="false",
       middle:saved[keys[1]]!=="false",
       slash:saved[keys[2]]!=="false",
+      menu:saved[keys[4]]!=="false",
       destination:saved[keys[3]]==="window"?"window":"tab"
     };
   }
@@ -43,13 +44,13 @@
         return {ok:true,data:prefs};
       const method=message.method;
       if(!prefs.enabled||
-         !(method==="middle"&&prefs.middle||method==="slash"&&prefs.slash))
+         !(method==="middle"&&prefs.middle||method==="slash"&&prefs.slash||method==="menu"&&prefs.menu))
         return {ok:false,error:"New-chat shortcut disabled"};
       const url=destination(message);
       if(prefs.destination==="window")
-        await chrome.windows.create({url,focused:method==="slash"});
+        await chrome.windows.create({url,focused:method!=="middle"});
       else
-        await chrome.tabs.create({url,active:method==="slash"});
+        await chrome.tabs.create({url,active:method!=="middle"});
       return {ok:true};
     })().then(respond,error=>respond({ok:false,error:String(error)}));
     return true;
