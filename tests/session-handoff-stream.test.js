@@ -28,7 +28,7 @@ class ParamsMock {
 class CustomEventMock {
   constructor(type,options){this.type=type;this.detail=options?.detail;}
 }
-async function scenario(validFile,abortStream=false) {
+async function scenario(validFile,abortStream=false,transient404=false) {
   const user='11111111-1111-1111-1111-111111111111';
   const answer='33333333-3333-3333-3333-333333333333';
   const conversation='22222222-2222-2222-2222-222222222222';
@@ -60,6 +60,7 @@ async function scenario(validFile,abortStream=false) {
     };
     if(url.startsWith('https://chatgpt.com/backend-api/conversations/')){
       historyRequests++;
+      if(transient404&&historyRequests===1)return {ok:false,status:404};
       if(!url.includes('num_turns=2')||!url.includes('include_has_versions=true')||
          options.headers?.get('chatgpt-account-id')!=='account-id'||
          options.headers?.get('x-openai-web-frontend')!=='codex_webview')
@@ -93,14 +94,15 @@ async function scenario(validFile,abortStream=false) {
       messages:[{id:user,author:{role:'user'},content:{parts:['為本對話製交接文件']}}]}),
     headers:{'chatgpt-account-id':'account-id','x-openai-web-frontend':'codex_webview'}
   });
-  for(let i=0;i<50&&!output.length;i++)await Promise.resolve();
+  for(let i=0;i<100&&!output.length;i++)await new Promise(resolve=>setTimeout(resolve,10));
   assert.equal(output.length,1);
-  assert.equal(historyRequests,1,'must request HAR-style conversation history');
+  assert.equal(historyRequests,transient404?2:1,'must request HAR-style conversation history');
   assert.equal(output[0].ok,validFile);
-  assert.equal(requests.length,validFile?4:2);
+  assert.equal(requests.length,(validFile?4:2)+(transient404?1:0));
   if(validFile){
-    assert.ok(requests[2].includes('download_intent=false'));
-    assert.ok(requests[2].includes('message_id='+answer));
+    const lookup=requests.find(item=>item.includes('/interpreter/download?'));
+    assert.ok(lookup.includes('download_intent=false'));
+    assert.ok(lookup.includes('message_id='+answer));
     assert.match(output[0].text,/^# Handoff/);
   }else assert.match(output[0].error,/did not include Session-Handoff.md/);
 }
@@ -111,5 +113,7 @@ async function scenario(validFile,abortStream=false) {
   // persisted. The authoritative conversation record must still be checked.
   await scenario(true,true);
   await scenario(false,true);
+  await scenario(true,false,true);
+  await scenario(true,true,true);
   console.log('PASS: stream completion, final-turn verification and file retrieval');
 })().catch(error=>{console.error(error);process.exitCode=1;});
