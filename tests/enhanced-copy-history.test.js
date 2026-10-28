@@ -14,7 +14,7 @@ const ids=['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
 const user=(id,text)=>({id,author:{role:'user'},content:{content_type:'text',parts:[text]}});
 const assistant=(id,text)=>({id,author:{role:'assistant'},recipient:'all',
   end_turn:true,channel:'final',content:{content_type:'text',parts:[text]}});
-function setup({failPage=false,onlyFirst=false,repeatCursor=false}={}){
+function setup({failPage=false,onlyFirst=false,repeatCursor=false,pages=null}={}){
   const listeners=new Map(),results=[],urls=[],headers=[],progress=[];
   class Event {constructor(type,options={}){this.type=type;this.detail=options.detail;}}
   const document={
@@ -30,6 +30,16 @@ function setup({failPage=false,onlyFirst=false,repeatCursor=false}={}){
     const target=new URL(url,'https://chatgpt.com');
     urls.push(target);headers.push(options.headers);
     const before=target.searchParams.get('before');
+    if(pages){
+      const index=before?Number(before.slice(1)):0;
+      if(!Number.isSafeInteger(index)||index>=pages.length)
+        return {ok:false,status:404};
+      return {ok:true,json:async()=>({
+        messages:pages[index],
+        page_info:{has_previous_page:index+1<pages.length,
+          start_cursor:index+1<pages.length?'p'+(index+1):null}
+      })};
+    }
     if(failPage&&before)return {ok:false,status:404};
     return {ok:true,json:async()=>!before?{
       messages:[user(ids[2],'Question 2'),assistant(ids[3],'**Answer 2**'),
@@ -134,6 +144,39 @@ function setup({failPage=false,onlyFirst=false,repeatCursor=false}={}){
   const cursor=await setup({repeatCursor:true}).request('all',[],null);
   assert.equal(cursor.ok,false);
   assert.match(cursor.error,/pagination did not advance/);
+  // A six-page conversation makes unnecessary full scans visible. Pages
+  // arrive newest-first; each response contains two chronological records.
+  const longId=i=>i.toString(16).padStart(8,'0')+'-2222-3333-4444-555555555555';
+  const longPages=Array.from({length:6},(_,page)=>{
+    const n=10-page*2;
+    return [user(longId(n),'Question '+n),assistant(longId(n+1),'Answer '+(n+1))];
+  });
+  const suffixCase=setup({pages:longPages});
+  const partialSuffix=await suffixCase.request('after',[longId(8)],'user');
+  assert.equal(partialSuffix.ok,true);
+  assert.equal(suffixCase.urls.length,2,
+    'after must stop at page two, not traverse all six pages');
+  assert.equal((partialSuffix.text.match(/## (User|Assistant)/g)||[]).length,4,
+    'after includes exactly the selected record and three newer records');
+  assert.match(partialSuffix.text,/Question 8[\\s\\S]*Answer 11/);
+  assert.doesNotMatch(partialSuffix.text,/Question 6/);
+  assert.equal(suffixCase.progress.length,1,'only an actual second page triggers progress');
+
+  const beforeCase=setup({pages:longPages});
+  const prefix=await beforeCase.request('before',[longId(8)],'user');
+  assert.equal(prefix.ok,true);
+  assert.equal(beforeCase.urls.length,6,
+    'before must follow all reverse-pagination cursors to the beginning');
+  assert.equal((prefix.text.match(/## (User|Assistant)/g)||[]).length,9,
+    'before includes messages 0 through 8, not the three newer records');
+  assert.doesNotMatch(prefix.text,/Answer 9|Question 10|Answer 11/);
+
+  const wholeCase=setup({pages:longPages});
+  const entire=await wholeCase.request('all',[],null);
+  assert.equal(entire.ok,true);
+  assert.equal(wholeCase.urls.length,6);
+  assert.equal((entire.text.match(/## (User|Assistant)/g)||[]).length,12);
+
   const ignoredOldCursor=setup({repeatCursor:true});
   const early=await ignoredOldCursor.request('after',[ids[2]],'user');
   assert.equal(early.ok,true);
