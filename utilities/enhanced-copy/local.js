@@ -8,10 +8,10 @@
   const marker=/^fallback-turn-(\d+)$/;
   const supportedDil=new Set(["text","title","bold","italic","code","caption",
     "table","table-row","table-cell","list","list-item","blockquote",
-    "box","col","row","grid","grid-item","flow","flow-item","divider"]);
+    "box","col","row","grid","grid-item","flow","flow-item","divider",
+    "badge","label","link","icon"]);
   const invalidTags=new Set(["IMG","VIDEO","AUDIO","CANVAS","IFRAME",
     "BUTTON","INPUT","TEXTAREA","SELECT","MATH","SVG"]);
-  const idFormat=/^[a-f\d-]{36}$/i;
 
   function scrollAtEnd(lastTurn,wholeThreadVisible){
     // The virtualizer may hold later turns in a bottom spacer. Only trust
@@ -38,12 +38,19 @@
     if(node.nodeType===3)return node.nodeValue||"";
     if(node.nodeType!==1)return "";
     if(node.hasAttribute("hidden")||node.getAttribute("aria-hidden")==="true"||
-       /(?:^|\\s)sr-only(?:\\s|$)/.test(node.getAttribute("class")||""))
+       (" "+(node.getAttribute("class")||"")+" ").includes(" sr-only "))
       return "";
     const tag=node.tagName;
+    const component=node.getAttribute("data-d-component");
+    // DIL's static icons are visible information, not message text. Mark
+    // them explicitly rather than losing them or fetching the entire chat.
+    if(tag==="SVG"&&component==="icon")
+      return "["+(node.getAttribute("aria-label")||"Icon")+"]";
+    // This control belongs to the page UI, not to the assistant's message.
+    if(tag==="BUTTON"&&node.getAttribute("aria-label")==="View analysis")
+      return "";
     if(invalidTags.has(tag)||node.hasAttribute("data-math")||
        node.hasAttribute("data-code-block"))return null;
-    const component=node.getAttribute("data-d-component");
     if(component&&!supportedDil.has(component))return null;
     const children=()=> {
       let out="";
