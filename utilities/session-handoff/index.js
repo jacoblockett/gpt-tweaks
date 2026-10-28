@@ -2,25 +2,27 @@
   "use strict";
   if(globalThis.GPTTweaksHandoff)return;
 
-  // This is the user-approved, conversation-agnostic handoff request.
+  // Keep the handoff short enough to preserve useful context in the next chat.
   const prompt=[
-    "為本對話製交接文件，供新會話承續。僅述現況，勿執行任務。",
+    "GPT Tweaks session handoff request. Summarize this conversation for a new session; do not perform any tasks.",
+    "Write the entire handoff in ENGLISH, regardless of the language of previous messages.",
+    "Output only plain Markdown text, with no file, attachment, download link, introduction, or conclusion.",
     "",
-    "以 Markdown 記：",
+    "Aim for 300–450 English words; never exceed 600. Shorter is better when the conversation is simple.",
+    "This is an operational state transfer, not a narrative or full conversation history.",
+    "Use short bullet points under these headings:",
+    "## Goal — user's objective and desired outcome.",
+    "## State — what is done, what remains, settled decisions, blockers and constraints.",
+    "## Last 3 exchanges — one compact bullet per exchange: user request, outcome, unresolved issue; exclude this handoff request.",
+    "## References — only essential files, repo paths, IDs, commands and preferences; distinguish verified from uncertain.",
+    "## Next — exact stopping point, next likely priority, and essential questions, if any; do not start work.",
     "",
-    "1. **總旨**：用戶之目標、背景及預期成果。",
-    "2. **現況**：當前議題、已成事項、未決問題、既定決策與限制。",
-    "3. **近 3 輪對話**：逐輪述用戶所言、助理所答、所得結論及遺留問題；不計本次交接請求。",
-    "4. **重要依據**：相關文件、資源、路徑、指令及偏好；註明何者已驗證，何者尚待查證或重新取得。",
-    "5. **接續方向**：說明對話止於何處、後續應關注何事，以及有無須向用戶確認之問題。勿要求新會話立即執行。",
-    "",
-    "務求完整而精簡。已知與推測分明，勿臆造、重述或遺漏要事。新會話即使無舊對話記錄，亦應能據此理解全局。",
-    "",
-    "直接於回覆正文輸出完整交接文本，保留 Markdown 格式。勿建立、附加或連結檔案。",
-    "",
-    "**回覆唯交接正文。勿加前言、解釋、附件、下載連結或結語。**"
+    "Prioritize facts necessary to resume accurately. Combine overlapping details and state each fact once.",
+    "Omit obsolete debugging history, minor commits, repeated background, boilerplate and speculative details.",
+    "Use exact identifiers only where needed for continuity. No tables or long paragraphs.",
+    "Do not instruct the new session to execute tasks immediately."
   ].join("\n");
-  const intake="Read the session handoff below, ask only about unresolved issues you cannot reconcile yourself, and otherwise acknowledge receipt and readiness to continue without starting any work.";
+  const intake="Read the handoff below. Do not start any tasks. Briefly acknowledge readiness in English; ask only if an essential missing detail prevents understanding.";
   const message=(action,extra={})=>chrome.runtime.sendMessage({
     type:"gpt-tweaks:handoff",action,...extra
   });
