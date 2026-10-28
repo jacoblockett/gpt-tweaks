@@ -58,6 +58,11 @@
         const {done}=await reader.read();
         if(done)return;
       }
+    }catch(error){
+      // ChatGPT may abort its SSE transport after committing the answer.
+      // An aborted transport is not proof of a failed final turn; the saved
+      // conversation record below is the authority for that distinction.
+      if(error?.name!=="AbortError")throw error;
     }finally{reader.releaseLock();}
   }
   function completedReply(history,userId) {
