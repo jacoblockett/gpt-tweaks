@@ -3,16 +3,18 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const path=require('node:path');
+const content=fs.readFileSync(path.join(__dirname,'../shared/conversation/content.js'),'utf8');
+const history=fs.readFileSync(path.join(__dirname,'../shared/conversation/history.js'),'utf8');
 const source=fs.readFileSync(path.join(__dirname,'../utilities/enhanced-copy/history-bridge.js'),'utf8');
 const conversation='11111111-2222-3333-4444-555555555555';
 const ids=['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
   'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
   'cccccccc-cccc-cccc-cccc-cccccccccccc',
   'dddddddd-dddd-dddd-dddd-dddddddddddd'];
-const user=(id,text)=>({id,author:{role:'user'},content:{parts:[text]}});
+const user=(id,text)=>({id,author:{role:'user'},content:{content_type:'text',parts:[text]}});
 const assistant=(id,text)=>({id,author:{role:'assistant'},recipient:'all',
-  end_turn:true,channel:'final',content:{parts:[text]}});
-function setup({failPage=false,onlyFirst=false}={}){
+  end_turn:true,channel:'final',content:{content_type:'text',parts:[text]}});
+function setup({failPage=false,onlyFirst=false,repeatCursor=false}={}){
   const listeners=new Map(),results=[],urls=[],headers=[];
   class Event {constructor(type,options={}){this.type=type;this.detail=options.detail;}}
   const document={
@@ -29,27 +31,34 @@ function setup({failPage=false,onlyFirst=false}={}){
     const before=target.searchParams.get('before');
     if(failPage&&before)return {ok:false,status:404};
     return {ok:true,json:async()=>!before?{
-      messages:[user(ids[2],'Question 2'),assistant(ids[3],'Answer 2'),
-        {...assistant('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','Internal'),metadata:{is_visually_hidden_from_conversation:true}}],
+      messages:[user(ids[2],'Question 2'),assistant(ids[3],'**Answer 2**'),
+        {...assistant('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','Internal'),
+          metadata:{is_visually_hidden_from_conversation:true}},
+        {id:'ffffffff-ffff-ffff-ffff-ffffffffffff',author:{role:'assistant'},
+          channel:'analysis',recipient:'all',end_turn:false,content:{parts:['thoughts']}}],
       page_info:{has_previous_page:!onlyFirst,start_cursor:'older'}
     }:{
-      messages:[user(ids[0],'Question 1'),assistant(ids[1],'Answer 1'),user(ids[2],'Question 2')],
-      page_info:{has_previous_page:false,start_cursor:null}
+      messages:[user(ids[0],'Question 1'),assistant(ids[1],'\`\`\`js\\n42\\n\`\`\`'),
+        user(ids[2],'Question 2')],
+      page_info:{has_previous_page:repeatCursor,start_cursor:repeatCursor?'older':null}
     }};
   }};
-  vm.runInNewContext(source,{window,document,Event,CustomEvent:Event,
+  const environment={window,globalThis:window,document,Event,CustomEvent:Event,
     location:{origin:'https://chatgpt.com',href:'https://chatgpt.com/c/'+conversation},
-    URL,Headers,Request,AbortController,setTimeout,clearTimeout});
-  async function request(scope,messageId=ids[2]){
+    URL,Headers,Request,AbortController,setTimeout:fn=>setTimeout(fn,1),clearTimeout};
+  vm.runInNewContext(content,environment);
+  vm.runInNewContext(history,environment);
+  vm.runInNewContext(source,environment);
+  async function request(scope,messageIds=[ids[2]],role='user'){
     const id='req'+String(results.length+1).padStart(15,'0');
     document.dispatchEvent(new Event('gpt-tweaks:copy:request',{detail:JSON.stringify({
-      id,conversationId:conversation,messageId,scope
+      id,conversationId:conversation,messageIds,role,scope
     })}));
-    for(let tries=0;tries<100&&!results.some(result=>result.id===id);tries++)
-      await new Promise(resolve=>setTimeout(resolve,1));
+    for(let tries=0;tries<150&&!results.some(result=>result.id===id);tries++)
+      await new Promise(resolve=>setTimeout(resolve,2));
     return results.find(result=>result.id===id);
   }
-  return {request,urls,headers};
+  return {request,urls,headers,window};
 }
 (async()=>{
   const test=setup();
@@ -59,20 +68,29 @@ function setup({failPage=false,onlyFirst=false}={}){
   assert.doesNotMatch(before.text,/Answer 2/);
   const after=await test.request('after');
   assert.equal(after.ok,true);
-  assert.match(after.text,/Question 2[\s\S]*Answer 2/);
+  assert.match(after.text,/Question 2[\s\S]*\*\*Answer 2\*\*/);
   assert.doesNotMatch(after.text,/Answer 1/);
-  // Whole-history export must work even when the clicked virtualized turn
-  // exposes no DOM message ID at all.
-  const all=await test.request('all',null);
-  assert.equal(all.ok,true);
+  const all=await test.request('all',[],null);
+  assert.equal(all.ok,true,'entire history cannot depend on a message ID');
   assert.equal(all.text.match(/## (User|Assistant)/g).length,4);
-  assert.equal(all.text.includes('Internal'),false);
-  assert.ok(test.urls.some(url=>url.searchParams.get('before')==='older'));
+  assert.ok(all.text.includes('**Answer 2**'),'preserve original Markdown');
+  assert.ok(!all.text.includes('Internal')&&!all.text.includes('thoughts'),
+    'do not copy hidden, tool or reasoning records');
+  assert.ok(test.urls.some(url=>url.searchParams.get('before')==='older'),
+    'history must be paginated independently of virtualized message DOM');
   assert.equal(test.headers[0].get('chatgpt-account-id'),'account123');
-  const unavailable=await setup({failPage:true}).request('all');
-  assert.equal(unavailable.ok,false,'never copy partial results when older pages fail');
+  const multi=await test.request('after',[ids[1],ids[3]],'assistant');
+  assert.equal(multi.ok,true);
+  assert.match(multi.text,/\*\*Answer 2\*\*/);
+  assert.doesNotMatch(multi.text,/Question 2/);
+  const unavailable=await setup({failPage:true}).request('all',[],null);
+  assert.equal(unavailable.ok,false,'failed older page must never yield partial copy');
   assert.match(unavailable.error,/HTTP 404/);
-  const missing=await setup({onlyFirst:true}).request('before',ids[0]);
-  assert.equal(missing.ok,false,'missing anchor must not select the wrong message');
-  console.log('PASS: complete paginated conversation, inclusive ranges, roles, duplicates and 404 safety');
+  const missing=await setup({onlyFirst:true}).request('before',[ids[0]],'user');
+  assert.equal(missing.ok,false);
+  assert.match(missing.error,/could not be matched/);
+  const cursor=await setup({repeatCursor:true}).request('all',[],null);
+  assert.equal(cursor.ok,false);
+  assert.match(cursor.error,/pagination did not advance/);
+  console.log('PASS: shared paginated history, Markdown, role anchoring, completeness, and errors');
 })().catch(error=>{console.error(error);process.exitCode=1});
