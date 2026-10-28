@@ -75,10 +75,26 @@
       if(!items.length)throw Error("No messages available to copy");
       let selected=-1;
       if(packet.scope!=="all"){
-        if(!candidates.length)throw Error("Unable to identify the selected message");
         const candidatesSet=new Set(candidates);
         for(let i=0;i<items.length;i++)
           if(items[i].role===packet.role&&candidatesSet.has(items[i].id))selected=i;
+        if(selected<0&&validId(packet.turnKey)){
+          // An assistant action can belong to a parent turn keyed by its
+          // user message rather than by the assistant's final message ID.
+          const userIndex=items.findIndex(item=>
+            item.role==="user"&&item.id===packet.turnKey);
+          if(packet.role==="user")selected=userIndex;
+          else if(packet.role==="assistant"&&userIndex>=0){
+            const replies=[];
+            for(let i=userIndex+1;i<items.length&&items[i].role!=="user";i++)
+              if(items[i].role==="assistant")replies.push(i);
+            // Only infer from a parent turn when there is exactly one
+            // eligible final reply. Never guess which branch was clicked.
+            if(replies.length===1)selected=replies[0];
+            else if(replies.length>1)
+              throw Error("Multiple assistant replies exist in this turn; cannot identify the selected version");
+          }
+        }
         if(selected<0)throw Error("Selected message could not be matched to conversation history");
       }
       const subset=packet.scope==="all"?items:
