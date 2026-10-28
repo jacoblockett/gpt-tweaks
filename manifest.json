@@ -25,6 +25,8 @@
         "https://chatgpt.com/*"
       ],
       "js": [
+        "shared/conversation/content.js",
+        "shared/conversation/history.js",
         "utilities/token-estimator/estimator-core.js",
         "utilities/token-estimator/history-bridge.js",
         "utilities/session-handoff/stream-bridge.js",
@@ -61,6 +63,7 @@
         "https://chatgpt.com/*"
       ],
       "js": [
+        "shared/conversation/content.js",
         "utilities/token-estimator/estimator-core.js",
         "utilities/token-estimator/storage.js",
         "utilities/token-estimator/ui/indicator.js",
