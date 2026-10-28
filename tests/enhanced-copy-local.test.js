@@ -123,7 +123,7 @@ assert.equal(noStatus.read("after",noStatus.info(1)),null,
 const iconCase=context([48,49,50],{staticIcon:50});
 const iconText=iconCase.read("after",iconCase.info(1));
 assert.ok(iconText,"static DIL icon does not force a history request");
-assert.match(iconText,/\\[Icon\\]/,
+assert.match(iconText,/\[Icon\]/,
   "non-text icons are represented explicitly rather than silently dropped");
 const rich=context([48,49,50],{rich:50});
 assert.equal(rich.read("after",rich.info(1)),null,"interactive content triggers fallback");
