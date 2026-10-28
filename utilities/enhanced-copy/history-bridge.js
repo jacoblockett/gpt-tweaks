@@ -61,7 +61,7 @@
     if(!text&&typeof message.content?.text==="string")text=message.content.text;
     if(!text&&role==="user"&&message.content?.content_type==="multimodal_text")
       text="[Non-text message]";
-    if(!text)return null;
+    if(!text)text="[Non-text content]";
     return {id:message.id,role,text:text.trim()};
   }
   async function readConversation(id,signal) {
@@ -81,7 +81,7 @@
 
     let before=null;
     const cursors=new Set(),seen=new Set();
-    let messages=[];
+    let messages=[],totalChars=0;
     for(let page=0;page<200;page++){
       if(signal.aborted)throw Error("Copy canceled");
       const url=new URL(historyPrefix+encodeURIComponent(id),location.origin);
@@ -106,10 +106,12 @@
       const older=[];
       for(const raw of data.messages){
         const item=dialogue(raw);
-        if(item&&!seen.has(item.id)){seen.add(item.id);older.push(item);}
+        if(item&&!seen.has(item.id)){
+          seen.add(item.id);older.push(item);totalChars+=item.text.length;
+        }
       }
       messages=older.concat(messages);
-      if(messages.length>12000||messages.reduce((n,item)=>n+item.text.length,0)>8_000_000)
+      if(messages.length>12000||totalChars>8_000_000)
         throw Error("Conversation is too large to copy safely");
       if(!data.page_info.has_previous_page)return messages;
       const cursor=data.page_info.start_cursor;
