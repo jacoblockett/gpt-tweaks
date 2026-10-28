@@ -20,6 +20,7 @@
     .track { display:block; width:100%; min-width:0; height:6px; flex:none; overflow:hidden;
       background:color-mix(in srgb, var(--color-text, #ededed) 15%, transparent);
       border-radius:99px; }
+    .track[hidden] { display:none; }
     .metrics { position:absolute; z-index:1; left:50%; top:50%; transform:translate(-50%,-50%);
       max-width:calc(100% - 36px); padding:0 8px; border:0; border-radius:0; box-shadow:none;
       background:var(--composer-layout-surface-background, var(--ct-surface-fallback, #1b1b1b));
@@ -284,18 +285,20 @@
     for (const [id, entry] of observedEntries) base.set(id, entry);
     for (const [id, entry] of streamEntries) base.set(id, entry);
     const values = core.metrics([...base.values()]);
-    // Message classification is retained in CTCore for a future separate utility.
-    const hasRatio = target > 0;
+    // The target is presentation-only: disabling it must not stop estimates
+    // or change the conversation display's independent visibility setting.
+    const show = flags || {};
+    const hasRatio = show.targetEnabled !== false && target > 0;
     const percentage = hasRatio ? 100 * values.tokens / target : NaN;
     const displayed = hasRatio ? Math.max(0, percentage) : 0;
     const pctLabel = !hasRatio ? 'N/A' : !Number.isFinite(displayed) ? '∞%' :
       `${new Intl.NumberFormat('en-US', {minimumFractionDigits:1,maximumFractionDigits:1}).format(displayed)}%`;
     const noData = values.records === 0 && !complete;
     ui.panel.dataset.phase = initialDiscovery && !lastError ? 'loading' : 'ready';
-    const show = flags || {};
+    ui.progress.hidden = !hasRatio;
     const showUsed = show.tokens !== false;
-    const showLimit = show.limit !== false;
-    const showPercent = show.percent !== false;
+    const showLimit = hasRatio && show.limit !== false;
+    const showPercent = hasRatio && show.percent !== false;
     const counts = showUsed && showLimit ? `${num(values.tokens)} / ${num(target)}` :
       showUsed ? num(values.tokens) : showLimit ? num(target) : '';
     ui.numbers.textContent = counts ? `${counts} tokens${showPercent ? ` (${pctLabel})` : ''}` :
@@ -320,8 +323,12 @@
       ui.fill.style.removeProperty('background-color');
       ui.metrics.style.removeProperty('color');
     }
-    ui.progress.setAttribute('aria-valuenow', Math.min(100, displayed).toFixed(1));
-    ui.panel.setAttribute('aria-label', `Token estimate: ${num(values.tokens)} of ${num(target)} tokens (${pctLabel}).`);
+    if (hasRatio)
+      ui.progress.setAttribute('aria-valuenow', Math.min(100, displayed).toFixed(1));
+    else ui.progress.removeAttribute('aria-valuenow');
+    ui.panel.setAttribute('aria-label', hasRatio ?
+      `Token estimate: ${num(values.tokens)} of ${num(target)} tokens (${pctLabel}).` :
+      `Token estimate: ${num(values.tokens)} tokens.`);
   }
 
     function setConversation(id) {
