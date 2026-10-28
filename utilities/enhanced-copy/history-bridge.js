@@ -76,8 +76,15 @@
       let selected=-1;
       if(packet.scope!=="all"){
         const candidatesSet=new Set(candidates);
+        const matches=[];
         for(let i=0;i<items.length;i++)
-          if(items[i].role===packet.role&&candidatesSet.has(items[i].id))selected=i;
+          if(items[i].role===packet.role&&candidatesSet.has(items[i].id))matches.push(i);
+        const preferred=matches.find(index=>
+          items[index].id===packet.preferredMessageId);
+        if(preferred!==undefined)selected=preferred;
+        else if(matches.length===1)selected=matches[0];
+        else if(matches.length>1)
+          throw Error("Multiple message versions match this copy button; cannot select safely");
         if(selected<0&&validId(packet.turnKey)){
           // An assistant action can belong to a parent turn keyed by its
           // user message rather than by the assistant's final message ID.
