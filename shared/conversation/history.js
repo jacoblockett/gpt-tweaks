@@ -87,7 +87,9 @@
     const cursors=new Set();
     for(let count=0;count<maxPages;count++){
       const page=await fetchPage(id,{before,signal});
-      await onPage?.(page,count);
+      // Only callers that have already identified a complete requested range
+      // may stop early. Existing consumers continue through pagination.
+      if(await onPage?.(page,count)===false)return count+1;
       if(!page.page_info.has_previous_page)return count+1;
       const next=page.page_info.start_cursor;
       if(typeof next!=="string"||!next||cursors.has(next))
