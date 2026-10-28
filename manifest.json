@@ -26,7 +26,8 @@
       "js": [
         "utilities/token-estimator/estimator-core.js",
         "utilities/token-estimator/history-bridge.js",
-        "utilities/session-handoff/stream-bridge.js"
+        "utilities/session-handoff/stream-bridge.js",
+        "utilities/enhanced-copy/history-bridge.js"
       ],
       "run_at": "document_start",
       "world": "MAIN",
@@ -68,11 +69,13 @@
         "utilities/new-chat/ui/menu.js",
         "utilities/session-handoff/ui/toast.js",
         "utilities/session-handoff/index.js",
-        "utilities/session-handoff/ui/menu.js"
+        "utilities/session-handoff/ui/menu.js",
+        "utilities/enhanced-copy/index.js"
       ],
       "css": [
         "utilities/token-estimator/ui/styles.css",
-        "utilities/session-handoff/ui/toast.css"
+        "utilities/session-handoff/ui/toast.css",
+        "utilities/enhanced-copy/ui/menu.css"
       ],
       "run_at": "document_idle",
       "world": "ISOLATED",
