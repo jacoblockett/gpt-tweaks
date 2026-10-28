@@ -22,7 +22,8 @@ async function scenario({failures=0,alwaysFail=false,abort=false}={}) {
   };
   class EventMock {constructor(type,opts={}){this.type=type;this.detail=opts.detail;}}
   let attempts=0;
-  const window={fetch:async()=>{
+  const window={CTCore:{summarizePage:messages=>
+    messages.map(message=>[message.id,1,1])},fetch:async()=>{
     attempts++;
     if(alwaysFail||attempts<=failures) {
       if(abort&&attempts===1)
