@@ -135,16 +135,46 @@
 	})
 	contextTarget.disabled = !contextElements.enabled.checked
 
-	// Session handoff and enhanced message copy
-	const featureFlags = [
-		["handoff-enabled", "gpt-tweaks.handoff.enabled"],
-		["copy-enabled", "gpt-tweaks.copy.enabled"]
-	]
-	for (const [id, key] of featureFlags) {
-		const checkbox = $(id)
-		checkbox.checked = preferenceStore.getItem(key) !== "false"
-		checkbox.addEventListener("change", () => preferenceStore.setItem(key, String(checkbox.checked)))
+	// Session handoff
+	const handoffEnabled = $("handoff-enabled")
+	handoffEnabled.checked = preferenceStore.getItem("gpt-tweaks.handoff.enabled") !== "false"
+	handoffEnabled.addEventListener("change", () =>
+		preferenceStore.setItem("gpt-tweaks.handoff.enabled", String(handoffEnabled.checked)))
+
+	// Copy entire chat entry points
+	const copyKeys = {
+		enabled: "gpt-tweaks.copy.enabled",
+		actions: "gpt-tweaks.copy.actions",
+		menu: "gpt-tweaks.copy.menu",
+		slash: "gpt-tweaks.copy.slash"
 	}
+	const copyControls = {
+		enabled: $("copy-enabled"),
+		actions: $("copy-actions"),
+		menu: $("copy-menu"),
+		slash: $("copy-slash")
+	}
+	for (const [name, control] of Object.entries(copyControls))
+		control.checked = preferenceStore.getItem(copyKeys[name]) !== "false"
+	if (!copyControls.actions.checked && !copyControls.menu.checked && !copyControls.slash.checked)
+		copyControls.actions.checked = true
+	function syncCopy() {
+		const active = copyControls.enabled.checked
+		$("copy-controls").classList.toggle("inactive", !active)
+		for (const [name, control] of Object.entries(copyControls)) {
+			if (name !== "enabled") control.disabled = !active
+			preferenceStore.setItem(copyKeys[name], String(control.checked))
+		}
+	}
+	for (const [name, control] of Object.entries(copyControls)) {
+		control.addEventListener("change", () => {
+			if (name !== "enabled" && !copyControls.actions.checked &&
+				!copyControls.menu.checked && !copyControls.slash.checked)
+				control.checked = true
+			syncCopy()
+		})
+	}
+	syncCopy()
 
 	// New chat settings
 	const newChatEnabled = $("new-chat-enabled")
