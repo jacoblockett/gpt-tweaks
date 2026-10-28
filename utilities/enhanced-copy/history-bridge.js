@@ -30,11 +30,14 @@
     return {id:message.id,role,text:text||"[Non-text content]"};
   }
 
-  async function collect(id,signal){
+  async function collect(id,signal,onMoreHistory){
     const newestFirstPages=[];
     const seen=new Set();
     let count=0,characters=0;
-    await history.scan(id,{signal,onPage:page=>{
+    await history.scan(id,{signal,onPage:(page,pageIndex)=>{
+      // The first response confirms whether older, virtualized pages are
+      // required; notify UI without sending history contents across worlds.
+      if(pageIndex===0&&page.page_info.has_previous_page)onMoreHistory?.();
       const entries=[];
       for(const raw of page.messages){
         const item=dialogue(raw);
@@ -70,7 +73,11 @@
       }));
     };
     try{
-      const items=await collect(packet.conversationId,controller.signal);
+      const items=await collect(packet.conversationId,controller.signal,()=>{
+        document.dispatchEvent(new CustomEvent("gpt-tweaks:copy:progress",{
+          detail:packet.id
+        }));
+      });
       if(controller.signal.aborted)return;
       if(!items.length)throw Error("No messages available to copy");
       let selected=-1;
