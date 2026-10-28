@@ -5,6 +5,7 @@ const path=require('node:path');
 const vm=require('node:vm');
 
 const source=fs.readFileSync(path.join(__dirname,'../utilities/token-estimator/history-bridge.js'),'utf8');
+const shared=fs.readFileSync(path.join(__dirname,'../shared/conversation/history.js'),'utf8');
 const id='11111111-2222-3333-4444-555555555555';
 const user='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 const page={messages:[{id:user,author:{role:'user'},content:{parts:['hello']}}],
@@ -32,12 +33,14 @@ async function scenario({failures=0,alwaysFail=false,abort=false}={}) {
     }
     return {ok:true,json:async()=>page};
   }};
-  vm.runInNewContext(source,{
+  const environment={
     window,document,location:{origin:'https://chatgpt.com',
       pathname:'/c/'+id,href:'https://chatgpt.com/c/'+id},
     URL,Headers,Request,AbortController,TextDecoder,CustomEvent:EventMock,Event:EventMock,
     setTimeout:(fn)=>setTimeout(fn,1),clearTimeout
-  });
+  };
+  vm.runInNewContext(shared,environment);
+  vm.runInNewContext(source,environment);
   document.dispatchEvent(new EventMock('ct-v1-history-request',{
     detail:JSON.stringify({id,seq:7,pageSize:2})
   }));
