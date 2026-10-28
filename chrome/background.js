@@ -23,3 +23,4 @@ importScripts("../utilities/github-source/connection.js","../utilities/github-so
 importScripts("./token-estimator-bridge.js");
 importScripts("./new-chat-bridge.js");
 importScripts("./session-handoff-bridge.js");
+importScripts("./enhanced-copy-bridge.js");
