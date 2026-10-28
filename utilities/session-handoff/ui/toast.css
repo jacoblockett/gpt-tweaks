@@ -1,0 +1,62 @@
+/* Lightweight notification for an automatic session handoff. */
+#gtg-handoff-toast {
+  position:fixed;
+  right:24px;
+  bottom:24px;
+  z-index:2147483000;
+  box-sizing:border-box;
+  display:flex;
+  align-items:flex-start;
+  gap:16px;
+  width:max-content;
+  max-width:min(400px,calc(100vw - 32px));
+  padding:14px 14px 14px 18px;
+  border:1px solid var(--border-default,#505050);
+  border-radius:16px;
+  background:var(--bg-surface-elevated-secondary,#2e2e2e);
+  box-shadow:0 8px 28px #0004;
+  color:var(--text-primary,#eee);
+  font-family:var(--font-sans,"OpenAI Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);
+  font-size:14px;
+  line-height:1.45;
+}
+#gtg-handoff-toast .gtg-handoff-toast-content {
+  min-width:0;
+}
+#gtg-handoff-toast strong {
+  display:block;
+  margin:0 0 3px;
+  font-size:14px;
+  font-weight:600;
+}
+#gtg-handoff-toast p {
+  margin:0;
+  color:var(--text-secondary,#bababa);
+}
+#gtg-handoff-toast .gtg-handoff-toast-dismiss {
+  flex:none;
+  display:grid;
+  place-items:center;
+  width:26px;
+  height:26px;
+  margin:-3px -3px 0 0;
+  border:0;
+  border-radius:8px;
+  padding:0;
+  background:transparent;
+  color:var(--text-secondary,#bababa);
+  font:inherit;
+  font-size:21px;
+  cursor:pointer;
+}
+#gtg-handoff-toast .gtg-handoff-toast-dismiss:hover {
+  background:var(--bg-primary-ghost-hover,#444);
+  color:var(--text-primary,#eee);
+}
+#gtg-handoff-toast .gtg-handoff-toast-dismiss:focus-visible {
+  outline:2px solid currentColor;
+  outline-offset:1px;
+}
+@media(max-width:480px){
+  #gtg-handoff-toast {right:16px;bottom:16px;}
+}
