@@ -148,40 +148,45 @@
 
 	// New chat settings
 	const newChatEnabled = $("new-chat-enabled")
+	const newChatMenu = $("new-chat-menu")
 	const newChatMiddle = $("new-chat-middle-click")
 	const newChatSlash = $("new-chat-slash")
 	const newChatDestination = $("new-chat-destination")
 	const newChatControls = $("new-chat-controls")
 	const newChatKeys = {
 		enabled: "gpt-tweaks.new-chat.enabled",
+		menu: "gpt-tweaks.new-chat.menu",
 		middle: "gpt-tweaks.new-chat.middle-click",
 		slash: "gpt-tweaks.new-chat.slash",
 		destination: "gpt-tweaks.new-chat.destination"
 	}
 	newChatEnabled.checked = preferenceStore.getItem(newChatKeys.enabled) !== "false"
+	newChatMenu.checked = preferenceStore.getItem(newChatKeys.menu) !== "false"
 	newChatMiddle.checked = preferenceStore.getItem(newChatKeys.middle) !== "false"
 	newChatSlash.checked = preferenceStore.getItem(newChatKeys.slash) !== "false"
 	newChatDestination.value = preferenceStore.getItem(newChatKeys.destination) === "window" ? "window" : "tab"
 	const destinationDropdown = globalThis.GPTTweaksSelect(newChatDestination,
 		$("new-chat-destination-trigger"), $("new-chat-destination-options"))
-	if (!newChatMiddle.checked && !newChatSlash.checked) newChatMiddle.checked = true
+	if (!newChatMenu.checked && !newChatMiddle.checked && !newChatSlash.checked) newChatMenu.checked = true
 
 	function syncNewChat() {
 		const active = newChatEnabled.checked
 		newChatControls.classList.toggle("inactive", !active)
+		newChatMenu.disabled = !active
 		newChatMiddle.disabled = !active
 		newChatSlash.disabled = !active
 		newChatDestination.disabled = !active
 		destinationDropdown.sync()
 		preferenceStore.setItem(newChatKeys.enabled, String(active))
+		preferenceStore.setItem(newChatKeys.menu, String(newChatMenu.checked))
 		preferenceStore.setItem(newChatKeys.middle, String(newChatMiddle.checked))
 		preferenceStore.setItem(newChatKeys.slash, String(newChatSlash.checked))
 		preferenceStore.setItem(newChatKeys.destination, newChatDestination.value)
 	}
 	newChatEnabled.addEventListener("change", syncNewChat)
-	for (const control of [newChatMiddle, newChatSlash]) {
+	for (const control of [newChatMenu, newChatMiddle, newChatSlash]) {
 		control.addEventListener("change", () => {
-			if (!newChatMiddle.checked && !newChatSlash.checked) {
+			if (!newChatMenu.checked && !newChatMiddle.checked && !newChatSlash.checked) {
 				control.checked = true
 			}
 			syncNewChat()
