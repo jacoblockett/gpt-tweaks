@@ -1,6 +1,6 @@
 "use strict";
 
-// Only the nonsecret Enhanced Copy toggle crosses the trusted-worker boundary.
+// Only nonsecret Copy entire chat menu preferences cross the trusted-worker boundary.
 (() => {
   const prefix="gpt-tweaks.copy.";
   const keys=["enabled","actions","menu","slash"].map(name=>prefix+name);
