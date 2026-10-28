@@ -4,6 +4,7 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const path=require('node:path');
 const source=fs.readFileSync(path.join(__dirname,'../utilities/enhanced-copy/index.js'),'utf8');
+const bridge=fs.readFileSync(path.join(__dirname,'../chrome/enhanced-copy-bridge.js'),'utf8');
 const conversation='11111111-2222-3333-4444-555555555555';
 const userId='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const assistantId='bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
@@ -95,9 +96,21 @@ async function scenario(role,isEnabled=true){
   unit.append(control);control.append(button);
   body.append(unit);
   const saved={enabled:isEnabled?'true':'false'};
+  let listener;
+  const worker={
+    runtime:{id:'test-extension',onMessage:{addListener:fn=>{listener=fn;}}},
+    storage:{local:{get:async key=>({[key]:saved.enabled})}}
+  };
+  vm.runInNewContext(bridge,{chrome:worker,URL});
+  assert.equal(typeof listener,'function','trusted worker receives preferences requests');
   const chrome={
+    runtime:{sendMessage:request=>new Promise(resolve=>{
+      assert.equal(listener(request,{
+        id:'test-extension',url:'https://chatgpt.com/c/'+conversation,tab:{id:7}
+      },resolve),true);
+    })},
     storage:{
-      local:{get:async()=>({'gpt-tweaks.copy.enabled':saved.enabled})},
+      local:{get:async()=>{throw Error('Storage access denied by TRUSTED_CONTEXTS');}},
       onChanged:{addListener(){}}
     }
   };
@@ -142,6 +155,9 @@ async function scenario(role,isEnabled=true){
   await scenario('user',false);
   const manifest=JSON.parse(fs.readFileSync(path.join(__dirname,'../manifest.json'),'utf8'));
   assert.ok(manifest.permissions.includes('clipboardWrite'));
+  assert.ok(fs.readFileSync(path.join(__dirname,'../chrome/background.js'),'utf8')
+    .includes('importScripts("./enhanced-copy-bridge.js");'),
+    'worker must import enhanced copy preferences bridge');
   assert.ok(manifest.content_scripts.some(entry=>entry.world==='MAIN'&&
     entry.js.includes('utilities/enhanced-copy/history-bridge.js')));
   assert.ok(manifest.content_scripts.some(entry=>entry.world==='ISOLATED'&&
