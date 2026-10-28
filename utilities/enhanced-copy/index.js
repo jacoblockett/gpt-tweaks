@@ -10,7 +10,14 @@
     ["after","Copy after this message"],
     ["all","Copy entire chat history"]
   ];
-  let enabled=false,menu=null,origin=null,activeRequest=null;
+  let enabled=false,menu=null,origin=null,pending=null;
+  let toast=null,toastTimer=null,feedbackButton=null,feedbackTimer=null;
+  const labels={
+    message:"Message copied.",
+    before:"Messages up to this point copied.",
+    after:"Messages from this point on copied.",
+    all:"Entire conversation copied."
+  };
   const bypass=new WeakSet();
 
   function currentConversation(){
@@ -29,7 +36,7 @@
         invalidated=true;
       }else console.warn("[GPT Tweaks] Cannot read enhanced copy settings",error);
     }
-    if(!enabled)close();
+    if(!enabled)reset();
   }
   function target(button){
     if(!button?.matches(copySelector)||!button.closest(".turn-action-controls"))return null;
@@ -54,22 +61,85 @@
     return {button,role,messageIds,preferredMessageId:selected||null,
       turnKey:turnId,conversationId:currentConversation()};
   }
-  function close(){
-    if(activeRequest){
-      document.dispatchEvent(new CustomEvent("gpt-tweaks:copy:cancel",{detail:activeRequest}));
-      activeRequest=null;
-    }
+  function closeMenu(){
     menu?.remove();
     menu=null;origin=null;
   }
-  function reportFailure(reason){
-    console.warn("[GPT Tweaks] Cannot copy conversation:",reason);
-    if(!menu)return;
-    const status=menu.querySelector("[data-gtg-copy-status]");
-    if(status){
-      const detail=String(reason?.message||reason||"Unknown error").slice(0,200);
-      status.textContent="Copy failed: "+detail;
+  function hideToast(){
+    clearTimeout(toastTimer);
+    toastTimer=null;
+    toast?.remove();
+    toast=null;
+  }
+  function showToast(message,duration){
+    hideToast();
+    if(!document.body)return;
+    const node=document.createElement("aside");
+    node.id="gtg-copy-toast";
+    node.setAttribute("role","status");
+    node.setAttribute("aria-live","polite");
+    const content=document.createElement("span");
+    content.textContent=message;
+    const dismiss=document.createElement("button");
+    dismiss.type="button";
+    dismiss.setAttribute("aria-label","Dismiss notification");
+    dismiss.textContent="×";
+    dismiss.addEventListener("click",()=>{if(toast===node)hideToast();});
+    node.append(content,dismiss);
+    document.body.append(node);
+    toast=node;
+    toastTimer=setTimeout(()=>{if(toast===node)hideToast();},duration);
+  }
+  function feedback(button,state){
+    if(!button)return;
+    if(state)button.dataset.gtgCopyState=state;
+    else delete button.dataset.gtgCopyState;
+    const controls=button.closest(".turn-action-controls");
+    const wrapper=controls?.parentElement;
+    if(wrapper){
+      if(state)wrapper.dataset.gtgCopyFeedbackVisible="true";
+      else delete wrapper.dataset.gtgCopyFeedbackVisible;
     }
+  }
+  function clearFeedback(){
+    clearTimeout(feedbackTimer);
+    feedbackTimer=null;
+    if(feedbackButton)feedback(feedbackButton,null);
+    feedbackButton=null;
+  }
+  function cancelPending(){
+    if(!pending)return;
+    const request=pending;
+    pending=null;
+    clearTimeout(request.loadingTimer);
+    clearTimeout(request.timeout);
+    document.dispatchEvent(new CustomEvent("gpt-tweaks:copy:cancel",{detail:request.id}));
+    feedback(request.button,null);
+  }
+  function reset(){
+    closeMenu();
+    cancelPending();
+    clearFeedback();
+    hideToast();
+  }
+  function finishCopy(button,scope){
+    clearFeedback();
+    feedbackButton=button;
+    feedback(button,"copied");
+    showToast(labels[scope],3000);
+    feedbackTimer=setTimeout(()=>{if(feedbackButton===button)clearFeedback();},3000);
+  }
+  function failCopy(reason,scope,button){
+    console.warn("[GPT Tweaks] Cannot copy conversation:",reason);
+    feedback(button,null);
+    const subject=scope==="all"?"the entire conversation":
+      scope==="before"?"messages up to this point":"messages from this point on";
+    showToast("Couldn't copy "+subject+". Please try again.",5000);
+  }
+  function showLoading(request){
+    if(!pending||pending!==request||request.notified)return;
+    request.notified=true;
+    showToast("Loading more of this conversation. Please wait a moment.",5000);
   }
   function clipboardFallback(text){
     const input=document.createElement("textarea");
@@ -91,24 +161,32 @@
     clipboardFallback(text);
   }
   function copyRange(info,scope){
-    if(activeRequest){
-      document.dispatchEvent(new CustomEvent("gpt-tweaks:copy:cancel",{detail:activeRequest}));
-      activeRequest=null;
-    }
     if(!info.conversationId){
-      reportFailure("Cannot identify this conversation from the current URL");
+      closeMenu();
+      failCopy("Cannot identify conversation URL",scope,info.button);
       return;
     }
-    // Whole-chat copying has no selected-message boundary. ChatGPT's
-    // virtualized DOM may not expose a stable ID for the clicked button.
     if(scope!=="all"&&!info.messageIds.length&&!info.turnKey){
-      reportFailure("Cannot identify the selected message for this copy range");
+      closeMenu();
+      failCopy("Cannot identify selected message",scope,info.button);
       return;
     }
+    closeMenu();
+    clearFeedback();
     const id=crypto.randomUUID().replaceAll("-","");
-    activeRequest=id;
-    const status=menu?.querySelector("[data-gtg-copy-status]");
-    if(status)status.textContent="Loading conversation history…";
+    const request={id,scope,button:info.button,notified:false,
+      loadingTimer:null,timeout:null};
+    pending=request;
+    feedback(request.button,"loading");
+    // Fast single-page requests skip the toast. Paginated scans announce as
+    // soon as a second page becomes necessary, even before this delay.
+    request.loadingTimer=setTimeout(()=>showLoading(request),700);
+    request.timeout=setTimeout(()=>{
+      if(pending!==request)return;
+      cancelPending();
+      hideToast();
+      failCopy("Timed out loading conversation history",scope,request.button);
+    },120000);
     document.dispatchEvent(new CustomEvent("gpt-tweaks:copy:request",{
       detail:JSON.stringify({id,conversationId:info.conversationId,
         messageIds:info.messageIds,preferredMessageId:info.preferredMessageId,
@@ -116,7 +194,7 @@
     }));
   }
   function open(info){
-    close();
+    closeMenu();
     origin=info;
     const root=document.createElement("div");
     root.id="gtg-copy-menu";
@@ -131,12 +209,12 @@
       button.addEventListener("click",()=>{
         if(scope==="message"){
           const trigger=origin?.button;
-          close();
+          closeMenu();
           if(trigger?.isConnected){
             bypass.add(trigger);
             trigger.click();
-          }else console.warn("[GPT Tweaks] Copy button no longer exists");
-
+            finishCopy(trigger,scope);
+          }else failCopy("Copy button no longer exists",scope,trigger);
         }else copyRange(origin,scope);
       });
       root.append(button);
@@ -157,6 +235,12 @@
   }
   document.addEventListener("click",event=>{
     if(!enabled)return;
+    const clicked=event.target?.closest?.(copySelector);
+    if(pending&&clicked){
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
     if(menu?.contains(event.target))return;
     const button=event.target?.closest?.(copySelector);
     if(button&&bypass.has(button)){bypass.delete(button);return;}
@@ -165,11 +249,11 @@
       event.preventDefault();
       event.stopImmediatePropagation();
       open(info);
-    }else if(menu)close();
+    }else if(menu)closeMenu();
   },true);
   document.addEventListener("keydown",event=>{
     if(!menu)return;
-    if(event.key==="Escape"){event.preventDefault();const button=origin?.button;close();button?.focus();return;}
+    if(event.key==="Escape"){event.preventDefault();const button=origin?.button;closeMenu();button?.focus();return;}
     if(!["ArrowUp","ArrowDown","Home","End"].includes(event.key))return;
     const items=[...menu.querySelectorAll('[role="menuitem"]')];
     const current=items.indexOf(document.activeElement);
@@ -178,20 +262,42 @@
     event.preventDefault();
     items[index]?.focus();
   },true);
+  document.addEventListener("gpt-tweaks:copy:progress",event=>{
+    if(pending?.id===event.detail)showLoading(pending);
+  });
   document.addEventListener("gpt-tweaks:copy:result",async event=>{
     let packet;
     try{packet=JSON.parse(event.detail);}catch{return;}
-    if(!activeRequest||packet?.id!==activeRequest||!menu)return;
-    activeRequest=null;
-    if(!packet.ok){reportFailure(packet.error);return;}
-    try{await copyText(packet.text);close();}
-    catch(error){reportFailure(error);}
+    if(!pending||packet?.id!==pending.id)return;
+    const request=pending;
+    clearTimeout(request.loadingTimer);
+    if(!packet.ok){
+      pending=null;
+      clearTimeout(request.timeout);
+      hideToast();
+      failCopy(packet.error,request.scope,request.button);
+      return;
+    }
+    try{
+      await copyText(packet.text);
+      if(pending!==request)return;
+      pending=null;
+      clearTimeout(request.timeout);
+      hideToast();
+      finishCopy(request.button,request.scope);
+    }catch(error){
+      if(pending!==request)return;
+      pending=null;
+      clearTimeout(request.timeout);
+      hideToast();
+      failCopy(error,request.scope,request.button);
+    }
   });
-  window.addEventListener("popstate",close);
-  window.addEventListener("pagehide",close);
-  window.addEventListener("resize",close);
+  window.addEventListener("popstate",reset);
+  window.addEventListener("pagehide",reset);
+  window.addEventListener("resize",closeMenu);
   document.addEventListener("scroll",event=>{
-    if(menu&&!menu.contains(event.target))close();
+    if(menu&&!menu.contains(event.target))closeMenu();
   },true);
   window.addEventListener("focus",()=>{void refresh();});
   document.addEventListener("visibilitychange",()=>{
@@ -200,7 +306,7 @@
   chrome.storage?.onChanged?.addListener((changes,area)=>{
     if(area==="local"&&changes[setting]){
       enabled=changes[setting].newValue!==false&&changes[setting].newValue!=="false";
-      if(!enabled)close();
+      if(!enabled)reset();
     }
   });
   void refresh();
