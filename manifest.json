@@ -74,7 +74,8 @@
         "utilities/session-handoff/ui/toast.js",
         "utilities/session-handoff/index.js",
         "utilities/session-handoff/ui/menu.js",
-        "utilities/enhanced-copy/index.js"
+        "utilities/enhanced-copy/index.js",
+        "utilities/enhanced-copy/ui/menu.js"
       ],
       "css": [
         "utilities/token-estimator/ui/styles.css",
