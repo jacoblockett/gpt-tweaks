@@ -30,14 +30,55 @@
     return {id:message.id,role,text:text||"[Non-text content]"};
   }
 
-  async function collect(id,signal,onMoreHistory){
+  // Resolve a visible turn without guessing between message versions.
+  // On partial scans, a preferred ID takes priority and multiple possible
+  // candidates must remain unresolved until their identity is certain.
+  function selectedIndex(items,packet,partial=false){
+    const candidates=Array.isArray(packet.messageIds)?
+      packet.messageIds.filter(validId).slice(0,20):
+      (validId(packet.messageId)?[packet.messageId]:[]);
+    const matches=[];
+    for(let i=0;i<items.length;i++)
+      if(items[i].role===packet.role&&candidates.includes(items[i].id))matches.push(i);
+    const preferred=matches.find(index=>items[index].id===packet.preferredMessageId);
+    if(preferred!==undefined)return preferred;
+    if(partial&&validId(packet.preferredMessageId))return -1;
+    if(matches.length>1){
+      if(partial)return -1;
+      throw Error("Multiple message versions match this copy button; cannot select safely");
+    }
+    if(matches.length===1){
+      // An ID for the parent user turn is not a second assistant candidate.
+      if(partial&&candidates.some(id=>id!==items[matches[0]].id&&
+          id!==packet.turnKey))return -1;
+      return matches[0];
+    }
+    if(validId(packet.turnKey)){
+      const userIndex=items.findIndex(item=>
+        item.role==="user"&&item.id===packet.turnKey);
+      if(packet.role==="user")return userIndex;
+      if(packet.role==="assistant"&&userIndex>=0){
+        const replies=[];
+        for(let i=userIndex+1;i<items.length&&items[i].role!=="user";i++)
+          if(items[i].role==="assistant")replies.push(i);
+        // Once the parent user turn is fetched, all subsequent replies have
+        // already been fetched (pagination goes newest-to-oldest).
+        if(replies.length===1)return replies[0];
+        if(replies.length>1)
+          throw Error("Multiple assistant replies exist in this turn; cannot identify the selected version");
+      }
+    }
+    return -1;
+  }
+
+  async function collect(packet,signal,onMoreHistory){
     const newestFirstPages=[];
     const seen=new Set();
+    const candidates=new Set([...(packet.messageIds||[]),packet.turnKey,
+      packet.preferredMessageId].filter(validId));
     let count=0,characters=0;
-    await history.scan(id,{signal,onPage:(page,pageIndex)=>{
-      // The first response confirms whether older, virtualized pages are
-      // required; notify UI without sending history contents across worlds.
-      if(pageIndex===0&&page.page_info.has_previous_page)onMoreHistory?.();
+    let beforeBoundaryFound=false;
+    await history.scan(packet.conversationId,{signal,onPage:(page,pageIndex)=>{
       const entries=[];
       for(const raw of page.messages){
         const item=dialogue(raw);
@@ -50,8 +91,27 @@
           throw Error("Conversation is too large for a single clipboard copy");
       }
       newestFirstPages.push(entries);
+      let stop=false;
+      // "After" is a suffix. Once its exact starting turn is present, older
+      // pages cannot contribute anything and must never be requested.
+      // "Before" needs older pages, but can drop all newer text immediately.
+      if(packet.scope!=="all"&&!beforeBoundaryFound&&
+          entries.some(item=>candidates.has(item.id))){
+        const current=newestFirstPages.slice().reverse().flat();
+        const index=selectedIndex(current,packet,true);
+        if(index>=0){
+          if(packet.scope==="after")stop=true;
+          else{
+            newestFirstPages.splice(0,newestFirstPages.length,current.slice(0,index+1));
+            beforeBoundaryFound=true;
+          }
+        }
+      }
+      // Only show a pagination notification when another history page
+      // is actually needed for the selected range.
+      if(!stop&&pageIndex===0&&page.page_info.has_previous_page)onMoreHistory?.();
+      return stop?false:undefined;
     }});
-    // Each history page is ordered oldest-to-newest; pages arrive newest-first.
     return newestFirstPages.reverse().flat();
   }
   document.addEventListener("gpt-tweaks:copy:request",async event=>{
@@ -61,9 +121,6 @@
        !/^[a-z0-9_-]{12,80}$/i.test(packet.id||"")||
        !["before","after","all"].includes(packet.scope)||requests.has(packet.id))
       return;
-    const candidates=Array.isArray(packet.messageIds)?
-      packet.messageIds.filter(validId).slice(0,20):
-      (validId(packet.messageId)?[packet.messageId]:[]);
     const controller=new AbortController();
     requests.set(packet.id,controller);
     const report=(ok,value)=>{
@@ -73,44 +130,16 @@
       }));
     };
     try{
-      const items=await collect(packet.conversationId,controller.signal,()=>{
+      const items=await collect(packet,controller.signal,()=>{
         document.dispatchEvent(new CustomEvent("gpt-tweaks:copy:progress",{
           detail:packet.id
         }));
       });
       if(controller.signal.aborted)return;
       if(!items.length)throw Error("No messages available to copy");
-      let selected=-1;
-      if(packet.scope!=="all"){
-        const candidatesSet=new Set(candidates);
-        const matches=[];
-        for(let i=0;i<items.length;i++)
-          if(items[i].role===packet.role&&candidatesSet.has(items[i].id))matches.push(i);
-        const preferred=matches.find(index=>
-          items[index].id===packet.preferredMessageId);
-        if(preferred!==undefined)selected=preferred;
-        else if(matches.length===1)selected=matches[0];
-        else if(matches.length>1)
-          throw Error("Multiple message versions match this copy button; cannot select safely");
-        if(selected<0&&validId(packet.turnKey)){
-          // An assistant action can belong to a parent turn keyed by its
-          // user message rather than by the assistant's final message ID.
-          const userIndex=items.findIndex(item=>
-            item.role==="user"&&item.id===packet.turnKey);
-          if(packet.role==="user")selected=userIndex;
-          else if(packet.role==="assistant"&&userIndex>=0){
-            const replies=[];
-            for(let i=userIndex+1;i<items.length&&items[i].role!=="user";i++)
-              if(items[i].role==="assistant")replies.push(i);
-            // Only infer from a parent turn when there is exactly one
-            // eligible final reply. Never guess which branch was clicked.
-            if(replies.length===1)selected=replies[0];
-            else if(replies.length>1)
-              throw Error("Multiple assistant replies exist in this turn; cannot identify the selected version");
-          }
-        }
-        if(selected<0)throw Error("Selected message could not be matched to conversation history");
-      }
+      const selected=packet.scope==="all"?-1:selectedIndex(items,packet);
+      if(packet.scope!=="all"&&selected<0)
+        throw Error("Selected message could not be matched to conversation history");
       const subset=packet.scope==="all"?items:
         packet.scope==="before"?items.slice(0,selected+1):items.slice(selected);
       const transcript=subset.map(item=>"## "+(item.role==="user"?"User":"Assistant")+
