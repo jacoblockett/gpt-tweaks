@@ -6,7 +6,7 @@ const path=require('node:path');
 const source=fs.readFileSync(path.join(__dirname,'../utilities/session-handoff/stream-bridge.js'),'utf8');
 
 async function scenario({complete=true,abort=false,file=false,status='finished_successfully',
-  matching=true,initial=false}={}) {
+  matching=true}={}) {
   const listeners=new Map(),results=[],calls=[];
   const document={
     addEventListener:(name,fn)=>listeners.set(name,[...(listeners.get(name)||[]),fn]),
@@ -58,7 +58,8 @@ async function scenario({complete=true,abort=false,file=false,status='finished_s
     };
   }};
   vm.runInNewContext(source,{
-    window,document,CustomEvent,URL,Request,TextDecoder
+    window,document,CustomEvent,URL,Request,TextDecoder,
+    location:{href:'https://chatgpt.com/c/123',origin:'https://chatgpt.com',pathname:'/c/123'}
   });
   document.dispatchEvent(new CustomEvent('gpt-tweaks:handoff:arm',{detail:'test123456789012'}));
   await window.fetch('/backend-api/f/conversation',{
