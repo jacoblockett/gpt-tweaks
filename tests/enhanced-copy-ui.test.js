@@ -85,7 +85,8 @@ async function scenario(role,isEnabled=true,withMessageId=true){
   class Event {constructor(type,options={}){this.type=type;this.detail=options.detail;}}
   const unit=new Node('div',{
     'data-chatgpt-search-unit-key':'fallback-turn-1:0:'+role,
-    'data-chatgpt-search-message-ids':withMessageId?(role==='user'?userId:assistantId):''
+    'data-chatgpt-search-message-ids':withMessageId?(role==='user'?userId:assistantId):'',
+    'data-turn-key':userId
   });
   const control=new Node('div',{class:'turn-action-controls'});
   const button=new Node('button',{'aria-label':role==='user'?'Copy message':'Copy'});
@@ -137,9 +138,11 @@ async function scenario(role,isEnabled=true,withMessageId=true){
   menu.children[0].click();
   assert.equal(nativeCopies,1,'first option reuses native copy');
   button.click();menu=body.children.find(node=>node.id==='gtg-copy-menu');
-  menu.children[withMessageId?2:3].click();
+  const scope=withMessageId||role==='assistant'?'after':'all';
+  menu.children[scope==='after'?2:3].click();
   assert.equal(requests.length,1);
-  assert.equal(requests[0].scope,withMessageId?'after':'all');
+  assert.equal(requests[0].scope,scope);
+  assert.equal(requests[0].turnKey,userId);
   assert.deepEqual(Array.from(requests[0].messageIds),
     withMessageId?[role==='user'?userId:assistantId]:[]);
   assert.equal(requests[0].role,role);
