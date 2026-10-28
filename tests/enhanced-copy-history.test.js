@@ -61,7 +61,9 @@ function setup({failPage=false,onlyFirst=false}={}){
   assert.equal(after.ok,true);
   assert.match(after.text,/Question 2[\s\S]*Answer 2/);
   assert.doesNotMatch(after.text,/Answer 1/);
-  const all=await test.request('all');
+  // Whole-history export must work even when the clicked virtualized turn
+  // exposes no DOM message ID at all.
+  const all=await test.request('all',null);
   assert.equal(all.ok,true);
   assert.equal(all.text.match(/## (User|Assistant)/g).length,4);
   assert.equal(all.text.includes('Internal'),false);
