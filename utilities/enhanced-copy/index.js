@@ -1,5 +1,5 @@
-/* Copy entire chat belongs to the conversation's native top-right Chat actions menu.
- * Message Copy buttons remain entirely owned by ChatGPT. */
+/* Copy entire chat uses the native Chat actions menu and the shared plus/slash
+ * entry points. Message Copy buttons remain entirely owned by ChatGPT. */
 (() => {
   "use strict";
   if(globalThis.GPTTweaksEnhancedCopy)return;
@@ -123,9 +123,8 @@
     }));
   }
 
-  // Native Radix menu content is portaled, not a descendant of the More
-  // button. Locate the specific Archive/Delete section only after the
-  // top-right conversation menu is opened.
+  // Native Radix menu content is portaled, not a descendant of the Chat
+  // actions button. Locate Archive/Delete after the menu is opened.
   function menuItem(menu,label){
     return [...menu.querySelectorAll('[role="menuitem"]')].find(item=>
       new RegExp("^"+label+"(?: chat)?(?:\\s|$)","i").test(
