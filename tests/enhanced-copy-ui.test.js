@@ -144,8 +144,8 @@ async function scenario(role,isEnabled=true,withMessageId=true,mode='normal'){
   const window={innerWidth:1000,innerHeight:800,addEventListener(){}};
   const navigator={clipboard:{writeText:async text=>writes.push(text)}};
   vm.runInNewContext(source,{document:doc,window,navigator,chrome,
-    location:{pathname:'/c/'+conversation},
-    globalThis:mode==='local'?{GPTTweaksEnhancedCopyLocal:{
+    location:{pathname:mode==='local-no-id'?'/':'/c/'+conversation},
+    globalThis:mode.startsWith('local')?{GPTTweaksEnhancedCopyLocal:{
       read:scope=>scope==='after'?'## Assistant\\n\\nFrom rendered messages':null
     }}:{},Event,CustomEvent:Event,crypto:{randomUUID:()=> '12345678-1234-1234-1234-123456789012'},
     setTimeout:schedule,clearTimeout:id=>timers.delete(id),console});
@@ -186,7 +186,7 @@ async function scenario(role,isEnabled=true,withMessageId=true,mode='normal'){
   menu.children[scope==='after'?2:3].click();
   assert.ok(!body.children.find(node=>node.id==='gtg-copy-menu'),
     'menu closes immediately when history copy begins');
-  if(mode==='local'){
+  if(mode.startsWith('local')){
     assert.equal(requests.length,0,'rendered copy never requests history');
     assert.equal(button.dataset.gtgCopyState,undefined,
       'rendered copy never enters loading state');
@@ -308,6 +308,7 @@ async function scenario(role,isEnabled=true,withMessageId=true,mode='normal'){
   await scenario('assistant',true,false);
   await scenario('assistant',true,true,'fast');
   await scenario('assistant',true,true,'local');
+  await scenario('assistant',true,false,'local-no-id');
   await scenario('assistant',true,true,'error');
   await scenario('assistant',true,true,'timeout');
   await scenario('user',true,true,'dismiss');
