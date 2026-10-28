@@ -51,7 +51,8 @@
     const turnId=button.closest("[data-turn-key]")?.getAttribute("data-turn-key");
     const messageIds=[...new Set([selected,...unitIds,turnId])]
       .filter(id=>typeof id==="string"&&/^[a-f0-9-]{36}$/i.test(id));
-    return {button,role,messageIds,turnKey:turnId,conversationId:currentConversation()};
+    return {button,role,messageIds,preferredMessageId:selected||null,
+      turnKey:turnId,conversationId:currentConversation()};
   }
   function close(){
     if(activeRequest){
@@ -110,8 +111,8 @@
     if(status)status.textContent="Loading conversation history…";
     document.dispatchEvent(new CustomEvent("gpt-tweaks:copy:request",{
       detail:JSON.stringify({id,conversationId:info.conversationId,
-        messageIds:info.messageIds,turnKey:info.turnKey,
-        role:info.role,scope})
+        messageIds:info.messageIds,preferredMessageId:info.preferredMessageId,
+        turnKey:info.turnKey,role:info.role,scope})
     }));
   }
   function open(info){
