@@ -79,7 +79,7 @@ function context(numbers,options={}){
   const turns=numbers.map(n=>makeTurn(n,"Question "+n,"**bold "+n+"**",
     {state:options.incomplete===n?"streaming":"complete",rich:options.rich===n}));
   const root=node("main",{},...turns.map(t=>t.turn));
-  const scrolling={scrollHeight:2000,clientHeight:500,
+  const scrolling=options.unknownScroll?null:{scrollHeight:2000,clientHeight:500,
     scrollTop:options.notAtEnd?200:1500};
   const document={querySelectorAll:s=>root.querySelectorAll(s),
     scrollingElement:scrolling};
@@ -105,6 +105,12 @@ const hole=context([48,50]);
 assert.equal(hole.read("after",hole.info(0)),null,"virtualized gap triggers backend fallback");
 const notEnd=context([48,49,50],{notAtEnd:true});
 assert.equal(notEnd.read("after",notEnd.info(1)),null,"unloaded tail triggers fallback");
+const unknown=context([48,49,50],{unknownScroll:true});
+assert.equal(unknown.read("after",unknown.info(1)),null,
+  "missing scroll-end evidence cannot yield an incomplete suffix");
+const small=context([0,1,2],{unknownScroll:true});
+assert.ok(small.read("after",small.info(1)),
+  "a fully rendered short thread does not require an artificial scrollbar");
 const incomplete=context([48,49,50],{incomplete:50});
 assert.equal(incomplete.read("after",incomplete.info(1)),null,"streaming final response triggers fallback");
 const rich=context([48,49,50],{rich:50});
