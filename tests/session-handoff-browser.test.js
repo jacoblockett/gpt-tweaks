@@ -5,7 +5,7 @@ const vm=require('node:vm');
 const path=require('node:path');
 const source=fs.readFileSync(path.join(__dirname,'../utilities/session-handoff/index.js'),'utf8');
 
-async function scenario(withButton,success=true) {
+async function scenario(withButton,success=true,method='slash') {
   let draft='',submitted=0,prepared=0,navigation=null,ui=0;
   const listeners=new Map();
   const handoff='# Session Handoff\n'+'Relevant history and constraints. '.repeat(8);
@@ -88,7 +88,8 @@ async function scenario(withButton,success=true) {
     console:{warn:(...args)=>warnings.push(args)}
   });
   await new Promise(resolve=>setTimeout(resolve,10));
-  await context.GPTTweaksHandoff.activate('slash');
+  assert.equal(await context.GPTTweaksHandoff.isEnabled('menu'),true);
+  await context.GPTTweaksHandoff.activate(method);
   assert.equal(submitted,1);
   assert.equal(prepared,success?1:0);
   assert.equal(navigation,success?'/g/g-p-example/project':null);
@@ -99,6 +100,7 @@ async function scenario(withButton,success=true) {
 (async()=>{
   await scenario(true);
   await scenario(false);
+  await scenario(true,true,'menu');
   await scenario(true,false);
   const manifest=JSON.parse(fs.readFileSync(path.join(__dirname,'../manifest.json'),'utf8'));
   assert.ok(manifest.content_scripts.some(entry=>entry.world==='MAIN'&&
