@@ -16,11 +16,19 @@
   function currentConversation(){
     return location.pathname.match(/(?:^|\/)c\/([0-9a-f-]{36})(?:\/|$)/i)?.[1]||null;
   }
+  let invalidated=false;
   async function refresh(){
+    if(invalidated)return;
     try{
-      const value=(await chrome.storage.local.get(setting))[setting];
-      enabled=value!==false&&value!=="false";
-    }catch(error){console.warn("[GPT Tweaks] Cannot read enhanced copy settings",error);}
+      const result=await chrome.runtime.sendMessage({type:"gpt-tweaks:copy:preferences"});
+      if(!result?.ok)throw Error(result?.error||"Enhanced copy preferences unavailable");
+      enabled=result.enabled===true;
+    }catch(error){
+      enabled=false;
+      if(/Extension context invalidated/i.test(String(error))){
+        invalidated=true;
+      }else console.warn("[GPT Tweaks] Cannot read enhanced copy settings",error);
+    }
     if(!enabled)close();
   }
   function target(button){
@@ -169,7 +177,11 @@
   document.addEventListener("scroll",event=>{
     if(menu&&!menu.contains(event.target))close();
   },true);
-  chrome.storage.onChanged?.addListener((changes,area)=>{
+  window.addEventListener("focus",()=>{void refresh();});
+  document.addEventListener("visibilitychange",()=>{
+    if(!document.hidden)void refresh();
+  });
+  chrome.storage?.onChanged?.addListener((changes,area)=>{
     if(area==="local"&&changes[setting]){
       enabled=changes[setting].newValue!==false&&changes[setting].newValue!=="false";
       if(!enabled)close();
