@@ -175,7 +175,8 @@ async function scenario(role,isEnabled=true,withMessageId=true,mode='normal'){
   advance(3000);
   assert.equal(button.dataset.gtgCopyState,undefined,'native copy icon restores after 3 seconds');
   assert.equal(button.querySelector('svg[data-gtg-copy-icon]'),null);
-  assert.deepEqual(button.children,[nativeIcon],'native icon restored without replacement');
+  assert.equal(button.children.length,1,'only the native SVG remains');
+  assert.equal(button.children[0],nativeIcon,'native SVG instance is unchanged');
   assert.ok(!body.children.find(node=>node.id==='gtg-copy-toast'),
     'native success toast expires with checkmark');
   button.click();menu=body.children.find(node=>node.id==='gtg-copy-menu');
@@ -273,7 +274,8 @@ async function scenario(role,isEnabled=true,withMessageId=true,mode='normal'){
   advance(3000);
   assert.equal(button.dataset.gtgCopyState,undefined,'original icon restores after three seconds');
   assert.equal(button.querySelector('svg[data-gtg-copy-icon]'),null);
-  assert.deepEqual(button.children,[nativeIcon],'exact native SVG restored');
+  assert.equal(button.children.length,1,'only the native SVG remains');
+  assert.equal(button.children[0],nativeIcon,'native SVG instance is unchanged');
   assert.ok(!body.children.find(node=>node.id==='gtg-copy-toast'),
     'success toast clears automatically');
   nativeCopies=0;
