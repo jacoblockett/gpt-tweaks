@@ -49,10 +49,10 @@ function setup({failPage=false,onlyFirst=false,repeatCursor=false}={}){
   vm.runInNewContext(content,environment);
   vm.runInNewContext(history,environment);
   vm.runInNewContext(source,environment);
-  async function request(scope,messageIds=[ids[2]],role='user'){
+  async function request(scope,messageIds=[ids[2]],role='user',turnKey=null){
     const id='req'+String(results.length+1).padStart(15,'0');
     document.dispatchEvent(new Event('gpt-tweaks:copy:request',{detail:JSON.stringify({
-      id,conversationId:conversation,messageIds,role,scope
+      id,conversationId:conversation,messageIds,turnKey,role,scope
     })}));
     for(let tries=0;tries<150&&!results.some(result=>result.id===id);tries++)
       await new Promise(resolve=>setTimeout(resolve,2));
@@ -83,6 +83,13 @@ function setup({failPage=false,onlyFirst=false,repeatCursor=false}={}){
   assert.equal(multi.ok,true);
   assert.match(multi.text,/\*\*Answer 2\*\*/);
   assert.doesNotMatch(multi.text,/Question 2/);
+  const assistantFallback=await test.request('after',[],'assistant',ids[2]);
+  assert.equal(assistantFallback.ok,true,'parent turn identifies a unique final assistant reply');
+  assert.match(assistantFallback.text,/\*\*Answer 2\*\*/);
+  assert.doesNotMatch(assistantFallback.text,/Question 2/);
+  const userFallback=await test.request('before',[],'user',ids[2]);
+  assert.equal(userFallback.ok,true,'parent turn also identifies user copy range');
+  assert.doesNotMatch(userFallback.text,/Answer 2/);
   const unavailable=await setup({failPage:true}).request('all',[],null);
   assert.equal(unavailable.ok,false,'failed older page must never yield partial copy');
   assert.match(unavailable.error,/HTTP 404/);
