@@ -79,7 +79,7 @@
       "css": [
         "utilities/token-estimator/ui/styles.css",
         "utilities/session-handoff/ui/toast.css",
-        "utilities/enhanced-copy/ui/menu.css"
+        "utilities/enhanced-copy/ui/toast.css"
       ],
       "run_at": "document_idle",
       "world": "ISOLATED",
