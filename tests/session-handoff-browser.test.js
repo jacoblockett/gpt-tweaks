@@ -4,9 +4,10 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const path=require('node:path');
 const source=fs.readFileSync(path.join(__dirname,'../utilities/session-handoff/index.js'),'utf8');
+const toastSource=fs.readFileSync(path.join(__dirname,'../utilities/session-handoff/ui/toast.js'),'utf8');
 
-async function scenario(withButton,success=true,method='slash') {
-  let draft='',submitted=0,prepared=0,navigation=null,ui=0;
+async function scenario(withButton,success=true,method='slash',dismissEarly=false) {
+  let draft='',submitted=0,prepared=0,navigation=null,toastsCreated=0;
   const listeners=new Map();
   const handoff='# Session Handoff\n'+'Relevant history and constraints. '.repeat(8);
   function dispatch(event) {
@@ -14,6 +15,16 @@ async function scenario(withButton,success=true,method='slash') {
   }
   let arm=null;
   const submit=()=>{
+    const toast=document.getElementById('gtg-handoff-toast');
+    assert.ok(toast,'handoff toast must be visible before submission');
+    assert.equal(toast.children[0].children[0].textContent,'Session handoff in progress');
+    assert.equal(toast.children[0].children[1].textContent,
+      'Your conversation is being summarized. A new chat will open automatically. Try not to touch anything.');
+    if(dismissEarly){
+      toast.children[1].click();
+      assert.equal(document.getElementById('gtg-handoff-toast'),null,
+        'dismissal removes toast without canceling handoff');
+    }
     assert.ok(draft.includes('GPT Tweaks session handoff request.'),
       'handoff needs a unique request marker');
     assert.ok(draft.includes('language predominantly used by the USER'),
@@ -65,9 +76,23 @@ async function scenario(withButton,success=true,method='slash') {
     throw Error('Unexpected action: '+request.action);
   }}};
   const context={__gptTweaksMenus:{composer:()=>input}};
+  class Node {
+    constructor(tag){this.tag=tag;this.children=[];this.parent=null;this.attributes={};}
+    setAttribute(k,v){this.attributes[k]=v;}
+    append(...children){for(const child of children){child.parent=this;this.children.push(child);}}
+    remove(){if(!this.parent)return;
+      this.parent.children=this.parent.children.filter(child=>child!==this);
+      this.parent=null;
+    }
+    addEventListener(name,fn){(this.handlers??={})[name]=fn;}
+    click(){this.handlers?.click?.();}
+  }
+  const body=new Node('body');
   const document={
+    body,
     querySelector:()=>null,
-    createElement:()=>{ui++;throw Error('Unexpected handoff UI');},
+    getElementById:id=>body.children.find(child=>child.id===id)||null,
+    createElement:tag=>{if(tag==='aside')toastsCreated++;return new Node(tag);},
     addEventListener:(type,fn)=>{
       const current=listeners.get(type)||[];current.push(fn);listeners.set(type,current);
     },
@@ -86,20 +111,24 @@ async function scenario(withButton,success=true,method='slash') {
   };
   const warnings=[];
   class CustomEvent {constructor(type,options){this.type=type;this.detail=options?.detail;}}
-  vm.runInNewContext(source,{
+  const sandbox={
     chrome,document,window:{addEventListener(){}},globalThis:context,
     location,Date,Event,CustomEvent,
     crypto:{randomUUID:()=> '12345678-1234-1234-1234-123456789012'},
     setInterval,clearInterval,setTimeout,clearTimeout,
     console:{warn:(...args)=>warnings.push(args)}
-  });
+  };
+  vm.runInNewContext(toastSource,sandbox);
+  vm.runInNewContext(source,sandbox);
   await new Promise(resolve=>setTimeout(resolve,10));
   assert.equal(await context.GPTTweaksHandoff.isEnabled('menu'),true);
   await context.GPTTweaksHandoff.activate(method);
   assert.equal(submitted,1);
   assert.equal(prepared,success?1:0);
   assert.equal(navigation,success?'/g/g-p-example/project':null);
-  assert.equal(ui,0,'no error UI');
+  assert.equal(toastsCreated,1,'exactly one progress toast per handoff');
+  assert.equal(document.getElementById('gtg-handoff-toast'),null,
+    'toast removed on success or failure');
   assert.equal(warnings.length,success?0:1);
   assert.equal(draft,'');
 }
@@ -108,11 +137,13 @@ async function scenario(withButton,success=true,method='slash') {
   await scenario(false);
   await scenario(true,true,'menu');
   await scenario(true,false);
+  await scenario(true,true,'slash',true);
   const manifest=JSON.parse(fs.readFileSync(path.join(__dirname,'../manifest.json'),'utf8'));
   assert.ok(manifest.content_scripts.some(entry=>entry.world==='MAIN'&&
     entry.js.includes('utilities/session-handoff/stream-bridge.js')));
-  for(const file of ['utilities/session-handoff/index.js','utilities/session-handoff/stream-bridge.js']){
+  for(const file of ['utilities/session-handoff/index.js',
+    'utilities/session-handoff/ui/toast.js','utilities/session-handoff/stream-bridge.js']){
     new vm.Script(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),{filename:file});
   }
-  console.log('PASS: automatic handoff send, fallback, rejection, no UI, and bridge registration');
+  console.log('PASS: handoff toast, dismissal, cleanup, automatic send, and bridge registration');
 })().catch(error=>{console.error(error);process.exitCode=1;});
