@@ -74,6 +74,7 @@
         "utilities/session-handoff/ui/toast.js",
         "utilities/session-handoff/index.js",
         "utilities/session-handoff/ui/menu.js",
+        "utilities/enhanced-copy/local.js",
         "utilities/enhanced-copy/index.js"
       ],
       "css": [
