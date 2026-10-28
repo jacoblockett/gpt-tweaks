@@ -211,6 +211,16 @@
     }
     closeMenu();
     clearFeedback();
+    // A fully rendered, complete range is copied directly from the page.
+    // No history request, loading toast, or spinner is needed in that case.
+    let local=null;
+    try{local=globalThis.GPTTweaksEnhancedCopyLocal?.read(scope,info)||null;}
+    catch(error){console.warn("[GPT Tweaks] Local copy unavailable:",error);}
+    if(local!==null){
+      void copyText(local).then(()=>finishCopy(info.button,scope),
+        error=>failCopy(error,scope,info.button));
+      return;
+    }
     const id=crypto.randomUUID().replaceAll("-","");
     const request={id,scope,button:info.button,notified:false,
       loadingTimer:null,timeout:null};
