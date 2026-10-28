@@ -42,40 +42,31 @@
 }
 #gtg-copy-menu .gtg-copy-status:not(:empty) {padding:7px 10px 5px;}
 
-/* Keep the native copy button in place. Only replace its glyph temporarily. */
-button[data-gtg-copy-state="loading"],
-button[data-gtg-copy-state="copied"] {
+/* The existing 21x21 ChatGPT icon remains in the button, untouched.
+ * Hide only that icon while an equally sized SVG is displayed above it. */
+button[data-gtg-copy-state] {
   position:relative;
 }
-button[data-gtg-copy-state] svg {
+button[data-gtg-copy-state] svg:not([data-gtg-copy-icon]) {
   visibility:hidden;
 }
-button[data-gtg-copy-state="loading"]::after {
-  content:"";
+button svg[data-gtg-copy-icon] {
   position:absolute;
   top:50%;
   left:50%;
-  width:14px;
-  height:14px;
-  box-sizing:border-box;
-  border:2px solid currentColor;
-  border-right-color:transparent;
-  border-radius:50%;
-  animation:gtg-copy-spin .75s linear infinite;
+  display:block;
+  width:21px;
+  height:21px;
+  color:inherit;
+  pointer-events:none;
+  transform:translate(-50%,-50%);
 }
-@keyframes gtg-copy-spin {
+button svg[data-gtg-copy-icon="loading"] {
+  animation:gtg-copy-icon-spin 1s linear infinite;
+}
+@keyframes gtg-copy-icon-spin {
   from {transform:translate(-50%,-50%) rotate(0deg);}
   to {transform:translate(-50%,-50%) rotate(360deg);}
-}
-button[data-gtg-copy-state="copied"]::after {
-  content:"✓";
-  position:absolute;
-  inset:0;
-  display:grid;
-  place-items:center;
-  color:var(--text-primary,#eee);
-  font-size:18px;
-  font-weight:600;
 }
 [data-gtg-copy-feedback-visible="true"] {
   opacity:1!important;
@@ -125,5 +116,5 @@ button[data-gtg-copy-state="copied"]::after {
   #gtg-copy-toast {right:16px;bottom:16px;}
 }
 @media(prefers-reduced-motion:reduce){
-  button[data-gtg-copy-state="loading"]::after {animation-duration:1.5s;}
+  button svg[data-gtg-copy-icon="loading"] {animation-duration:1.5s;}
 }
