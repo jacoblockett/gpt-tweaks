@@ -74,6 +74,10 @@
     clipboardFallback(text);
   }
   function copyRange(info,scope){
+    if(activeRequest){
+      document.dispatchEvent(new CustomEvent("gpt-tweaks:copy:cancel",{detail:activeRequest}));
+      activeRequest=null;
+    }
     if(!info.conversationId||!info.messageId){
       reportFailure("Selected message has no reliable conversation identity");
       return;
@@ -107,7 +111,8 @@
           if(trigger?.isConnected){
             bypass.add(trigger);
             trigger.click();
-          }
+          }else console.warn("[GPT Tweaks] Copy button no longer exists");
+
         }else copyRange(origin,scope);
       });
       root.append(button);
