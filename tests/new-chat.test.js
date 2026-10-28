@@ -66,7 +66,7 @@ function dispatch(type,target=new Element()) {
 }
 (async()=>{
   await settle();
-  assert.equal(await world.menu.isEnabled('menu'),false,'no + menu action');
+  assert.equal(await world.menu.isEnabled('menu'),true,'New Chat should appear in + menu');
   assert.equal(await world.menu.isEnabled('slash'),true);
   assert.equal(dispatch('mousedown').prevented,true);
   assert.equal(dispatch('auxclick').prevented,true);
@@ -118,6 +118,18 @@ function dispatch(type,target=new Element()) {
   for(const fn of events.window.focus)fn();
   await settle();
   assert.equal(await world.menu.isEnabled('slash'),false);
+  assert.equal(await world.menu.isEnabled('menu'),true);
+  world.menu.activate('menu');
+  await settle();
+  assert.equal(windows.length,2,'plus menu should open a new window per preference');
+  assert.equal(windows[1].focused,true,'plus menu should focus the opened window');
+  saved['gpt-tweaks.new-chat.menu']='false';
+  for(const fn of events.window.focus)fn();
+  await settle();
+  assert.equal(await world.menu.isEnabled('menu'),false);
+  assert.equal((await runtime.sendMessage({
+    type:'gpt-tweaks:new-chat:open',method:'menu'
+  })).ok,false);
   assert.equal((await runtime.sendMessage({type:'gpt-tweaks:new-chat:open',method:'slash'})).ok,false);
   assert.equal((await runtime.sendMessage({
     type:'gpt-tweaks:new-chat:open',method:'middle',projectId:'bad/id'
