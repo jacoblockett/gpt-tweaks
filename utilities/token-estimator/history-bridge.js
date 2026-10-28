@@ -7,12 +7,13 @@
   window.__ctHistoryBridgeV1 = true;
   const core = window.CTCore;
   const nativeFetch = window.fetch.bind(window);
+  const history = window.GPTTweaksConversationHistory;
+  if (!history) throw Error('Shared conversation history transport is missing');
   let trackingEnabled = true;
   document.addEventListener('ct-v1-tracker-enabled', event => {
     trackingEnabled = event.detail === 'true';
   });
   const nativePages = new Map();
-  const knownHeaders = new Map();
   const inflight = new Map();
   const historyPrefix = '/backend-api/conversations/';
   const validId = id => typeof id === 'string' && /^[a-f\d-]{36}$/i.test(id);
@@ -42,15 +43,6 @@
     const url = typeof input === 'string' || input instanceof URL ? String(input) : input?.url;
     const method = String(init?.method || input?.method || 'GET').toUpperCase();
     return {url, method};
-  }
-  // These are request headers already selected by ChatGPT itself. Keep them in
-  // page memory only. They never cross worlds or go into browser storage.
-  function captureHeaders(id, input, init) {
-    try {
-      const headers = new Headers(input instanceof Request ? input.headers : undefined);
-      if (init?.headers) new Headers(init.headers).forEach((v, k) => headers.set(k, v));
-      knownHeaders.set(id, headers);
-    } catch (_) { /* A passive summary still works without header reuse. */ }
   }
   function captureResponse(id, response) {
     if (!response?.ok || !response.clone) return;
@@ -232,7 +224,7 @@
       const match = identify(url);
       if (match && !match.url.searchParams.has('before')) {
         id = match.id;
-        captureHeaders(id, args[0], args[1]);
+        history.captureHeaders(id, args[0], args[1]);
       }
     } else if (method === 'POST') {
       try {
@@ -273,54 +265,10 @@
     const {id, seq, before, pageSize} = request;
     const controller = new AbortController();
     inflight.set(seq, controller);
-    const u = new URL(historyPrefix + encodeURIComponent(id), location.origin);
-    u.searchParams.set('num_turns', pageSize === 2 ? '2' : '10');
-    u.searchParams.set('include_has_versions', 'true');
-    if (before) u.searchParams.set('before', before);
-    const headers = new Headers(knownHeaders.get(id));
-    if (!headers.has('accept')) headers.set('accept', 'application/json');
-    if (!headers.has('chatgpt-account-id')) {
-      const account = document.documentElement.dataset.themeAccountId;
-      if (account) headers.set('chatgpt-account-id', account);
-    }
-    // ChatGPT's current webview supplies these request-routing headers. Prefer
-    // the actual intercepted headers; use page-derived values only as fallback.
-    if (!headers.has('x-openai-codex-window-type')) {
-      const windowType = document.documentElement.dataset.codexWindowType;
-      if (windowType) headers.set('x-openai-codex-window-type', windowType);
-    }
-    if (!headers.has('x-openai-web-frontend') &&
-        document.documentElement.dataset.codexWindowType === 'browser') {
-      headers.set('x-openai-web-frontend','codex_webview');
-    }
     try {
-      // A transport-level TypeError ("Failed to fetch") can be transient.
-      // Retry only this failure, never HTTP errors or invalid response data.
-      let resp;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        if (controller.signal.aborted) return;
-        try {
-          resp = await nativeFetch(u.href, {
-            method:'GET', headers, credentials:'include', cache:'no-store', signal:controller.signal
-          });
-          break;
-        } catch (error) {
-          if (controller.signal.aborted || error?.name !== 'TypeError' || attempt === 2)
-            throw error;
-          await new Promise(resolve => {
-            const onAbort = () => { clearTimeout(timer); resolve(); };
-            const timer = setTimeout(() => {
-              controller.signal.removeEventListener('abort', onAbort);
-              resolve();
-            }, 400 * (attempt + 1));
-            controller.signal.addEventListener('abort', onAbort, {once:true});
-            if (controller.signal.aborted) onAbort();
-          });
-        }
-      }
-      if (controller.signal.aborted) return;
-      if (!resp.ok) throw new Error(`History request returned HTTP ${resp.status}`);
-      publish('result', {id, seq, response:summarize(await resp.json())});
+      const page = await history.fetchPage(id, {before, pageSize, signal:controller.signal});
+      if (!controller.signal.aborted)
+        publish('result', {id, seq, response:summarize(page)});
     } catch (error) {
       if (!controller.signal.aborted) publish('error', {
         id, seq, error:error instanceof Error ? error.message : String(error)
