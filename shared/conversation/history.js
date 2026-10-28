@@ -69,7 +69,8 @@
         });
         if(!response.ok)throw Error("History request returned HTTP "+response.status);
         const page=await response.json();
-        if(!Array.isArray(page?.messages)||!page.page_info)
+        if(!Array.isArray(page?.messages)||!page.page_info||
+           typeof page.page_info.has_previous_page!=="boolean")
           throw Error("Unsupported conversation history response");
         return page;
       }catch(error){
