@@ -141,6 +141,14 @@ async function scenario(withButton,success=true,method='slash',dismissEarly=fals
   const manifest=JSON.parse(fs.readFileSync(path.join(__dirname,'../manifest.json'),'utf8'));
   assert.ok(manifest.content_scripts.some(entry=>entry.world==='MAIN'&&
     entry.js.includes('utilities/session-handoff/stream-bridge.js')));
+  const isolated=manifest.content_scripts.find(entry=>entry.world==='ISOLATED'&&
+    entry.js.includes('utilities/session-handoff/index.js'));
+  assert.ok(isolated,'session handoff must be registered in isolated world');
+  assert.ok(isolated.js.indexOf('utilities/session-handoff/ui/toast.js')<
+    isolated.js.indexOf('utilities/session-handoff/index.js'),
+    'toast UI must load before handoff orchestration');
+  assert.ok(isolated.css.includes('utilities/session-handoff/ui/toast.css'),
+    'toast style must be registered');
   for(const file of ['utilities/session-handoff/index.js',
     'utilities/session-handoff/ui/toast.js','utilities/session-handoff/stream-bridge.js']){
     new vm.Script(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),{filename:file});
