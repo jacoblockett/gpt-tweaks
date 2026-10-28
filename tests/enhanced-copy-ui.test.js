@@ -217,7 +217,7 @@ async function scenario({enabled=true,mode='success'}={}){
     entry.js.includes('utilities/enhanced-copy/index.js'));
   assert.ok(isolated);
   assert.ok(!isolated.js.includes('utilities/enhanced-copy/local.js'));
-  assert.ok(isolated.css.includes('utilities/enhanced-copy/ui/menu.css'));
+  assert.ok(isolated.css.includes('utilities/enhanced-copy/ui/toast.css'));
   assert.ok(!source.includes('button[aria-label="Copy"]'));
   console.log('PASS: native copy untouched, header action injection, on-demand history, persistent toast and clipboard states');
 })().catch(error=>{console.error(error);process.exitCode=1});
