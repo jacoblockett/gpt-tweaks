@@ -139,8 +139,9 @@
     }
     try{
       const items=await readConversation(packet.conversationId,controller.signal);
-      const selected=items.findIndex(item=>item.id===packet.messageId);
-      if(packet.scope!=="all"&&selected<0)
+      const selected=packet.scope==="all"?null:
+        items.findIndex(item=>item.id===packet.messageId);
+      if(selected===-1)
         throw Error("Selected message could not be matched to conversation history");
       const subset=packet.scope==="all"?items:
         packet.scope==="before"?items.slice(0,selected+1):items.slice(selected);
