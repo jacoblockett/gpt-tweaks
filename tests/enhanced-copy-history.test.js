@@ -73,114 +73,44 @@ function setup({failPage=false,onlyFirst=false,repeatCursor=false,pages=null}={}
 }
 (async()=>{
   const test=setup();
-  const before=await test.request('before');
-  assert.equal(before.ok,true);
-  assert.equal(test.urls.length,2,
-    'before must traverse older pages because the API only pages backwards');
-  assert.equal(test.progress.length,1,'pagination notifies UI that more history is needed');
-  assert.equal(test.progress[0],before.id,'notification is scoped to the active request');
-  assert.match(before.text,/Question 1[\s\S]*js[\s\S]*42[\s\S]*Question 2/);
-  assert.doesNotMatch(before.text,/Answer 2/);
-  const after=await test.request('after');
-  assert.equal(after.ok,true);
-  assert.equal(test.urls.length,3,
-    'after on a recent message must fetch only one page, not the full conversation');
-  assert.equal(test.progress.length,1,
-    'after within the first page must not announce unnecessary pagination');
-  assert.match(after.text,/Question 2[\s\S]*\*\*Answer 2\*\*/);
-  assert.doesNotMatch(after.text,/42/);
   const all=await test.request('all',[],null);
-  assert.equal(test.urls.length,5,
-    'entire history still requires every page');
-  assert.equal(all.ok,true,'entire history cannot depend on a message ID');
+  assert.equal(all.ok,true,'full history must not depend on a selected message ID');
+  assert.equal(test.urls.length,2,'read both pages, no more and no fewer');
   assert.equal(all.text.match(/## (User|Assistant)/g).length,4);
-  assert.ok(all.text.includes('**Answer 2**'),'preserve original Markdown');
+  assert.match(all.text,/Question 1[\s\S]*42[\s\S]*Question 2[\s\S]*Answer 2/);
+  assert.ok(all.text.includes('**Answer 2**'),'original Markdown is preserved');
   assert.ok(!all.text.includes('Internal')&&!all.text.includes('thoughts'),
-    'do not copy hidden, tool or reasoning records');
-  assert.ok(test.urls.some(url=>url.searchParams.get('before')==='older'),
-    'history must be paginated independently of virtualized message DOM');
+    'hidden, tool and reasoning records are excluded');
+  assert.equal(test.progress.length,0,'persistent loading toast needs no pagination notifications');
+  assert.ok(test.urls.some(url=>url.searchParams.get('before')==='older'));
   assert.equal(test.headers[0].get('chatgpt-account-id'),'account123');
-  const ambiguous=await test.request('after',[ids[1],ids[3]],'assistant');
-  assert.equal(ambiguous.ok,false,'multiple candidates without preferred response must not guess');
-  assert.match(ambiguous.error,/Multiple message versions/);
-  const multi=await test.request('after',[ids[1],ids[3]],'assistant',null,ids[3]);
-  assert.equal(multi.ok,true);
-  assert.match(multi.text,/\*\*Answer 2\*\*/);
-  assert.doesNotMatch(multi.text,/Question 2/);
-  const assistantFallback=await test.request('after',[],'assistant',ids[2]);
-  assert.equal(test.urls.length,9,
-    'assistant parent-turn resolution should stop once the parent user is found');
-  assert.equal(assistantFallback.ok,true,'parent turn identifies a unique final assistant reply');
-  assert.match(assistantFallback.text,/\*\*Answer 2\*\*/);
-  assert.doesNotMatch(assistantFallback.text,/Question 2/);
-  const userFallback=await test.request('before',[],'user',ids[2]);
-  assert.equal(userFallback.ok,true,'parent turn also identifies user copy range');
-  assert.doesNotMatch(userFallback.text,/Answer 2/);
-  const olderAfter=setup();
-  const olderSuffix=await olderAfter.request('after',[ids[0]],'user');
-  assert.equal(olderSuffix.ok,true);
-  assert.equal(olderAfter.urls.length,2,
-    'older selected messages fetch only as far as their page');
-  assert.match(olderSuffix.text,/Question 1[\s\S]*Answer 2/);
 
-  const failedOlderPage=setup({failPage:true});
-  const recentSuffix=await failedOlderPage.request('after',[ids[2]],'user');
-  assert.equal(recentSuffix.ok,true,
-    'after must not request irrelevant older pages even if they would fail');
-  assert.equal(failedOlderPage.urls.length,1);
-  const oldSuffix=await setup({failPage:true}).request('after',[ids[0]],'user');
-  assert.equal(oldSuffix.ok,false,
-    'after must fail rather than omit the selected message when older pages fail');
+  const invalid=setup();
+  const unsupported=await invalid.request('after',[ids[2]],'user');
+  assert.equal(unsupported,undefined,'before/after scopes are no longer supported');
+  assert.equal(invalid.urls.length,0,'unsupported scopes must never request history');
 
   const unavailable=await setup({failPage:true}).request('all',[],null);
-  assert.equal(unavailable.ok,false,'failed older page must never yield partial copy');
+  assert.equal(unavailable.ok,false,'failed older page must not return an incomplete copy');
   assert.match(unavailable.error,/HTTP 404/);
   const immediate=setup({onlyFirst:true});
-  await immediate.request('all',[],null);
-  assert.equal(immediate.progress.length,0,'a single-page history must not announce extra loading');
-  const missing=await setup({onlyFirst:true}).request('before',[ids[0]],'user');
-  assert.equal(missing.ok,false);
-  assert.match(missing.error,/could not be matched/);
+  const short=await immediate.request('all',[],null);
+  assert.equal(short.ok,true);
+  assert.equal(immediate.urls.length,1,'short conversations take one history request');
   const cursor=await setup({repeatCursor:true}).request('all',[],null);
   assert.equal(cursor.ok,false);
   assert.match(cursor.error,/pagination did not advance/);
-  // A six-page conversation makes unnecessary full scans visible. Pages
-  // arrive newest-first; each response contains two chronological records.
+
   const longId=i=>i.toString(16).padStart(8,'0')+'-2222-3333-4444-555555555555';
-  const longPages=Array.from({length:6},(_,page)=>{
+  const pages=Array.from({length:6},(_,page)=>{
     const n=10-page*2;
     return [user(longId(n),'Question '+n),assistant(longId(n+1),'Answer '+(n+1))];
   });
-  const suffixCase=setup({pages:longPages});
-  const partialSuffix=await suffixCase.request('after',[longId(8)],'user');
-  assert.equal(partialSuffix.ok,true);
-  assert.equal(suffixCase.urls.length,2,
-    'after must stop at page two, not traverse all six pages');
-  assert.equal((partialSuffix.text.match(/## (User|Assistant)/g)||[]).length,4,
-    'after includes exactly the selected record and three newer records');
-  assert.match(partialSuffix.text,/Question 8[\s\S]*Answer 11/);
-  assert.doesNotMatch(partialSuffix.text,/Question 6/);
-  assert.equal(suffixCase.progress.length,1,'only an actual second page triggers progress');
-
-  const beforeCase=setup({pages:longPages});
-  const prefix=await beforeCase.request('before',[longId(8)],'user');
-  assert.equal(prefix.ok,true);
-  assert.equal(beforeCase.urls.length,6,
-    'before must follow all reverse-pagination cursors to the beginning');
-  assert.equal((prefix.text.match(/## (User|Assistant)/g)||[]).length,9,
-    'before includes messages 0 through 8, not the three newer records');
-  assert.doesNotMatch(prefix.text,/Answer 9|Question 10|Answer 11/);
-
-  const wholeCase=setup({pages:longPages});
-  const entire=await wholeCase.request('all',[],null);
-  assert.equal(entire.ok,true);
-  assert.equal(wholeCase.urls.length,6);
-  assert.equal((entire.text.match(/## (User|Assistant)/g)||[]).length,12);
-
-  const ignoredOldCursor=setup({repeatCursor:true});
-  const early=await ignoredOldCursor.request('after',[ids[2]],'user');
-  assert.equal(early.ok,true);
-  assert.equal(ignoredOldCursor.urls.length,1,
-    'after never requests irrelevant pages or observes their broken cursors');
-  console.log('PASS: suffix short-circuit, exact request counts, inclusive boundaries, full and before scans, errors');
+  const lengthy=setup({pages});
+  const complete=await lengthy.request('all',[],null);
+  assert.equal(complete.ok,true);
+  assert.equal(lengthy.urls.length,6,'all history pages are requested');
+  assert.equal((complete.text.match(/## (User|Assistant)/g)||[]).length,12);
+  assert.match(complete.text,/Question 0[\s\S]*Answer 11/);
+  console.log('PASS: full-only on-demand history, pagination, Markdown, filtered dialogue and errors');
 })().catch(error=>{console.error(error);process.exitCode=1});
