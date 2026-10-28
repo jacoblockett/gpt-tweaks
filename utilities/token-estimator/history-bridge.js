@@ -294,9 +294,31 @@
       headers.set('x-openai-web-frontend','codex_webview');
     }
     try {
-      const resp = await nativeFetch(u.href, {
-        method:'GET', headers, credentials:'include', cache:'no-store', signal:controller.signal
-      });
+      // A transport-level TypeError ("Failed to fetch") can be transient.
+      // Retry only this failure, never HTTP errors or invalid response data.
+      let resp;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (controller.signal.aborted) return;
+        try {
+          resp = await nativeFetch(u.href, {
+            method:'GET', headers, credentials:'include', cache:'no-store', signal:controller.signal
+          });
+          break;
+        } catch (error) {
+          if (controller.signal.aborted || error?.name !== 'TypeError' || attempt === 2)
+            throw error;
+          await new Promise(resolve => {
+            const onAbort = () => { clearTimeout(timer); resolve(); };
+            const timer = setTimeout(() => {
+              controller.signal.removeEventListener('abort', onAbort);
+              resolve();
+            }, 400 * (attempt + 1));
+            controller.signal.addEventListener('abort', onAbort, {once:true});
+            if (controller.signal.aborted) onAbort();
+          });
+        }
+      }
+      if (controller.signal.aborted) return;
       if (!resp.ok) throw new Error(`History request returned HTTP ${resp.status}`);
       publish('result', {id, seq, response:summarize(await resp.json())});
     } catch (error) {
