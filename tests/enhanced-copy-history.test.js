@@ -49,10 +49,10 @@ function setup({failPage=false,onlyFirst=false,repeatCursor=false}={}){
   vm.runInNewContext(content,environment);
   vm.runInNewContext(history,environment);
   vm.runInNewContext(source,environment);
-  async function request(scope,messageIds=[ids[2]],role='user',turnKey=null){
+  async function request(scope,messageIds=[ids[2]],role='user',turnKey=null,preferredMessageId=null){
     const id='req'+String(results.length+1).padStart(15,'0');
     document.dispatchEvent(new Event('gpt-tweaks:copy:request',{detail:JSON.stringify({
-      id,conversationId:conversation,messageIds,turnKey,role,scope
+      id,conversationId:conversation,messageIds,turnKey,preferredMessageId,role,scope
     })}));
     for(let tries=0;tries<150&&!results.some(result=>result.id===id);tries++)
       await new Promise(resolve=>setTimeout(resolve,2));
@@ -79,7 +79,10 @@ function setup({failPage=false,onlyFirst=false,repeatCursor=false}={}){
   assert.ok(test.urls.some(url=>url.searchParams.get('before')==='older'),
     'history must be paginated independently of virtualized message DOM');
   assert.equal(test.headers[0].get('chatgpt-account-id'),'account123');
-  const multi=await test.request('after',[ids[1],ids[3]],'assistant');
+  const ambiguous=await test.request('after',[ids[1],ids[3]],'assistant');
+  assert.equal(ambiguous.ok,false,'multiple candidates without preferred response must not guess');
+  assert.match(ambiguous.error,/Multiple message versions/);
+  const multi=await test.request('after',[ids[1],ids[3]],'assistant',null,ids[3]);
   assert.equal(multi.ok,true);
   assert.match(multi.text,/\*\*Answer 2\*\*/);
   assert.doesNotMatch(multi.text,/Question 2/);
