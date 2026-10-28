@@ -50,7 +50,8 @@
 		slash: "gpt-tweaks.context.slash",
 		percent: "gpt-tweaks.context.percent",
 		tokens: "gpt-tweaks.context.tokens",
-		limit: "gpt-tweaks.context.limit"
+		limit: "gpt-tweaks.context.limit",
+		targetEnabled: "gpt-tweaks.context.target-enabled"
 	}
 	const contextElements = {
 		enabled: $("context-enabled"),
@@ -59,10 +60,12 @@
 		slash: $("context-slash"),
 		percent: $("context-show-percent"),
 		tokens: $("context-show-tokens"),
-		limit: $("context-show-limit")
+		limit: $("context-show-limit"),
+		targetEnabled: $("context-target-enabled")
 	}
 	const contextControls = $("context-controls")
 	const contextFeedback = $("context-feedback")
+	const contextTarget = $("context-target")
 	for (const [name, control] of Object.entries(contextElements)) {
 		const saved = preferenceStore.getItem(contextKeys[name])
 		control.checked = saved === null ? name !== "defaultVisible" : saved !== "false"
@@ -73,11 +76,14 @@
 	}
 	function syncContext() {
 		const active = contextElements.enabled.checked
+		const targetEnabled = active && contextElements.targetEnabled.checked
 		contextControls.classList.toggle("inactive", !active)
 		for (const [name, control] of Object.entries(contextElements)) {
 			preferenceStore.setItem(contextKeys[name], String(control.checked))
-			if (name !== "enabled") control.disabled = !active
+			if (name !== "enabled")
+				control.disabled = !active || ((name === "percent" || name === "limit") && !targetEnabled)
 		}
+		contextTarget.disabled = !targetEnabled
 	}
 	for (const [name, control] of Object.entries(contextElements)) {
 		control.addEventListener("change", () => {
@@ -91,7 +97,6 @@
 		})
 	}
 	syncContext()
-	const contextTarget = $("context-target")
 	const contextTargetKey = "gpt-tweaks.context.target-tokens"
 	const savedTarget = Number(preferenceStore.getItem(contextTargetKey))
 	let lastValidTarget = Number.isSafeInteger(savedTarget) && savedTarget > 0 ? savedTarget : 512000
@@ -130,10 +135,7 @@
 			}
 		})
 	}
-	contextElements.enabled.addEventListener("change", () => {
-		contextTarget.disabled = !contextElements.enabled.checked
-	})
-	contextTarget.disabled = !contextElements.enabled.checked
+
 
 	// Session handoff
 	const handoffEnabled = $("handoff-enabled")
