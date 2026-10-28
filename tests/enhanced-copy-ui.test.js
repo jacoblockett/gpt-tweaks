@@ -140,7 +140,9 @@ async function scenario(role,isEnabled=true,withMessageId=true){
   menu.children[withMessageId?2:3].click();
   assert.equal(requests.length,1);
   assert.equal(requests[0].scope,withMessageId?'after':'all');
-  assert.equal(requests[0].messageId,withMessageId?(role==='user'?userId:assistantId):undefined);
+  assert.deepEqual(Array.from(requests[0].messageIds),
+    withMessageId?[role==='user'?userId:assistantId]:[]);
+  assert.equal(requests[0].role,role);
   doc.dispatchEvent(new Event('gpt-tweaks:copy:result',{detail:JSON.stringify({
     id:requests[0].id,ok:true,text:'## User\n\nHello'
   })}));
@@ -160,9 +162,14 @@ async function scenario(role,isEnabled=true,withMessageId=true){
   assert.ok(fs.readFileSync(path.join(__dirname,'../chrome/background.js'),'utf8')
     .includes('importScripts("./enhanced-copy-bridge.js");'),
     'worker must import enhanced copy preferences bridge');
-  assert.ok(manifest.content_scripts.some(entry=>entry.world==='MAIN'&&
-    entry.js.includes('utilities/enhanced-copy/history-bridge.js')));
+  const main=manifest.content_scripts.find(entry=>entry.world==='MAIN');
+  assert.ok(main.js.indexOf('shared/conversation/history.js')<
+    main.js.indexOf('utilities/token-estimator/history-bridge.js'));
+  assert.ok(main.js.indexOf('shared/conversation/content.js')<
+    main.js.indexOf('utilities/token-estimator/estimator-core.js'));
+  assert.ok(main.js.includes('utilities/enhanced-copy/history-bridge.js'));
   assert.ok(manifest.content_scripts.some(entry=>entry.world==='ISOLATED'&&
+    entry.js.includes('shared/conversation/content.js')&&
     entry.js.includes('utilities/enhanced-copy/index.js')&&
     entry.css.includes('utilities/enhanced-copy/ui/menu.css')));
   console.log('PASS: user/assistant interception, native copy, selected range, unanchored whole-history copy, clipboard and manifest');
