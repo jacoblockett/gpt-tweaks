@@ -25,7 +25,7 @@ class ParamsMock {
 class CustomEventMock {
   constructor(type,options){this.type=type;this.detail=options?.detail;}
 }
-async function scenario(validFile) {
+async function scenario(validFile,abortStream=false) {
   const user='11111111-1111-1111-1111-111111111111';
   const answer='33333333-3333-3333-3333-333333333333';
   const conversation='22222222-2222-2222-2222-222222222222';
@@ -42,7 +42,17 @@ async function scenario(validFile) {
     requests.push(String(url));
     if(url==='/backend-api/f/conversation')return {
       ok:true,clone:()=>({ok:true,headers:{get:()=> 'text/event-stream'},
-        body:{getReader:()=>({read:async()=>({done:true}),releaseLock(){}})}})
+        body:{getReader:()=>({
+          read:async()=>{
+            if(abortStream){
+              const error=new Error('signal is aborted without reason');
+              error.name='AbortError';
+              throw error;
+            }
+            return {done:true};
+          },
+          releaseLock(){}
+        })}})
     };
     if(url.startsWith('/backend-api/conversations/'))
       return asJson({messages:[
@@ -85,5 +95,9 @@ async function scenario(validFile) {
 (async()=>{
   await scenario(true);
   await scenario(false);
+  // Regression: the browser can abort SSE after a valid final answer was
+  // persisted. The authoritative conversation record must still be checked.
+  await scenario(true,true);
+  await scenario(false,true);
   console.log('PASS: stream completion, final-turn verification and file retrieval');
 })().catch(error=>{console.error(error);process.exitCode=1;});
