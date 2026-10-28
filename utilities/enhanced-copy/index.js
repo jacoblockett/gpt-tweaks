@@ -186,17 +186,17 @@
   }
 
   function inject(trigger){
-    if(!enabled||!idPattern.test(conversationId()||"")||
-       trigger.getAttribute("aria-expanded")!=="true")return false;
-    const menus=[...document.querySelectorAll('[role="menu"]')];
-    const controlled=trigger.getAttribute("aria-controls");
-    for(const menu of menus){
-      if(controlled&&menu.id!==controlled)continue;
-      if(!controlled&&menu.getAttribute("aria-labelledby")&&
-         menu.getAttribute("aria-labelledby")!==trigger.id)continue;
+    if(!enabled||!trigger.isConnected||
+       !idPattern.test(conversationId()||""))return false;
+    // The header's More button is the interaction boundary. ChatGPT's
+    // portaled menu IDs are not guaranteed to equal aria-controls/labelledby.
+    // Match the native Archive/Delete section in the visible opened menu.
+    for(const menu of document.querySelectorAll('[role="menu"]')){
+      if(!menu.isConnected||!menu.getClientRects().length)continue;
       const archive=menuItem(menu,"Archive");
       const remove=menuItem(menu,"Delete");
-      if(!archive||!remove)continue;
+      if(!archive||!remove||archive.parentElement!==remove.parentElement)
+        continue;
       if(!menu.querySelector("[data-gtg-copy-entire]"))
         archive.parentElement.insertBefore(createAction(archive),archive);
       return true;
