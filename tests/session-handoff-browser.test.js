@@ -16,10 +16,16 @@ async function scenario(withButton,success=true,method='slash') {
   const submit=()=>{
     assert.ok(draft.includes('GPT Tweaks session handoff request.'),
       'handoff needs a unique request marker');
-    assert.ok(draft.includes('Write the entire handoff in ENGLISH'),
-      'handoff must request an English response');
-    assert.ok(draft.includes('never exceed 600'),
-      'handoff must impose a concise word budget');
+    assert.ok(draft.includes('language predominantly used by the USER'),
+      'handoff must follow the user\'s conversational language');
+    assert.ok(draft.includes('not the language of this instruction'),
+      'English prompt must not force English output');
+    assert.ok(draft.includes('translated into the user\'s language'),
+      'handoff section headings must use the selected language');
+    assert.ok(draft.includes('600 English-word-equivalents'),
+      'handoff must retain a language-neutral brevity budget');
+    assert.ok(!draft.includes('Write the entire handoff in ENGLISH'),
+      'handoff must not require English for all users');
     assert.ok(draft.includes('## Last 3 exchanges'),
       'handoff must preserve recent conversation continuity');
     assert.ok(draft.includes('no file, attachment, download link'),
