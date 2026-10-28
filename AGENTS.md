@@ -26,7 +26,8 @@
 ## Workflow
 - Work against the actual repository state; make small cohesive changes and verify each.
 - Prefer direct, transparent source files with no build step for an unpacked extension. Do not publish a partially validated restructure.
-- Run targeted regression tests and syntax/static checks. Never claim to have run authenticated, interactive Brave testing unless that occurred.
+- Do not create, retain, or run test suites, test fixtures, synthetic DOM harnesses, or automated tests unless the user explicitly requests tests for that work. Do not substitute simulated tests for interactive Brave verification.
+- Review changes against available real source evidence and user-supplied browser captures. Never claim to have run authenticated, interactive Brave verification unless that occurred.
 - Do not redesign the UI or reimplement functional workflows while only restructuring.
 
 ## Canonical directories
