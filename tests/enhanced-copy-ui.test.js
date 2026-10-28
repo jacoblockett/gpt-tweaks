@@ -146,6 +146,8 @@ async function scenario(role,isEnabled=true,withMessageId=true){
   assert.deepEqual(Array.from(requests[0].messageIds),
     withMessageId&&role==='assistant'?[assistantId,userId]:[userId]);
   assert.equal(requests[0].role,role);
+  assert.equal(requests[0].preferredMessageId,
+    role==='assistant'&&withMessageId?assistantId:null);
   doc.dispatchEvent(new Event('gpt-tweaks:copy:result',{detail:JSON.stringify({
     id:requests[0].id,ok:true,text:'## User\n\nHello'
   })}));
