@@ -13,7 +13,7 @@
     "BUTTON","INPUT","TEXTAREA","SELECT","MATH","SVG"]);
   const idFormat=/^[a-f\d-]{36}$/i;
 
-  function scrollAtEnd(lastTurn){
+  function scrollAtEnd(lastTurn,wholeThreadVisible){
     // The virtualizer may hold later turns in a bottom spacer. Only trust
     // rendered content when the actual thread scroll container is at its end.
     let node=lastTurn;
@@ -28,14 +28,17 @@
     const root=document.scrollingElement;
     if(root&&root.scrollHeight>root.clientHeight+24&&root.clientHeight>0)
       return root.scrollHeight-root.scrollTop-root.clientHeight<=48;
-    // A non-scrollable, short thread has no virtualized range to omit.
-    return true;
+    // If no scroll position can be established, a rendered suffix is not
+    // proof of a complete timeline. Only a whole thread from turn zero is
+    // safe to use without that signal.
+    return wholeThreadVisible;
   }
 
   function serialize(node){
     if(node.nodeType===3)return node.nodeValue||"";
     if(node.nodeType!==1)return "";
-    if(node.hasAttribute("hidden")||node.getAttribute("aria-hidden")==="true")
+    if(node.hasAttribute("hidden")||node.getAttribute("aria-hidden")==="true"||
+       /(?:^|\\s)sr-only(?:\\s|$)/.test(node.getAttribute("class")||""))
       return "";
     const tag=node.tagName;
     if(invalidTags.has(tag)||node.hasAttribute("data-math")||
@@ -182,7 +185,8 @@
     const start=scope==="after"?index:0;
     const end=scope==="before"?index:turns.length-1;
     if(scope!=="after"&&positions[0]!==0)return null;
-    if(scope!=="before"&&!scrollAtEnd(turns[turns.length-1]))return null;
+    if(scope!=="before"&&!scrollAtEnd(turns[turns.length-1],positions[0]===0))
+      return null;
     for(let i=start+1;i<=end;i++)
       if(positions[i]!==positions[i-1]+1)return null;
     const items=[];
