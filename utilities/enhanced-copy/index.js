@@ -86,8 +86,14 @@
       document.dispatchEvent(new CustomEvent("gpt-tweaks:copy:cancel",{detail:activeRequest}));
       activeRequest=null;
     }
-    if(!info.conversationId||!info.messageId){
-      reportFailure("Selected message has no reliable conversation identity");
+    if(!info.conversationId){
+      reportFailure("Cannot identify this conversation from the current URL");
+      return;
+    }
+    // Whole-chat copying has no selected-message boundary. ChatGPT's
+    // virtualized DOM may not expose a stable ID for the clicked button.
+    if(scope!=="all"&&!info.messageId){
+      reportFailure("Cannot identify the selected message for this copy range");
       return;
     }
     const id=crypto.randomUUID().replaceAll("-","");
