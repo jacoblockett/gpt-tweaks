@@ -64,12 +64,12 @@ function setup({failPage=false,onlyFirst=false,repeatCursor=false}={}){
   const test=setup();
   const before=await test.request('before');
   assert.equal(before.ok,true);
-  assert.match(before.text,/Question 1[\s\S]*Answer 1[\s\S]*Question 2/);
+  assert.match(before.text,/Question 1[\s\S]*js[\s\S]*42[\s\S]*Question 2/);
   assert.doesNotMatch(before.text,/Answer 2/);
   const after=await test.request('after');
   assert.equal(after.ok,true);
   assert.match(after.text,/Question 2[\s\S]*\*\*Answer 2\*\*/);
-  assert.doesNotMatch(after.text,/Answer 1/);
+  assert.doesNotMatch(after.text,/42/);
   const all=await test.request('all',[],null);
   assert.equal(all.ok,true,'entire history cannot depend on a message ID');
   assert.equal(all.text.match(/## (User|Assistant)/g).length,4);
