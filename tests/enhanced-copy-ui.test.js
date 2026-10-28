@@ -66,7 +66,7 @@ class Node {
   }
 }
 let active=null,nativeCopies=0,dispatch=()=>{};
-async function scenario(role){
+async function scenario(role,isEnabled=true){
   const listeners=new Map(),requests=[],writes=[];
   const body=new Node('body');
   const doc={
@@ -94,7 +94,7 @@ async function scenario(role){
   }
   unit.append(control);control.append(button);
   body.append(unit);
-  const saved={enabled:'true'};
+  const saved={enabled:isEnabled?'true':'false'};
   const chrome={
     storage:{
       local:{get:async()=>({'gpt-tweaks.copy.enabled':saved.enabled})},
@@ -110,6 +110,12 @@ async function scenario(role){
   await new Promise(resolve=>setTimeout(resolve,0));
   button.click();
   let menu=body.children.find(node=>node.id==='gtg-copy-menu');
+  if(!isEnabled){
+    assert.equal(menu,undefined,'disabled feature preserves ordinary copy');
+    assert.equal(nativeCopies,1);
+    nativeCopies=0;
+    return;
+  }
   assert.ok(menu,'click on '+role+' native copy opens options');
   assert.deepEqual(menu.querySelectorAll('[role="menuitem"]').map(n=>n.textContent),
     ['Copy this message','Copy before this message',
@@ -133,6 +139,7 @@ async function scenario(role){
 (async()=>{
   await scenario('user');
   await scenario('assistant');
+  await scenario('user',false);
   const manifest=JSON.parse(fs.readFileSync(path.join(__dirname,'../manifest.json'),'utf8'));
   assert.ok(manifest.permissions.includes('clipboardWrite'));
   assert.ok(manifest.content_scripts.some(entry=>entry.world==='MAIN'&&
