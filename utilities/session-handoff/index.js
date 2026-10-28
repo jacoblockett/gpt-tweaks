@@ -168,7 +168,9 @@
     const node=editor();
     if(!node||editorText(node)){error("Finish or clear the current draft before /handoff");return;}
     busy=true;
+    let closeToast=()=>{};
     try{
+      closeToast=globalThis.GPTTweaksHandoffToast?.show()||closeToast;
       const sourcePath=location.pathname;
       const text=await generate();
       const result=await message("prepare",{text,pathname:sourcePath});
@@ -176,7 +178,7 @@
       // Same tab; a project chat remains inside its originating project.
       location.assign(result.target);
     }catch(reason){error("Unable to complete handoff",reason);}
-    finally{busy=false;}
+    finally{closeToast();busy=false;}
   }
   async function receive() {
     if(invalidated)return;
