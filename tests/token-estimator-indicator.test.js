@@ -43,6 +43,7 @@ async function run(){
     MutationObserver:class{observe(){}disconnect(){}},
     getComputedStyle:e=>({display:'flex',borderTopLeftRadius:'28px',backgroundColor:'rgb(43,43,43)',getPropertyValue:k=>''}),
     Intl,Number,Map,Set};world.globalThis=world;
+  vm.runInNewContext(src('shared/conversation/content.js'),world);
   vm.runInNewContext(src('utilities/token-estimator/estimator-core.js'),world);
   vm.runInNewContext(src('utilities/token-estimator/ui/indicator.js'),world);
   let view;
