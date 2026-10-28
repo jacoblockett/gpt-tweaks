@@ -66,11 +66,13 @@
         "utilities/token-estimator/menu.js",
         "utilities/new-chat/index.js",
         "utilities/new-chat/ui/menu.js",
+        "utilities/session-handoff/ui/toast.js",
         "utilities/session-handoff/index.js",
         "utilities/session-handoff/ui/menu.js"
       ],
       "css": [
-        "utilities/token-estimator/ui/styles.css"
+        "utilities/token-estimator/ui/styles.css",
+        "utilities/session-handoff/ui/toast.css"
       ],
       "run_at": "document_idle",
       "world": "ISOLATED",
