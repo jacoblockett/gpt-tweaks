@@ -43,6 +43,8 @@ class Node {
     const nodes=[];const visit=node=>{for(const n of node.children){nodes.push(n);visit(n)}};
     visit(this);
     if(selector==='button')return nodes.find(n=>n.tag==='button')||null;
+    if(selector==='svg[data-gtg-copy-icon]')
+      return nodes.find(n=>n.tag==='svg'&&n.getAttribute('data-gtg-copy-icon'))||null;
     if(selector==='[data-chatgpt-selection-message-id]')
       return nodes.find(n=>n.getAttribute(selector.slice(1,-1)))||null;
     if(selector==='[data-gtg-copy-status]')
@@ -93,6 +95,7 @@ async function scenario(role,isEnabled=true,withMessageId=true,mode='normal'){
   const doc={
     body,activeElement:active,
     createElement:tag=>new Node(tag),
+    createElementNS:(_namespace,tag)=>new Node(tag),
     execCommand:()=>true,
     addEventListener:(type,fn)=>
       listeners.set(type,[...(listeners.get(type)||[]),fn]),
@@ -111,6 +114,8 @@ async function scenario(role,isEnabled=true,withMessageId=true,mode='normal'){
   });
   const control=new Node('div',{class:'turn-action-controls'});
   const button=new Node('button',{'aria-label':role==='user'?'Copy message':'Copy'});
+  const nativeIcon=new Node('svg',{class:'icon-xs',width:'21',height:'21',viewBox:'0 0 21 21'});
+  button.append(nativeIcon);
   if(role==='assistant'&&withMessageId){
     const selected=new Node('div',{'data-chatgpt-selection-message-id':assistantId});
     unit.append(selected);
@@ -159,10 +164,18 @@ async function scenario(role,isEnabled=true,withMessageId=true,mode='normal'){
   menu.children[0].click();
   assert.equal(nativeCopies,1,'first option reuses native copy');
   assert.equal(button.dataset.gtgCopyState,'copied','native copy shows a checkmark');
+  let icon=button.querySelector('svg[data-gtg-copy-icon]');
+  assert.equal(icon?.getAttribute('data-gtg-copy-icon'),'copied');
+  assert.equal(icon.getAttribute('viewBox'),'0 0 21 21');
+  assert.equal(icon.children[0].getAttribute('stroke'),'currentColor');
+  assert.equal(icon.children[0].getAttribute('stroke-linecap'),'round');
+  assert.equal(button.children[0],nativeIcon,'original React-owned icon preserved');
   assert.equal(body.children.find(node=>node.id==='gtg-copy-toast')?.children[0].textContent,
     'Message copied.');
   advance(3000);
   assert.equal(button.dataset.gtgCopyState,undefined,'native copy icon restores after 3 seconds');
+  assert.equal(button.querySelector('svg[data-gtg-copy-icon]'),null);
+  assert.deepEqual(button.children,[nativeIcon],'native icon restored without replacement');
   assert.ok(!body.children.find(node=>node.id==='gtg-copy-toast'),
     'native success toast expires with checkmark');
   button.click();menu=body.children.find(node=>node.id==='gtg-copy-menu');
@@ -171,6 +184,15 @@ async function scenario(role,isEnabled=true,withMessageId=true,mode='normal'){
   assert.ok(!body.children.find(node=>node.id==='gtg-copy-menu'),
     'menu closes immediately when history copy begins');
   assert.equal(button.dataset.gtgCopyState,'loading','origin button shows spinner');
+  icon=button.querySelector('svg[data-gtg-copy-icon]');
+  assert.equal(icon.getAttribute('viewBox'),'0 0 24 24',
+    'spinner must use ChatGPT native loading glyph');
+  assert.equal(icon.getAttribute('width'),'21',
+    'spinner matches native copy button size');
+  assert.equal(icon.children.length,2,'native spinner uses two vector paths');
+  assert.equal(icon.children[0].getAttribute('opacity'),'0.3');
+  assert.equal(icon.children[1].getAttribute('fill'),'currentColor');
+  assert.equal(button.children[0],nativeIcon,'spinner never replaces original SVG');
   assert.equal(requests.length,1);
   assert.ok(!body.children.find(node=>node.id==='gtg-copy-toast'),
     'fast copy does not immediately show a loading toast');
@@ -241,11 +263,17 @@ async function scenario(role,isEnabled=true,withMessageId=true,mode='normal'){
   assert.deepEqual(writes,['## User\n\nHello']);
   assert.equal(button.dataset.gtgCopyState,'copied',
     'spinner becomes checkmark after clipboard write');
+  icon=button.querySelector('svg[data-gtg-copy-icon]');
+  assert.equal(icon.children.length,1);
+  assert.equal(icon.children[0].getAttribute('stroke'),'currentColor');
+  assert.equal(button.children[0],nativeIcon,'checkmark keeps native SVG intact');
   const expected=scope==='all'?'Entire conversation copied.':'Messages from this point on copied.';
   assert.equal(body.children.find(node=>node.id==='gtg-copy-toast')?.children[0].textContent,
     expected);
   advance(3000);
   assert.equal(button.dataset.gtgCopyState,undefined,'original icon restores after three seconds');
+  assert.equal(button.querySelector('svg[data-gtg-copy-icon]'),null);
+  assert.deepEqual(button.children,[nativeIcon],'exact native SVG restored');
   assert.ok(!body.children.find(node=>node.id==='gtg-copy-toast'),
     'success toast clears automatically');
   nativeCopies=0;
@@ -275,5 +303,5 @@ async function scenario(role,isEnabled=true,withMessageId=true,mode='normal'){
     entry.js.includes('shared/conversation/content.js')&&
     entry.js.includes('utilities/enhanced-copy/index.js')&&
     entry.css.includes('utilities/enhanced-copy/ui/menu.css')));
-  console.log('PASS: native buttons, delayed/paginated loading, fast copy, dismissal, timeout, failure and success states');
+  console.log('PASS: native SVG preservation, vector spinner/checkmark, timed copy states, dismissal and failures');
 })().catch(error=>{console.error(error);process.exitCode=1});
