@@ -41,7 +41,8 @@
       else if(button.getAttribute("aria-label")==="Copy")role="assistant";
     }
     if(!role)return null;
-    const unitIds=unit?.getAttribute("data-chatgpt-search-message-ids")?.trim().split(/\s+/)||[];
+    const unitIds=(unit?.getAttribute("data-chatgpt-search-message-ids")||"")
+      .trim().split(/\s+/).filter(Boolean);
     const selected=unit?.querySelector("[data-chatgpt-selection-message-id]")?.
       getAttribute("data-chatgpt-selection-message-id");
     const messageId=role==="assistant"?(selected||unitIds.at(-1)):unitIds[0]||
