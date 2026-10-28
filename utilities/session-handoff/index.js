@@ -162,7 +162,7 @@
     }
   }
   async function activate(method) {
-    if(method!=="slash"||!enabled||busy||invalidated)return;
+    if(!["slash","menu"].includes(method)||!enabled||busy||invalidated)return;
     const node=editor();
     if(!node||editorText(node)){error("Finish or clear the current draft before /handoff");return;}
     busy=true;
@@ -189,7 +189,7 @@
   }
   globalThis.GPTTweaksHandoff=Object.freeze({
     isEnabled:async method=>{
-      if(method!=="slash")return false;
+      if(method!=="slash"&&method!=="menu")return false;
       if(!enabled)await refresh();
       return enabled&&!invalidated;
     },
