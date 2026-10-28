@@ -4,331 +4,217 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const path=require('node:path');
 const source=fs.readFileSync(path.join(__dirname,'../utilities/enhanced-copy/index.js'),'utf8');
-const bridge=fs.readFileSync(path.join(__dirname,'../chrome/enhanced-copy-bridge.js'),'utf8');
+const manifest=JSON.parse(fs.readFileSync(path.join(__dirname,'../manifest.json'),'utf8'));
 const conversation='11111111-2222-3333-4444-555555555555';
-const userId='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
-const assistantId='bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 
-class Node {
-  constructor(tag='div',attributes={}){
-    this.tag=tag;this.attributes={...attributes};this.children=[];
-    this.parent=null;this.style={};this.dataset={};this.handlers={};
-    this.isConnected=true;this.textContent='';this.value='';
+class TextNode{
+  constructor(text){this.nodeType=3;this.nodeValue=text;this.parentElement=null;}
+  get textContent(){return this.nodeValue;}
+  cloneNode(){return new TextNode(this.nodeValue);}
+}
+class Node{
+  constructor(tag='div',attrs={}){
+    this.nodeType=1;this.tagName=tag.toUpperCase();this.attrs={...attrs};
+    this.childNodes=[];this.parentElement=null;this.dataset={};this.style={};
+    this.events=new Map();this.id=attrs.id||'';this.tabIndex=-1;
   }
-  get parentElement(){return this.parent;}
-  setAttribute(k,v){this.attributes[k]=v;}
-  getAttribute(k){return this.attributes[k]||null;}
+  get children(){return this.childNodes.filter(x=>x.nodeType===1);}
+  get textContent(){return this.childNodes.map(x=>x.textContent).join('');}
+  set textContent(v){this.childNodes=[new TextNode(v)];}
+  getAttribute(name){return name==='id'?this.id:(this.attrs[name]??null);}
+  setAttribute(name,value){this.attrs[name]=String(value);if(name==='id')this.id=String(value);}
+  removeAttribute(name){delete this.attrs[name];if(name==='id')this.id='';}
+  hasAttribute(name){return this.getAttribute(name)!==null;}
   matches(selector){
-    if(selector==='button')return this.tag==='button';
-    if(selector.includes('button[aria-label=')){
-      return this.tag==='button'&&['Copy','Copy message'].includes(this.getAttribute('aria-label'));
+    if(selector==='[role="menu"]'||selector==='[role="menuitem"]')
+      return this.getAttribute('role')===selector.match(/"([^"]+)"/)[1];
+    if(selector==='[data-gtg-copy-entire]')return this.hasAttribute('data-gtg-copy-entire');
+    if(selector==='[id]')return !!this.id;
+    if(selector==='svg')return this.tagName==='SVG';
+    if(selector==='.gtg-copy-toast-icon'||selector==='.gtg-copy-toast-label')
+      return (this.getAttribute('class')||'').split(/\s+/).includes(selector.slice(1));
+    if(selector.startsWith('[data-app-shell-main-titlebar] button')){
+      return this.tagName==='BUTTON'&&this.getAttribute('aria-label')==='More'&&
+        this.getAttribute('aria-haspopup')==='menu'&&
+        !!this.closest('[data-app-shell-main-titlebar]');
     }
+    if(selector==='[data-app-shell-main-titlebar]')
+      return this.hasAttribute('data-app-shell-main-titlebar');
     return false;
   }
-  closest(selector){
-    for(let n=this;n;n=n.parent){
-      if(selector==='.turn-action-controls'&&n.attributes.class==='turn-action-controls')return n;
-      if(selector==='[data-chatgpt-search-unit-key]'&&n.getAttribute('data-chatgpt-search-unit-key'))return n;
-      if(selector==='[data-turn-key]'&&n.getAttribute('data-turn-key'))return n;
-      if(selector.includes('button[aria-label=')&&n.matches(selector))return n;
-    }
-    return null;
-  }
-  append(...nodes){for(const node of nodes){node.parent=this;this.children.push(node);}}
-  remove(){if(this.parent)this.parent.children=this.parent.children.filter(n=>n!==this);
-    this.isConnected=false;this.parent=null;}
-  contains(other){for(let n=other;n;n=n.parent)if(n===this)return true;return false;}
-  addEventListener(type,fn){(this.handlers[type]??=[]).push(fn);}
-  querySelector(selector){
-    const nodes=[];const visit=node=>{for(const n of node.children){nodes.push(n);visit(n)}};
-    visit(this);
-    if(selector==='button')return nodes.find(n=>n.tag==='button')||null;
-    if(selector==='svg[data-gtg-copy-icon]')
-      return nodes.find(n=>n.tag==='svg'&&n.getAttribute('data-gtg-copy-icon'))||null;
-    if(selector==='[data-chatgpt-selection-message-id]')
-      return nodes.find(n=>n.getAttribute(selector.slice(1,-1)))||null;
-    if(selector==='[data-gtg-copy-status]')
-      return nodes.find(n=>n.dataset.gtgCopyStatus)||null;
-    return null;
-  }
+  closest(selector){for(let n=this;n;n=n.parentElement)if(n.matches(selector))return n;return null;}
   querySelectorAll(selector){
-    if(selector==='[role="menuitem"]')return this.children.filter(n=>n.getAttribute('role')==='menuitem');
-    return [];
+    const result=[];
+    const scan=node=>{for(const child of node.children){if(child.matches(selector))result.push(child);scan(child);}};
+    scan(this);return result;
   }
-  getBoundingClientRect(){return {left:100,top:100,bottom:120};}
-  focus(){active=this;}
-  click(){
-    const event={target:this,defaultPrevented:false,
-      preventDefault(){this.defaultPrevented=true;},
-      stopImmediatePropagation(){this.stopped=true;}};
-    dispatch('click',event);
-    if(!event.stopped){
-      for(const fn of this.handlers.click||[])fn(event);
-      if(!event.defaultPrevented&&['Copy','Copy message'].includes(this.getAttribute('aria-label')))
-        nativeCopies++;
-    }
+  querySelector(selector){return this.querySelectorAll(selector)[0]||null;}
+  append(...nodes){for(const n of nodes){n.parentElement=this;this.childNodes.push(n);}}
+  insertBefore(node,other){const i=this.childNodes.indexOf(other);assert.ok(i>=0);node.parentElement=this;this.childNodes.splice(i,0,node);}
+  remove(){const p=this.parentElement;if(p)p.childNodes=p.childNodes.filter(x=>x!==this);this.parentElement=null;}
+  replaceWith(other){const p=this.parentElement;const i=p.childNodes.indexOf(this);p.childNodes[i]=other;other.parentElement=p;this.parentElement=null;}
+  replaceChildren(...nodes){this.childNodes=[];this.append(...nodes);}
+  cloneNode(deep){
+    const n=new Node(this.tagName,this.attrs);
+    n.dataset={...this.dataset};n.id=this.id;
+    if(deep)for(const child of this.childNodes)n.append(child.cloneNode(true));
+    return n;
   }
+  addEventListener(type,fn){this.events.set(type,[...(this.events.get(type)||[]),fn]);}
+  dispatchEvent(event){event.target??=this;for(const fn of this.events.get(event.type)||[])fn(event);return true;}
+  focus(){}
 }
-let active=null,nativeCopies=0,dispatch=()=>{};
-async function scenario(role,isEnabled=true,withMessageId=true,mode='normal'){
-  const listeners=new Map(),requests=[],writes=[],cancellations=[];
-  let now=0,nextTimer=0;
+class Event{
+  constructor(type,options={}){this.type=type;Object.assign(this,options);}
+  preventDefault(){this.defaultPrevented=true;}
+  stopPropagation(){this.propagationStopped=true;}
+}
+class KeyboardEvent extends Event{}
+class MutationObserver{
+  constructor(fn){this.fn=fn;this.active=false;MutationObserver.instances.push(this);}
+  observe(){this.active=true;}
+  disconnect(){this.active=false;}
+  static notify(){for(const m of MutationObserver.instances)if(m.active)m.fn();}
+}
+MutationObserver.instances=[];
+
+async function scenario({enabled=true,mode='success'}={}){
+  let now=0,timerId=0;
   const timers=new Map();
-  function schedule(fn,delay){
-    const id=++nextTimer;
-    timers.set(id,{fn,when:now+delay});
-    return id;
-  }
-  function advance(milliseconds){
-    const end=now+milliseconds;
+  const schedule=(fn,ms)=>{const id=++timerId;timers.set(id,{at:now+ms,fn});return id;};
+  const clear=id=>timers.delete(id);
+  const advance=ms=>{
+    const until=now+ms;
     while(true){
-      const next=[...timers].filter(([,entry])=>entry.when<=end)
-        .sort((a,b)=>a[1].when-b[1].when)[0];
+      const next=[...timers].filter(([,item])=>item.at<=until).sort((a,b)=>a[1].at-b[1].at)[0];
       if(!next)break;
-      now=next[1].when;
-      timers.delete(next[0]);
-      next[1].fn();
+      now=next[1].at;timers.delete(next[0]);next[1].fn();
     }
-    now=end;
-  }
+    now=until;
+  };
   const body=new Node('body');
-  const doc={
-    body,activeElement:active,
+  const header=new Node('div',{'data-app-shell-main-titlebar':''});
+  const trigger=new Node('button',{
+    'aria-label':'More','aria-haspopup':'menu','aria-expanded':'false','aria-controls':'header-menu',id:'header-trigger'
+  });
+  header.append(trigger);body.append(header);
+  let nativeCopies=0;
+  const native=new Node('button',{'aria-label':'Copy'});
+  native.addEventListener('click',()=>nativeCopies++);
+  body.append(native);
+  const events=new Map(),requests=[],cancellations=[],writes=[];
+  const document={
+    body,
     createElement:tag=>new Node(tag),
-    createElementNS:(_namespace,tag)=>new Node(tag),
-    execCommand:()=>true,
-    addEventListener:(type,fn)=>
-      listeners.set(type,[...(listeners.get(type)||[]),fn]),
+    createElementNS:(_ns,tag)=>new Node(tag),
+    addEventListener:(type,fn)=>events.set(type,[...(events.get(type)||[]),fn]),
     dispatchEvent:event=>{
       if(event.type==='gpt-tweaks:copy:request')requests.push(JSON.parse(event.detail));
       if(event.type==='gpt-tweaks:copy:cancel')cancellations.push(event.detail);
-      for(const fn of listeners.get(event.type)||[])fn(event);
-    }
+      for(const fn of events.get(event.type)||[])fn(event);
+    },
+    querySelectorAll:sel=>body.querySelectorAll(sel)
   };
-  dispatch=(type,event)=>{for(const fn of listeners.get(type)||[])fn(event);};
-  class Event {constructor(type,options={}){this.type=type;this.detail=options.detail;}}
-  const unit=new Node('div',{
-    'data-chatgpt-search-unit-key':'fallback-turn-1:0:'+role,
-    'data-chatgpt-search-message-ids':withMessageId?(role==='user'?userId:assistantId):'',
-    'data-turn-key':userId
+  const window={addEventListener(){},navigation:{addEventListener(){}}};
+  const chrome={runtime:{sendMessage:async()=>({ok:true,enabled})},
+    storage:{onChanged:{addListener(){}}}};
+  const navigator={clipboard:{writeText:async text=>{
+    if(mode==='clipboard-error')throw Error('Clipboard unavailable');
+    writes.push(text);
+  }}};
+  const location={pathname:'/c/'+conversation};
+  vm.runInNewContext(source,{
+    document,window,chrome,MutationObserver,KeyboardEvent,CustomEvent:Event,
+    navigator,location,crypto:{randomUUID:()=> 'abcd1234-aaaa-bbbb-cccc-123456789abc'},
+    setTimeout:schedule,clearTimeout:clear,console
   });
-  const control=new Node('div',{class:'turn-action-controls'});
-  const button=new Node('button',{'aria-label':role==='user'?'Copy message':'Copy'});
-  const nativeIcon=new Node('svg',{class:'icon-xs',width:'21',height:'21',viewBox:'0 0 21 21'});
-  button.append(nativeIcon);
-  if(role==='assistant'&&withMessageId){
-    const selected=new Node('div',{'data-chatgpt-selection-message-id':assistantId});
-    unit.append(selected);
+  await Promise.resolve();
+  // A regular native copy action is never intercepted.
+  native.dispatchEvent(new Event('click'));
+  assert.equal(nativeCopies,1,'message copy remains native');
+  assert.equal(requests.length,0,'message copy makes no Enhanced Copy request');
+  const item=label=>new Node('div',{role:'menuitem'});
+  function openMenu(){
+    document.dispatchEvent(new Event('pointerdown',{target:trigger}));
+    trigger.setAttribute('aria-expanded','true');
+    const menu=new Node('div',{role:'menu',id:'header-menu'});
+    const archive=item('Archive');
+    const span=new Node('span');
+    span.append(new TextNode('Archive'));
+    archive.append(new Node('svg'),span);
+    const remove=item('Delete');remove.append(new TextNode('Delete'));
+    menu.append(archive,remove);body.append(menu);
+    MutationObserver.notify();
+    return {menu,archive,remove};
   }
-  unit.append(control);control.append(button);
-  body.append(unit);
-  const saved={enabled:isEnabled?'true':'false'};
-  let listener;
-  const worker={
-    runtime:{id:'test-extension',onMessage:{addListener:fn=>{listener=fn;}}},
-    storage:{local:{get:async key=>({[key]:saved.enabled})}}
-  };
-  vm.runInNewContext(bridge,{chrome:worker,URL});
-  assert.equal(typeof listener,'function','trusted worker receives preferences requests');
-  const chrome={
-    runtime:{sendMessage:request=>new Promise(resolve=>{
-      assert.equal(listener(request,{
-        id:'test-extension',url:'https://chatgpt.com/c/'+conversation,tab:{id:7}
-      },resolve),true);
-    })},
-    storage:{
-      local:{get:async()=>{throw Error('Storage access denied by TRUSTED_CONTEXTS');}},
-      onChanged:{addListener(){}}
-    }
-  };
-  const window={innerWidth:1000,innerHeight:800,addEventListener(){}};
-  const navigator={clipboard:{writeText:async text=>writes.push(text)}};
-  vm.runInNewContext(source,{document:doc,window,navigator,chrome,
-    location:{pathname:mode==='local-no-id'?'/':'/c/'+conversation},
-    globalThis:mode.startsWith('local')?{GPTTweaksEnhancedCopyLocal:{
-      read:scope=>scope==='after'?'## Assistant\\n\\nFrom rendered messages':null
-    }}:{},Event,CustomEvent:Event,crypto:{randomUUID:()=> '12345678-1234-1234-1234-123456789012'},
-    setTimeout:schedule,clearTimeout:id=>timers.delete(id),console});
-  await new Promise(resolve=>setTimeout(resolve,0));
-  button.click();
-  let menu=body.children.find(node=>node.id==='gtg-copy-menu');
-  if(!isEnabled){
-    assert.equal(menu,undefined,'disabled feature preserves ordinary copy');
-    assert.equal(nativeCopies,1);
-    nativeCopies=0;
+  const {menu,archive,remove}=openMenu();
+  const actions=menu.querySelectorAll('[role="menuitem"]');
+  if(!enabled){
+    assert.equal(actions.length,2,'disabled utility leaves the native menu unchanged');
     return;
   }
-  assert.ok(menu,'click on '+role+' native copy opens options');
-  assert.deepEqual(menu.querySelectorAll('[role="menuitem"]').map(n=>n.textContent),
-    ['Copy this message','Copy before this message',
-      'Copy after this message','Copy entire chat history']);
-  assert.equal(nativeCopies,0,'opening menu suppresses native copy');
-  menu.children[0].click();
-  assert.equal(nativeCopies,1,'first option reuses native copy');
-  assert.equal(button.dataset.gtgCopyState,'copied','native copy shows a checkmark');
-  let icon=button.querySelector('svg[data-gtg-copy-icon]');
-  assert.equal(icon?.getAttribute('data-gtg-copy-icon'),'copied');
-  assert.equal(icon.getAttribute('viewBox'),'0 0 21 21');
-  assert.equal(icon.children[0].getAttribute('stroke'),'currentColor');
-  assert.equal(icon.children[0].getAttribute('stroke-linecap'),'round');
-  assert.equal(button.children[0],nativeIcon,'original React-owned icon preserved');
-  assert.equal(body.children.find(node=>node.id==='gtg-copy-toast')?.children[0].textContent,
-    'Message copied.');
-  advance(3000);
-  assert.equal(button.dataset.gtgCopyState,undefined,'native copy icon restores after 3 seconds');
-  assert.equal(button.querySelector('svg[data-gtg-copy-icon]'),null);
-  assert.equal(button.children.length,1,'only the native SVG remains');
-  assert.equal(button.children[0],nativeIcon,'native SVG instance is unchanged');
-  assert.ok(!body.children.find(node=>node.id==='gtg-copy-toast'),
-    'native success toast expires with checkmark');
-  button.click();menu=body.children.find(node=>node.id==='gtg-copy-menu');
-  const scope=withMessageId||role==='assistant'?'after':'all';
-  menu.children[scope==='after'?2:3].click();
-  assert.ok(!body.children.find(node=>node.id==='gtg-copy-menu'),
-    'menu closes immediately when history copy begins');
-  if(mode.startsWith('local')){
-    assert.equal(requests.length,0,'rendered copy never requests history');
-    assert.equal(button.dataset.gtgCopyState,undefined,
-      'rendered copy never enters loading state');
-    assert.equal(body.children.find(node=>node.id==='gtg-copy-toast'),undefined,
-      'rendered copy never shows a loading toast');
-    await new Promise(resolve=>setTimeout(resolve,0));
-    assert.deepEqual(writes,['## Assistant\\n\\nFrom rendered messages']);
-    assert.equal(button.dataset.gtgCopyState,'copied');
-    assert.equal(body.children.find(node=>node.id==='gtg-copy-toast')?.children[0].textContent,
-      'Messages from this point on copied.');
-    advance(3000);
-    assert.equal(button.dataset.gtgCopyState,undefined);
-    assert.equal(button.children.length,1);
-    assert.equal(button.children[0],nativeIcon);
-    nativeCopies=0;
-    return;
-  }
-  assert.equal(button.dataset.gtgCopyState,'loading','origin button shows spinner');
-  icon=button.querySelector('svg[data-gtg-copy-icon]');
-  assert.equal(icon.getAttribute('viewBox'),'0 0 24 24',
-    'spinner must use ChatGPT native loading glyph');
-  assert.equal(icon.getAttribute('width'),'21',
-    'spinner matches native copy button size');
-  assert.equal(icon.children.length,2,'native spinner uses two vector paths');
-  assert.equal(icon.children[0].getAttribute('opacity'),'0.3');
-  assert.equal(icon.children[1].getAttribute('fill'),'currentColor');
-  assert.equal(button.children[0],nativeIcon,'spinner never replaces original SVG');
+  assert.equal(actions.length,3,'one copy action inserted in native menu');
+  assert.equal(actions[0].getAttribute('aria-label'),'Copy Entire Chat');
+  assert.equal(actions[1],archive,'copy is adjacent to Archive');
+  assert.equal(actions[2],remove,'Delete remains in native group');
+  assert.equal(actions[0].textContent,'Copy Entire Chat');
+  assert.equal(menu.querySelectorAll('[data-gtg-copy-entire]').length,1);
+  MutationObserver.notify();
+  assert.equal(menu.querySelectorAll('[data-gtg-copy-entire]').length,1,'no duplicate injection');
+  actions[0].dispatchEvent(new Event('click'));
   assert.equal(requests.length,1);
-  assert.ok(!body.children.find(node=>node.id==='gtg-copy-toast'),
-    'fast copy does not immediately show a loading toast');
-  assert.equal(requests[0].scope,scope);
-  assert.equal(requests[0].turnKey,userId);
-  assert.deepEqual(Array.from(requests[0].messageIds),
-    withMessageId&&role==='assistant'?[assistantId,userId]:[userId]);
-  assert.equal(requests[0].role,role);
-  assert.equal(requests[0].preferredMessageId,
-    role==='assistant'&&withMessageId?assistantId:null);
-  if(mode==='timeout'){
-    advance(120000);
-    assert.deepEqual(cancellations,[requests[0].id],
-      'timeout aborts the unfinished history request');
-    assert.equal(button.dataset.gtgCopyState,undefined,
-      'timeout restores original icon');
-    assert.match(body.children.find(node=>node.id==='gtg-copy-toast')?.children[0].textContent||'',
-      /Couldn't copy/);
-    advance(5000);
-    assert.ok(!body.children.find(node=>node.id==='gtg-copy-toast'));
-    nativeCopies=0;
-    return;
-  }
+  assert.equal(requests[0].scope,'all');
+  assert.equal(requests[0].conversationId,conversation);
+  assert.equal(requests[0].messageIds,undefined,'no selected message needed');
+  const toast=body.querySelector('#gtg-copy-toast')||body.children.find(x=>x.id==='gtg-copy-toast');
+  assert.ok(toast,'loading toast appears immediately');
+  assert.equal(toast.dataset.state,'loading');
+  assert.equal(toast.querySelector('.gtg-copy-toast-label').textContent,'Loading entire chat history');
+  assert.equal(toast.querySelector('[data-gtg-copy-icon]')?.getAttribute('data-gtg-copy-icon'),'loading');
+  advance(10000);
+  assert.equal(body.children.includes(toast),true,'loading toast does not auto-dismiss');
   if(mode==='error'){
-    doc.dispatchEvent(new Event('gpt-tweaks:copy:result',{detail:JSON.stringify({
-      id:requests[0].id,ok:false,error:'History request returned HTTP 404'
-    })}));
-    assert.equal(button.dataset.gtgCopyState,undefined,
-      'failed copy restores original icon');
-    assert.match(body.children.find(node=>node.id==='gtg-copy-toast')?.children[0].textContent||'',
-      /Couldn't copy/);
-    assert.deepEqual(writes,[],'failed operation cannot write clipboard');
-    advance(5000);
-    assert.ok(!body.children.find(node=>node.id==='gtg-copy-toast'));
-    nativeCopies=0;
+    document.dispatchEvent(new Event('gpt-tweaks:copy:result',{
+      detail:JSON.stringify({id:requests[0].id,ok:false,error:'HTTP 404'})
+    }));
+    assert.equal(toast.dataset.state,'error');
+    assert.equal(writes.length,0,'no clipboard write on error');
+    advance(4999);assert.ok(body.children.includes(toast));
+    advance(1);assert.ok(!body.children.includes(toast));
     return;
   }
-  if(mode!=='fast'){
-    if(role==='user'&&withMessageId){
-      // A slow request shows the toast after 700ms, even before pagination.
-      advance(700);
-    }else{
-      // The first backend page reported that older pages must be loaded.
-      doc.dispatchEvent(new Event('gpt-tweaks:copy:progress',{detail:requests[0].id}));
-    }
-    const loading=body.children.find(node=>node.id==='gtg-copy-toast');
-    assert.equal(loading?.children[0].textContent,
-      'Loading more of this conversation. Please wait a moment.');
-    if(mode==='dismiss'){
-      loading.children[1].click();
-      assert.ok(!body.children.find(node=>node.id==='gtg-copy-toast'),
-        'user can dismiss the loading toast without canceling the copy');
-    }else{
-      advance(5000);
-      assert.ok(!body.children.find(node=>node.id==='gtg-copy-toast'),
-        'loading toast dismisses automatically after five seconds');
-    }
-    assert.equal(button.dataset.gtgCopyState,'loading',
-      'spinner remains until copy actually completes');
-  }else{
-    assert.ok(!body.children.find(node=>node.id==='gtg-copy-toast'),
-      'fast copy never shows a loading toast');
+  document.dispatchEvent(new Event('gpt-tweaks:copy:result',{
+    detail:JSON.stringify({id:requests[0].id,ok:true,text:'## User\n\nHello'})
+  }));
+  await Promise.resolve();await Promise.resolve();
+  if(mode==='clipboard-error'){
+    assert.equal(toast.dataset.state,'error');
+    assert.deepEqual(writes,[]);
+    return;
   }
-  doc.dispatchEvent(new Event('gpt-tweaks:copy:result',{detail:JSON.stringify({
-    id:requests[0].id,ok:true,text:'## User\n\nHello'
-  })}));
-  await new Promise(resolve=>setTimeout(resolve,0));
   assert.deepEqual(writes,['## User\n\nHello']);
-  assert.equal(button.dataset.gtgCopyState,'copied',
-    'spinner becomes checkmark after clipboard write');
-  icon=button.querySelector('svg[data-gtg-copy-icon]');
-  assert.equal(icon.children.length,1);
-  assert.equal(icon.children[0].getAttribute('stroke'),'currentColor');
-  assert.equal(button.children[0],nativeIcon,'checkmark keeps native SVG intact');
-  const expected=scope==='all'?'Entire conversation copied.':'Messages from this point on copied.';
-  assert.equal(body.children.find(node=>node.id==='gtg-copy-toast')?.children[0].textContent,
-    expected);
-  advance(3000);
-  assert.equal(button.dataset.gtgCopyState,undefined,'original icon restores after three seconds');
-  assert.equal(button.querySelector('svg[data-gtg-copy-icon]'),null);
-  assert.equal(button.children.length,1,'only the native SVG remains');
-  assert.equal(button.children[0],nativeIcon,'native SVG instance is unchanged');
-  assert.ok(!body.children.find(node=>node.id==='gtg-copy-toast'),
-    'success toast clears automatically');
-  nativeCopies=0;
+  assert.equal(toast.dataset.state,'copied');
+  assert.equal(toast.querySelector('.gtg-copy-toast-label').textContent,'Copied');
+  assert.equal(toast.querySelector('[data-gtg-copy-icon]')?.getAttribute('data-gtg-copy-icon'),'copied');
+  advance(2999);assert.ok(body.children.includes(toast));
+  advance(1);assert.ok(!body.children.includes(toast),'success toast dismissed after three seconds');
 }
+
 (async()=>{
-  await scenario('user');
-  await scenario('assistant');
-  await scenario('user',false);
-  await scenario('user',true,false);
-  await scenario('assistant',true,false);
-  await scenario('assistant',true,true,'fast');
-  await scenario('assistant',true,true,'local');
-  await scenario('assistant',true,false,'local-no-id');
-  await scenario('assistant',true,true,'error');
-  await scenario('assistant',true,true,'timeout');
-  await scenario('user',true,true,'dismiss');
-  const manifest=JSON.parse(fs.readFileSync(path.join(__dirname,'../manifest.json'),'utf8'));
+  await scenario();
+  await scenario({enabled:false});
+  await scenario({mode:'error'});
+  await scenario({mode:'clipboard-error'});
   assert.ok(manifest.permissions.includes('clipboardWrite'));
   assert.ok(fs.readFileSync(path.join(__dirname,'../chrome/background.js'),'utf8')
-    .includes('importScripts("./enhanced-copy-bridge.js");'),
-    'worker must import enhanced copy preferences bridge');
+    .includes('importScripts("./enhanced-copy-bridge.js");'));
   const main=manifest.content_scripts.find(entry=>entry.world==='MAIN');
-  assert.ok(main.js.indexOf('shared/conversation/history.js')<
-    main.js.indexOf('utilities/token-estimator/history-bridge.js'));
-  assert.ok(main.js.indexOf('shared/conversation/content.js')<
-    main.js.indexOf('utilities/token-estimator/estimator-core.js'));
   assert.ok(main.js.includes('utilities/enhanced-copy/history-bridge.js'));
-  assert.ok(manifest.content_scripts.some(entry=>entry.world==='ISOLATED'&&
-    entry.js.indexOf('utilities/enhanced-copy/local.js')>=0&&
-    entry.js.indexOf('utilities/enhanced-copy/local.js')<
-      entry.js.indexOf('utilities/enhanced-copy/index.js')&&
-    entry.js.includes('shared/conversation/content.js')&&
-    entry.js.includes('utilities/enhanced-copy/index.js')&&
-    entry.css.includes('utilities/enhanced-copy/ui/menu.css')));
-  console.log('PASS: native SVG preservation, vector spinner/checkmark, timed copy states, dismissal and failures');
+  const isolated=manifest.content_scripts.find(entry=>entry.world==='ISOLATED'&&
+    entry.js.includes('utilities/enhanced-copy/index.js'));
+  assert.ok(isolated);
+  assert.ok(!isolated.js.includes('utilities/enhanced-copy/local.js'));
+  assert.ok(isolated.css.includes('utilities/enhanced-copy/ui/menu.css'));
+  assert.ok(!source.includes('button[aria-label="Copy"]'));
+  console.log('PASS: native copy untouched, header action injection, on-demand history, persistent toast and clipboard states');
 })().catch(error=>{console.error(error);process.exitCode=1});
