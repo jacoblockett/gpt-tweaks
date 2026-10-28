@@ -68,8 +68,8 @@ class Node {
   }
 }
 let active=null,nativeCopies=0,dispatch=()=>{};
-async function scenario(role,isEnabled=true,withMessageId=true){
-  const listeners=new Map(),requests=[],writes=[];
+async function scenario(role,isEnabled=true,withMessageId=true,mode='normal'){
+  const listeners=new Map(),requests=[],writes=[],cancellations=[];
   let now=0,nextTimer=0;
   const timers=new Map();
   function schedule(fn,delay){
@@ -98,6 +98,7 @@ async function scenario(role,isEnabled=true,withMessageId=true){
       listeners.set(type,[...(listeners.get(type)||[]),fn]),
     dispatchEvent:event=>{
       if(event.type==='gpt-tweaks:copy:request')requests.push(JSON.parse(event.detail));
+      if(event.type==='gpt-tweaks:copy:cancel')cancellations.push(event.detail);
       for(const fn of listeners.get(event.type)||[])fn(event);
     }
   };
@@ -180,21 +181,59 @@ async function scenario(role,isEnabled=true,withMessageId=true){
   assert.equal(requests[0].role,role);
   assert.equal(requests[0].preferredMessageId,
     role==='assistant'&&withMessageId?assistantId:null);
-  if(role==='user'&&withMessageId){
-    // A slow request shows the toast after 700ms, even before pagination.
-    advance(700);
-  }else{
-    // The first backend page reported that older pages must be loaded.
-    doc.dispatchEvent(new Event('gpt-tweaks:copy:progress',{detail:requests[0].id}));
+  if(mode==='timeout'){
+    advance(120000);
+    assert.deepEqual(cancellations,[requests[0].id],
+      'timeout aborts the unfinished history request');
+    assert.equal(button.dataset.gtgCopyState,undefined,
+      'timeout restores original icon');
+    assert.match(body.children.find(node=>node.id==='gtg-copy-toast')?.children[0].textContent||'',
+      /Couldn't copy/);
+    advance(5000);
+    assert.ok(!body.children.find(node=>node.id==='gtg-copy-toast'));
+    nativeCopies=0;
+    return;
   }
-  let loading=body.children.find(node=>node.id==='gtg-copy-toast');
-  assert.equal(loading?.children[0].textContent,
-    'Loading more of this conversation. Please wait a moment.');
-  advance(5000);
-  assert.ok(!body.children.find(node=>node.id==='gtg-copy-toast'),
-    'loading toast dismisses automatically after five seconds');
-  assert.equal(button.dataset.gtgCopyState,'loading',
-    'spinner remains until copy actually completes');
+  if(mode==='error'){
+    doc.dispatchEvent(new Event('gpt-tweaks:copy:result',{detail:JSON.stringify({
+      id:requests[0].id,ok:false,error:'History request returned HTTP 404'
+    })}));
+    assert.equal(button.dataset.gtgCopyState,undefined,
+      'failed copy restores original icon');
+    assert.match(body.children.find(node=>node.id==='gtg-copy-toast')?.children[0].textContent||'',
+      /Couldn't copy/);
+    assert.deepEqual(writes,[],'failed operation cannot write clipboard');
+    advance(5000);
+    assert.ok(!body.children.find(node=>node.id==='gtg-copy-toast'));
+    nativeCopies=0;
+    return;
+  }
+  if(mode!=='fast'){
+    if(role==='user'&&withMessageId){
+      // A slow request shows the toast after 700ms, even before pagination.
+      advance(700);
+    }else{
+      // The first backend page reported that older pages must be loaded.
+      doc.dispatchEvent(new Event('gpt-tweaks:copy:progress',{detail:requests[0].id}));
+    }
+    const loading=body.children.find(node=>node.id==='gtg-copy-toast');
+    assert.equal(loading?.children[0].textContent,
+      'Loading more of this conversation. Please wait a moment.');
+    if(mode==='dismiss'){
+      loading.children[1].click();
+      assert.ok(!body.children.find(node=>node.id==='gtg-copy-toast'),
+        'user can dismiss the loading toast without canceling the copy');
+    }else{
+      advance(5000);
+      assert.ok(!body.children.find(node=>node.id==='gtg-copy-toast'),
+        'loading toast dismisses automatically after five seconds');
+    }
+    assert.equal(button.dataset.gtgCopyState,'loading',
+      'spinner remains until copy actually completes');
+  }else{
+    assert.ok(!body.children.find(node=>node.id==='gtg-copy-toast'),
+      'fast copy never shows a loading toast');
+  }
   doc.dispatchEvent(new Event('gpt-tweaks:copy:result',{detail:JSON.stringify({
     id:requests[0].id,ok:true,text:'## User\n\nHello'
   })}));
@@ -217,6 +256,10 @@ async function scenario(role,isEnabled=true,withMessageId=true){
   await scenario('user',false);
   await scenario('user',true,false);
   await scenario('assistant',true,false);
+  await scenario('assistant',true,true,'fast');
+  await scenario('assistant',true,true,'error');
+  await scenario('assistant',true,true,'timeout');
+  await scenario('user',true,true,'dismiss');
   const manifest=JSON.parse(fs.readFileSync(path.join(__dirname,'../manifest.json'),'utf8'));
   assert.ok(manifest.permissions.includes('clipboardWrite'));
   assert.ok(fs.readFileSync(path.join(__dirname,'../chrome/background.js'),'utf8')
@@ -232,5 +275,5 @@ async function scenario(role,isEnabled=true,withMessageId=true){
     entry.js.includes('shared/conversation/content.js')&&
     entry.js.includes('utilities/enhanced-copy/index.js')&&
     entry.css.includes('utilities/enhanced-copy/ui/menu.css')));
-  console.log('PASS: user/assistant copy icons, conditional loading toast, timed success and complete history');
+  console.log('PASS: native buttons, delayed/paginated loading, fast copy, dismissal, timeout, failure and success states');
 })().catch(error=>{console.error(error);process.exitCode=1});
