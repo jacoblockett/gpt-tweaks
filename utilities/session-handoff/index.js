@@ -5,12 +5,14 @@
   // Keep the handoff short enough to preserve useful context in the next chat.
   const prompt=[
     "GPT Tweaks session handoff request. Summarize this conversation for a new session; do not perform any tasks.",
-    "Write the entire handoff in ENGLISH, regardless of the language of previous messages.",
+    "Use the language predominantly used by the USER in this conversation, not the language of this instruction, quoted material, or assistant replies.",
+    "If the user uses multiple languages, favor their most recent substantive conversation language. Write all sections naturally in that language.",
     "Output only plain Markdown text, with no file, attachment, download link, introduction, or conclusion.",
     "",
-    "Aim for 300–450 English words; never exceed 600. Shorter is better when the conversation is simple.",
+    "Aim for the brevity of 300–450 English words, never more than 600 English-word-equivalents of information. For languages without word spaces, be comparably concise.",
+    "Shorter is better when the conversation is simple.",
     "This is an operational state transfer, not a narrative or full conversation history.",
-    "Use short bullet points under these headings:",
+    "Use short bullet points under these headings, translated into the user's language:",
     "## Goal — user's objective and desired outcome.",
     "## State — what is done, what remains, settled decisions, blockers and constraints.",
     "## Last 3 exchanges — one compact bullet per exchange: user request, outcome, unresolved issue; exclude this handoff request.",
@@ -22,7 +24,7 @@
     "Use exact identifiers only where needed for continuity. No tables or long paragraphs.",
     "Do not instruct the new session to execute tasks immediately."
   ].join("\n");
-  const intake="Read the handoff below. Do not start any tasks. Briefly acknowledge readiness in English; ask only if an essential missing detail prevents understanding.";
+  const intake="Read the handoff below. Do not start any tasks. Briefly acknowledge readiness in the same language as the handoff; ask only if an essential missing detail prevents understanding.";
   const message=(action,extra={})=>chrome.runtime.sendMessage({
     type:"gpt-tweaks:handoff",action,...extra
   });
