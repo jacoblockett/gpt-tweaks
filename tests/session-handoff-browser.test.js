@@ -14,10 +14,16 @@ async function scenario(withButton,success=true) {
   }
   let arm=null;
   const submit=()=>{
-    assert.ok(draft.includes('勿建立、附加或連結檔案'),
-      'handoff must request a text-only response');
-    assert.ok(!draft.includes('建立 `Session-Handoff.md`'),
-      'handoff must not request a generated file');
+    assert.ok(draft.includes('GPT Tweaks session handoff request.'),
+      'handoff needs a unique request marker');
+    assert.ok(draft.includes('Write the entire handoff in ENGLISH'),
+      'handoff must request an English response');
+    assert.ok(draft.includes('never exceed 600'),
+      'handoff must impose a concise word budget');
+    assert.ok(draft.includes('## Last 3 exchanges'),
+      'handoff must preserve recent conversation continuity');
+    assert.ok(draft.includes('no file, attachment, download link'),
+      'handoff must not request generated files');
     submitted++;draft='';
     // MAIN-world stream observer publishes the result after submission.
     queueMicrotask(()=>dispatch({
