@@ -65,7 +65,10 @@
     console.warn("[GPT Tweaks] Cannot copy conversation:",reason);
     if(!menu)return;
     const status=menu.querySelector("[data-gtg-copy-status]");
-    if(status)status.textContent="Unable to copy complete history. Please try again.";
+    if(status){
+      const detail=String(reason?.message||reason||"Unknown error").slice(0,200);
+      status.textContent="Copy failed: "+detail;
+    }
   }
   function clipboardFallback(text){
     const input=document.createElement("textarea");
