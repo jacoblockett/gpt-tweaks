@@ -90,10 +90,48 @@
     toast=node;
     toastTimer=setTimeout(()=>{if(toast===node)hideToast();},duration);
   }
+  // Match ChatGPT's 21px copy-button glyph. The spinner paths come from
+  // ChatGPT's own "Loading older messages" control; scale its 24px viewBox
+  // into the native button's 21px icon box.
+  function feedbackIcon(state){
+    const ns="http://www.w3.org/2000/svg";
+    const svg=document.createElementNS(ns,"svg");
+    svg.setAttribute("data-gtg-copy-icon",state);
+    svg.setAttribute("width","21");
+    svg.setAttribute("height","21");
+    svg.setAttribute("viewBox",state==="loading"?"0 0 24 24":"0 0 21 21");
+    svg.setAttribute("fill","none");
+    svg.setAttribute("aria-hidden","true");
+    svg.setAttribute("focusable","false");
+    if(state==="loading"){
+      const background=document.createElementNS(ns,"path");
+      background.setAttribute("d","M18 12C18 8.68629 15.3137 6 12 6C8.68629 6 6 8.68629 6 12C6 15.3137 8.68629 18 12 18C15.3137 18 18 15.3137 18 12ZM20 12C20 16.4183 16.4183 20 12 20C7.58172 20 4 16.4183 4 12C4 7.58172 7.58172 4 12 4C16.4183 4 20 7.58172 20 12Z");
+      background.setAttribute("fill","currentColor");
+      background.setAttribute("opacity","0.3");
+      const foreground=document.createElementNS(ns,"path");
+      foreground.setAttribute("d","M12 4C16.4183 4 20 7.58172 20 12C20 16.4183 16.4183 20 12 20C7.58172 20 4 16.4183 4 12H6C6 15.3137 8.68629 18 12 18C15.3137 18 18 15.3137 18 12C18 8.68629 15.3137 6 12 6V4Z");
+      foreground.setAttribute("fill","currentColor");
+      svg.append(background,foreground);
+    }else{
+      const check=document.createElementNS(ns,"path");
+      check.setAttribute("d","M5.3 10.6L8.9 14.2L16 7.1");
+      check.setAttribute("stroke","currentColor");
+      check.setAttribute("stroke-width","1.7");
+      check.setAttribute("stroke-linecap","round");
+      check.setAttribute("stroke-linejoin","round");
+      svg.append(check);
+    }
+    return svg;
+  }
   function feedback(button,state){
     if(!button)return;
-    if(state)button.dataset.gtgCopyState=state;
-    else delete button.dataset.gtgCopyState;
+    // Do not alter or replace React's native icon; its original DOM remains
+    // intact and is revealed again when this temporary SVG is removed.
+    button.querySelector('svg[data-gtg-copy-icon]')?.remove();
+    if(state){
+      button.dataset.gtgCopyState=state;
+      button.append(feedbackIcon(state));
+    }else delete button.dataset.gtgCopyState;
     const controls=button.closest(".turn-action-controls");
     const wrapper=controls?.parentElement;
     if(wrapper){
