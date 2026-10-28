@@ -45,9 +45,13 @@
       .trim().split(/\s+/).filter(Boolean);
     const selected=unit?.querySelector("[data-chatgpt-selection-message-id]")?.
       getAttribute("data-chatgpt-selection-message-id");
-    const messageId=role==="assistant"?(selected||unitIds.at(-1)):unitIds[0]||
-      button.closest("[data-turn-key]")?.getAttribute("data-turn-key");
-    return {button,messageId,conversationId:currentConversation()};
+    // ChatGPT can list several IDs for an assistant turn (streaming,
+    // commentary, final). Let the history reader identify the visible final
+    // message rather than guessing which DOM ID is authoritative.
+    const turnId=button.closest("[data-turn-key]")?.getAttribute("data-turn-key");
+    const messageIds=[...new Set([selected,...unitIds,turnId])]
+      .filter(id=>typeof id==="string"&&/^[a-f0-9-]{36}$/i.test(id));
+    return {button,role,messageIds,conversationId:currentConversation()};
   }
   function close(){
     if(activeRequest){
@@ -93,7 +97,7 @@
     }
     // Whole-chat copying has no selected-message boundary. ChatGPT's
     // virtualized DOM may not expose a stable ID for the clicked button.
-    if(scope!=="all"&&!info.messageId){
+    if(scope!=="all"&&!info.messageIds.length){
       reportFailure("Cannot identify the selected message for this copy range");
       return;
     }
@@ -103,7 +107,7 @@
     if(status)status.textContent="Loading conversation history…";
     document.dispatchEvent(new CustomEvent("gpt-tweaks:copy:request",{
       detail:JSON.stringify({id,conversationId:info.conversationId,
-        messageId:info.messageId,scope})
+        messageIds:info.messageIds,role:info.role,scope})
     }));
   }
   function open(info){
