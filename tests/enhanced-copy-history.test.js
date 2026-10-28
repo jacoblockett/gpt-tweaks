@@ -65,15 +65,23 @@ function setup({failPage=false,onlyFirst=false,repeatCursor=false}={}){
   const test=setup();
   const before=await test.request('before');
   assert.equal(before.ok,true);
+  assert.equal(test.urls.length,2,
+    'before must traverse older pages because the API only pages backwards');
   assert.equal(test.progress.length,1,'pagination notifies UI that more history is needed');
   assert.equal(test.progress[0],before.id,'notification is scoped to the active request');
   assert.match(before.text,/Question 1[\s\S]*js[\s\S]*42[\s\S]*Question 2/);
   assert.doesNotMatch(before.text,/Answer 2/);
   const after=await test.request('after');
   assert.equal(after.ok,true);
+  assert.equal(test.urls.length,3,
+    'after on a recent message must fetch only one page, not the full conversation');
+  assert.equal(test.progress.length,1,
+    'after within the first page must not announce unnecessary pagination');
   assert.match(after.text,/Question 2[\s\S]*\*\*Answer 2\*\*/);
   assert.doesNotMatch(after.text,/42/);
   const all=await test.request('all',[],null);
+  assert.equal(test.urls.length,5,
+    'entire history still requires every page');
   assert.equal(all.ok,true,'entire history cannot depend on a message ID');
   assert.equal(all.text.match(/## (User|Assistant)/g).length,4);
   assert.ok(all.text.includes('**Answer 2**'),'preserve original Markdown');
@@ -90,12 +98,30 @@ function setup({failPage=false,onlyFirst=false,repeatCursor=false}={}){
   assert.match(multi.text,/\*\*Answer 2\*\*/);
   assert.doesNotMatch(multi.text,/Question 2/);
   const assistantFallback=await test.request('after',[],'assistant',ids[2]);
+  assert.equal(test.urls.length,9,
+    'assistant parent-turn resolution should stop once the parent user is found');
   assert.equal(assistantFallback.ok,true,'parent turn identifies a unique final assistant reply');
   assert.match(assistantFallback.text,/\*\*Answer 2\*\*/);
   assert.doesNotMatch(assistantFallback.text,/Question 2/);
   const userFallback=await test.request('before',[],'user',ids[2]);
   assert.equal(userFallback.ok,true,'parent turn also identifies user copy range');
   assert.doesNotMatch(userFallback.text,/Answer 2/);
+  const olderAfter=setup();
+  const olderSuffix=await olderAfter.request('after',[ids[0]],'user');
+  assert.equal(olderSuffix.ok,true);
+  assert.equal(olderAfter.urls.length,2,
+    'older selected messages fetch only as far as their page');
+  assert.match(olderSuffix.text,/Question 1[\s\S]*Answer 2/);
+
+  const failedOlderPage=setup({failPage:true});
+  const recentSuffix=await failedOlderPage.request('after',[ids[2]],'user');
+  assert.equal(recentSuffix.ok,true,
+    'after must not request irrelevant older pages even if they would fail');
+  assert.equal(failedOlderPage.urls.length,1);
+  const oldSuffix=await setup({failPage:true}).request('after',[ids[0]],'user');
+  assert.equal(oldSuffix.ok,false,
+    'after must fail rather than omit the selected message when older pages fail');
+
   const unavailable=await setup({failPage:true}).request('all',[],null);
   assert.equal(unavailable.ok,false,'failed older page must never yield partial copy');
   assert.match(unavailable.error,/HTTP 404/);
@@ -108,5 +134,10 @@ function setup({failPage=false,onlyFirst=false,repeatCursor=false}={}){
   const cursor=await setup({repeatCursor:true}).request('all',[],null);
   assert.equal(cursor.ok,false);
   assert.match(cursor.error,/pagination did not advance/);
-  console.log('PASS: shared paginated history, Markdown, role anchoring, completeness, and errors');
+  const ignoredOldCursor=setup({repeatCursor:true});
+  const early=await ignoredOldCursor.request('after',[ids[2]],'user');
+  assert.equal(early.ok,true);
+  assert.equal(ignoredOldCursor.urls.length,1,
+    'after never requests irrelevant pages or observes their broken cursors');
+  console.log('PASS: suffix short-circuit, exact request counts, inclusive boundaries, full and before scans, errors');
 })().catch(error=>{console.error(error);process.exitCode=1});
