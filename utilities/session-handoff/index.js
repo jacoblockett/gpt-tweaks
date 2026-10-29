@@ -152,7 +152,7 @@
     return {button,menu,opened};
   }
   async function closePicker(picker){
-    if(!picker?.opened||picker.button.getAttribute("aria-expanded")!=="true")
+    if(!picker||picker.button.getAttribute("aria-expanded")!=="true")
       return true;
     picker.menu.dispatchEvent(new KeyboardEvent("keydown",{
       key:"Escape",code:"Escape",bubbles:true,cancelable:true
