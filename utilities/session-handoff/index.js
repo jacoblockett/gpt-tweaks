@@ -31,6 +31,10 @@
   const editor=()=>globalThis.__gptTweaksMenus?.composer()||
     document.querySelector('[data-testid="composer-text-input"],#prompt-textarea');
   const editorText=node=>("value" in node?node.value:node.innerText||node.textContent||"").trim();
+  // This attribute is present on ChatGPT's actual composer in the supplied HTML.
+  const effortButton=()=>document.querySelector(
+    'button[aria-label="Select ChatGPT model"][data-composer-navigation-target="reasoning"][data-selected-reasoning-effort]');
+  const selectedEffort=()=>effortButton()?.getAttribute("data-selected-reasoning-effort")||null;
   let enabled=false,busy=false,invalidated=false;
 
   function error(label,reason) {
@@ -102,9 +106,7 @@
     }
     return null;
   }
-  async function send(text) {
-    const node=await waitFor(editor);
-    insert(node,text);
+  async function submit(node) {
     const form=node.closest("form");
     if(!form)throw Error("ChatGPT composer form not found");
     // The control may appear only after ProseMirror registers the new text.
@@ -123,6 +125,62 @@
       return current&&!editorText(current);
     },10000);
   }
+  async function send(text) {
+    const node=await waitFor(editor);
+    insert(node,text);
+    await submit(node);
+  }
+  // Read the actual default model from ChatGPT's intercepted initialization
+  // response. No additional network request and no assumed model label.
+  function destinationModel(timeout=12000){
+    return new Promise(resolve=>{
+      let settled=false;
+      const finish=value=>{
+        if(settled)return;
+        settled=true;
+        clearTimeout(timer);
+        document.removeEventListener("gpt-tweaks:handoff:destination-model",onModel);
+        resolve(value);
+      };
+      const onModel=event=>{
+        const model=event.detail;
+        if(typeof model==="string"&&/^[a-z0-9][a-z0-9._-]{0,99}$/i.test(model))
+          finish(model);
+      };
+      document.addEventListener("gpt-tweaks:handoff:destination-model",onModel);
+      const timer=setTimeout(()=>finish(null),timeout);
+      document.dispatchEvent(new Event("gpt-tweaks:handoff:request-destination-model"));
+    });
+  }
+  async function matchEffort(wanted) {
+    if(typeof wanted!=="string"||!/^[a-z][a-z0-9_-]{0,30}$/i.test(wanted))
+      return false;
+    const button=await waitFor(effortButton,5000).catch(()=>null);
+    if(!button)return false;
+    if(selectedEffort()===wanted)return true;
+    // Open ChatGPT's real reasoning selector. Do not guess at its menu
+    // structure or select a model by a similar-looking name.
+    button.click();
+    const menu=await waitFor(()=>{
+      if(button.getAttribute("aria-expanded")!=="true")return null;
+      const menuId=button.getAttribute("aria-controls");
+      const element=menuId?document.getElementById(menuId):null;
+      return element?.getAttribute("role")==="menu"&&
+        element.getAttribute("aria-labelledby")===button.id ? element : null;
+    },3000).catch(()=>null);
+    if(!menu)return false;
+    const names={low:"Low",medium:"Medium",high:"High",xhigh:"Extra High"};
+    const label=names[wanted];
+    if(!label)return false;
+    const options=[...menu.querySelectorAll('[role="menuitemradio"],[role="menuitem"]')]
+      .filter(item=>item.getAttribute("aria-disabled")!=="true"&&
+        !item.hasAttribute("data-disabled")&&
+        (item.getAttribute("aria-label")||item.textContent||"").trim()===label);
+    // Only an unambiguous, native menu item is eligible for selection.
+    if(options.length!==1)return false;
+    options[0].click();
+    return !!(await waitFor(()=>selectedEffort()===wanted,4000).catch(()=>false));
+  }
   function awaitHandoffText() {
     const id=crypto.randomUUID().replaceAll("-","");
     let settle,fail,timeout;
@@ -132,7 +190,8 @@
       try{packet=JSON.parse(event.detail);}catch{return;}
       if(packet?.id!==id)return;
       cleanup();
-      if(packet.ok&&typeof packet.text==="string")settle(packet.text);
+      if(packet.ok&&typeof packet.text==="string")
+        settle({text:packet.text,model:packet.model||null});
       else fail(Error(packet.error||"Handoff text capture failed"));
     };
     function cleanup(){
@@ -172,8 +231,9 @@
     try{
       closeToast=globalThis.GPTTweaksHandoffToast?.show()||closeToast;
       const sourcePath=location.pathname;
-      const text=await generate();
-      const result=await message("prepare",{text,pathname:sourcePath});
+      const effort=selectedEffort();
+      const {text,model}=await generate();
+      const result=await message("prepare",{text,pathname:sourcePath,model,effort});
       if(!result?.ok)throw Error(result?.error||"Unable to save handoff");
       // Same tab; a project chat remains inside its originating project.
       location.assign(result.target);
@@ -186,7 +246,33 @@
       const result=await message("read",{pathname:location.pathname});
       if(!result?.ok)throw Error(result?.error||"Unable to retrieve handoff");
       if(!result.pending)return;
-      await send(intake+"\n\n"+result.text);
+      // Paste before resolving the destination model so the user retains
+      // the complete draft even if the model or effort cannot be verified.
+      const node=await waitFor(editor);
+      insert(node,intake+"\n\n"+result.text);
+      const currentModel=await destinationModel();
+      let reason=null;
+      if(!result.model||!currentModel)reason="unknown";
+      else if(result.model!==currentModel)reason="model";
+      else if(!await matchEffort(result.effort))reason="effort";
+      if(reason){
+        // The user must review and send manually. Acknowledging the dialog
+        // never triggers submission, and a reload must not replay the paste.
+        const done=await message("complete",{pathname:location.pathname});
+        if(!done?.ok)throw Error(done?.error||"Unable to clear handoff");
+        globalThis.GPTTweaksHandoffModelNotice?.show({
+          sourceModel:result.model,destinationModel:currentModel,reason
+        });
+        return;
+      }
+      // Reconfirm the originating effort immediately before submission.
+      if(selectedEffort()!==result.effort){
+        const done=await message("complete",{pathname:location.pathname});
+        if(!done?.ok)throw Error(done?.error||"Unable to clear handoff");
+        globalThis.GPTTweaksHandoffModelNotice?.show({reason:"effort"});
+        return;
+      }
+      await submit(node);
       const done=await message("complete",{pathname:location.pathname});
       if(!done?.ok)throw Error(done?.error||"Unable to clear handoff");
     }catch(reason){error("Unable to transfer handoff",reason);}
