@@ -31,10 +31,10 @@
   const editor=()=>globalThis.__gptTweaksMenus?.composer()||
     document.querySelector('[data-testid="composer-text-input"],#prompt-textarea');
   const editorText=node=>("value" in node?node.value:node.innerText||node.textContent||"").trim();
-  // This attribute is present on ChatGPT's actual composer in the supplied HTML.
-  const effortButton=()=>document.querySelector(
-    'button[aria-label="Select ChatGPT model"][data-composer-navigation-target="reasoning"][data-selected-reasoning-effort]');
-  const selectedEffort=()=>effortButton()?.getAttribute("data-selected-reasoning-effort")||null;
+  // These attributes are present on the supplied composer and open-model menu.
+  const pickerButton=()=>document.querySelector(
+    'button[aria-label="Select ChatGPT model"][data-composer-navigation-target="reasoning"][aria-haspopup="menu"]');
+  const selectedEffort=()=>pickerButton()?.getAttribute("data-selected-reasoning-effort")||null;
   let enabled=false,busy=false,invalidated=false;
 
   function error(label,reason) {
@@ -130,64 +130,90 @@
     insert(node,text);
     await submit(node);
   }
-  // Read the actual default model from ChatGPT's intercepted initialization
-  // response. No additional network request and no assumed model label.
-  function destinationModel(timeout=12000){
-    return new Promise(resolve=>{
-      let settled=false;
-      const finish=value=>{
-        if(settled)return;
-        settled=true;
-        clearTimeout(timer);
-        document.removeEventListener("gpt-tweaks:handoff:destination-model",onModel);
-        resolve(value);
-      };
-      const onModel=event=>{
-        const model=event.detail;
-        if(typeof model==="string"&&/^[a-z0-9][a-z0-9._-]{0,99}$/i.test(model))
-          finish(model);
-      };
-      document.addEventListener("gpt-tweaks:handoff:destination-model",onModel);
-      const timer=setTimeout(()=>finish(null),timeout);
-      document.dispatchEvent(new Event("gpt-tweaks:handoff:request-destination-model"));
-    });
-  }
-  async function matchEffort(wanted) {
-    // Non-thinking models may expose no effort control at all. Two absent
-    // effort selections are consistent; a lone one is not.
-    if(!wanted)return !selectedEffort();
-    if(typeof wanted!=="string"||!/^[a-z][a-z0-9_-]{0,30}$/i.test(wanted))
-      return false;
-    const button=await waitFor(effortButton,5000).catch(()=>null);
-    if(!button)return false;
-    if(selectedEffort()===wanted)return true;
-    // Open ChatGPT's real reasoning selector. Do not guess at its menu
-    // structure or select a model by a similar-looking name.
-    button.click();
+  // Work exclusively with ChatGPT's observed model-picker DOM.
+  async function openPicker(){
+    const button=await waitFor(pickerButton,5000).catch(()=>null);
+    if(!button)return null;
+    const opened=button.getAttribute("aria-expanded")!=="true";
+    if(opened)button.click();
     const menu=await waitFor(()=>{
       if(button.getAttribute("aria-expanded")!=="true")return null;
-      const menuId=button.getAttribute("aria-controls");
-      const element=menuId?document.getElementById(menuId):null;
-      return element?.getAttribute("role")==="menu"&&
-        element.getAttribute("aria-labelledby")===button.id ? element : null;
-    },3000).catch(()=>null);
-    if(!menu)return false;
-    const names={low:"Low",medium:"Medium",high:"High",xhigh:"Extra High"};
-    const label=names[wanted];
-    if(!label)return false;
-    const entries=[...menu.querySelectorAll('[role="menuitemradio"],[role="menuitem"]')]
-      .filter(item=>item.getAttribute("aria-disabled")!=="true"&&
-        !item.hasAttribute("data-disabled"));
-    const title=item=>(item.getAttribute("aria-label")||item.textContent||"").trim();
-    const options=entries.filter(item=>title(item)===label);
-    // Require corroborating native effort choices in the same menu section.
-    // A standalone "High" item is not enough evidence to change settings.
-    const peers=options.length===1?
-      entries.filter(item=>item.parentElement===options[0].parentElement&&
-        Object.values(names).includes(title(item))) : [];
-    if(options.length!==1||peers.length<2)return false;
-    options[0].click();
-    return !!(await waitFor(()=>selectedEffort()===wanted,4000).catch(()=>false));
+      const id=button.getAttribute("aria-controls");
+      const node=id?document.getElementById(id):null;
+      return node?.getAttribute("role")==="menu"&&
+        node.hasAttribute("data-radix-menu-content")&&
+        node.getAttribute("data-state")==="open"&&
+        node.getAttribute("aria-labelledby")===button.id ? node : null;
+    },3500).catch(()=>null);
+    if(!menu){
+      if(opened&&button.getAttribute("aria-expanded")==="true")
+        button.click();
+      return null;
+    }
+    return {button,menu,opened};
+  }
+  async function closePicker(picker){
+    if(!picker?.opened||picker.button.getAttribute("aria-expanded")!=="true")
+      return true;
+    picker.menu.dispatchEvent(new KeyboardEvent("keydown",{
+      key:"Escape",code:"Escape",bubbles:true,cancelable:true
+    }));
+    return !!(await waitFor(()=>
+      picker.button.getAttribute("aria-expanded")!=="true",1200).catch(()=>false));
+  }
+  async function selectedModelLabel(){
+    const picker=await openPicker();
+    if(!picker)return null;
+    const selected=[...picker.menu.querySelectorAll(
+      '[role="menuitemradio"][data-model-selected="true"][aria-checked="true"]')];
+    const label=selected.length===1?
+      selected[0].querySelector('[data-menu-row-content="true"] > span')?.textContent?.trim():null;
+    const closed=await closePicker(picker);
+    return closed&&label&&label.length<=100?label:null;
+  }
+  async function matchEffort(wanted){
+    // A model without effort controls can transfer only if both sides lack them.
+    if(!wanted)return !selectedEffort();
+    if(!/^[a-z][a-z0-9_-]{0,30}$/i.test(wanted))return false;
+    if(selectedEffort()===wanted)return true;
+    const picker=await openPicker();
+    if(!picker)return false;
+    const control=picker.menu.querySelector(
+      '[data-model-picker-view="simple"] [data-reasoning-slider="true"][role="menuitem"]');
+    const slider=control?.querySelector('[role="slider"][aria-valuenow][aria-valuemin][aria-valuemax]');
+    const low=Number(slider?.getAttribute("aria-valuemin"));
+    const high=Number(slider?.getAttribute("aria-valuemax"));
+    let matched=false;
+    if(slider&&control.getAttribute("aria-disabled")!=="true"&&
+       !control.hasAttribute("data-disabled")&&
+       Number.isInteger(low)&&Number.isInteger(high)&&high>low&&high-low<=6){
+      // The supplied control advertises ArrowLeft / ArrowRight. Walk its
+      // actual positions and verify the composer's effort after each move.
+      // Never assume a position maps to a particular effort name.
+      for(const direction of ["ArrowLeft","ArrowRight"]){
+        for(let step=0;step<high-low;step++){
+          if(selectedEffort()===wanted){matched=true;break;}
+          const current=Number(control.querySelector('[role="slider"]')
+            ?.getAttribute("aria-valuenow"));
+          const next=current+(direction==="ArrowLeft"?-1:1);
+          if(!Number.isInteger(current)||next<low||next>high)break;
+          control.focus();
+          control.dispatchEvent(new KeyboardEvent("keydown",{
+            key:direction,code:direction,bubbles:true,cancelable:true
+          }));
+          const changed=await waitFor(()=>{
+            if(selectedEffort()===wanted)return true;
+            const value=Number(control.querySelector('[role="slider"]')
+              ?.getAttribute("aria-valuenow"));
+            return Number.isInteger(value)&&value!==current;
+          },1500).catch(()=>false);
+          if(!changed)break;
+        }
+        if(matched||selectedEffort()===wanted){matched=true;break;}
+      }
+    }
+    const closed=await closePicker(picker);
+    return closed&&matched&&selectedEffort()===wanted;
   }
   function awaitHandoffText() {
     const id=crypto.randomUUID().replaceAll("-","");
@@ -239,9 +265,12 @@
     try{
       closeToast=globalThis.GPTTweaksHandoffToast?.show()||closeToast;
       const sourcePath=location.pathname;
+      const modelLabel=await selectedModelLabel();
       const effort=selectedEffort();
       const {text,model}=await generate();
-      const result=await message("prepare",{text,pathname:sourcePath,model,effort});
+      const result=await message("prepare",{
+        text,pathname:sourcePath,model,modelLabel,effort
+      });
       if(!result?.ok)throw Error(result?.error||"Unable to save handoff");
       // Same tab; a project chat remains inside its originating project.
       location.assign(result.target);
@@ -258,18 +287,25 @@
       // the complete draft even if the model or effort cannot be verified.
       const node=await waitFor(editor);
       insert(node,intake+"\n\n"+result.text);
-      const currentModel=await destinationModel();
+      const currentModel=await selectedModelLabel();
       let reason=null;
-      if(!result.model||!currentModel)reason="unknown";
-      else if(result.model!==currentModel)reason="model";
+      if(!result.modelLabel||!currentModel)reason="unknown";
+      else if(result.modelLabel!==currentModel)reason="model";
       else if(!await matchEffort(result.effort))reason="effort";
+      // The selected model must remain unchanged after effort adjustment.
+      if(!reason){
+        const verifiedModel=await selectedModelLabel();
+        if(!verifiedModel)reason="unknown";
+        else if(verifiedModel!==result.modelLabel)reason="model";
+      }
       if(reason){
         // The user must review and send manually. Acknowledging the dialog
         // never triggers submission, and a reload must not replay the paste.
         const done=await message("complete",{pathname:location.pathname});
         if(!done?.ok)throw Error(done?.error||"Unable to clear handoff");
         globalThis.GPTTweaksHandoffModelNotice?.show({
-          sourceModel:result.model,destinationModel:currentModel,reason
+          sourceModel:result.modelLabel||result.model,
+          destinationModel:currentModel,reason
         });
         return;
       }
