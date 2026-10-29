@@ -153,6 +153,9 @@
     });
   }
   async function matchEffort(wanted) {
+    // Non-thinking models may expose no effort control at all. Two absent
+    // effort selections are consistent; a lone one is not.
+    if(!wanted)return !selectedEffort();
     if(typeof wanted!=="string"||!/^[a-z][a-z0-9_-]{0,30}$/i.test(wanted))
       return false;
     const button=await waitFor(effortButton,5000).catch(()=>null);
@@ -271,7 +274,7 @@
         return;
       }
       // Reconfirm the originating effort immediately before submission.
-      if(selectedEffort()!==result.effort){
+      if(selectedEffort()!==(result.effort||null)){
         const done=await message("complete",{pathname:location.pathname});
         if(!done?.ok)throw Error(done?.error||"Unable to clear handoff");
         globalThis.GPTTweaksHandoffModelNotice?.show({reason:"effort"});
