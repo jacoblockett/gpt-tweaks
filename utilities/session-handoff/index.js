@@ -172,12 +172,17 @@
     const names={low:"Low",medium:"Medium",high:"High",xhigh:"Extra High"};
     const label=names[wanted];
     if(!label)return false;
-    const options=[...menu.querySelectorAll('[role="menuitemradio"],[role="menuitem"]')]
+    const entries=[...menu.querySelectorAll('[role="menuitemradio"],[role="menuitem"]')]
       .filter(item=>item.getAttribute("aria-disabled")!=="true"&&
-        !item.hasAttribute("data-disabled")&&
-        (item.getAttribute("aria-label")||item.textContent||"").trim()===label);
-    // Only an unambiguous, native menu item is eligible for selection.
-    if(options.length!==1)return false;
+        !item.hasAttribute("data-disabled"));
+    const title=item=>(item.getAttribute("aria-label")||item.textContent||"").trim();
+    const options=entries.filter(item=>title(item)===label);
+    // Require corroborating native effort choices in the same menu section.
+    // A standalone "High" item is not enough evidence to change settings.
+    const peers=options.length===1?
+      entries.filter(item=>item.parentElement===options[0].parentElement&&
+        Object.values(names).includes(title(item))) : [];
+    if(options.length!==1||peers.length<2)return false;
     options[0].click();
     return !!(await waitFor(()=>selectedEffort()===wanted,4000).catch(()=>false));
   }
