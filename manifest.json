@@ -72,6 +72,7 @@
         "utilities/new-chat/index.js",
         "utilities/new-chat/ui/menu.js",
         "utilities/session-handoff/ui/toast.js",
+        "utilities/session-handoff/ui/model-confirmation.js",
         "utilities/session-handoff/index.js",
         "utilities/session-handoff/ui/menu.js",
         "utilities/enhanced-copy/index.js",
