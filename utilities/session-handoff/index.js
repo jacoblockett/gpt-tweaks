@@ -138,12 +138,11 @@
     if(opened)button.click();
     const menu=await waitFor(()=>{
       if(button.getAttribute("aria-expanded")!=="true")return null;
-      const id=button.getAttribute("aria-controls");
-      const node=id?document.getElementById(id):null;
-      return node?.getAttribute("role")==="menu"&&
-        node.hasAttribute("data-radix-menu-content")&&
-        node.getAttribute("data-state")==="open"&&
-        node.getAttribute("aria-labelledby")===button.id ? node : null;
+      // The provided open-menu HTML establishes aria-labelledby -> trigger
+      // ID, not the reverse aria-controls relationship.
+      return [...document.querySelectorAll(
+        '[role="menu"][data-radix-menu-content][data-state="open"]')]
+        .find(node=>node.getAttribute("aria-labelledby")===button.id)||null;
     },3500).catch(()=>null);
     if(!menu){
       if(opened&&button.getAttribute("aria-expanded")==="true")
@@ -158,8 +157,11 @@
     picker.menu.dispatchEvent(new KeyboardEvent("keydown",{
       key:"Escape",code:"Escape",bubbles:true,cancelable:true
     }));
-    return !!(await waitFor(()=>
-      picker.button.getAttribute("aria-expanded")!=="true",1200).catch(()=>false));
+    const closed=()=>picker.button.getAttribute("aria-expanded")!=="true";
+    if(await waitFor(closed,800).catch(()=>false))return true;
+    // Clicking the original trigger also closes its own Radix dropdown.
+    if(!closed())picker.button.click();
+    return !!(await waitFor(closed,800).catch(()=>false));
   }
   async function selectedModelLabel(){
     const picker=await openPicker();
@@ -287,7 +289,7 @@
       // the complete draft even if the model or effort cannot be verified.
       const node=await waitFor(editor);
       insert(node,intake+"\n\n"+result.text);
-      const currentModel=await selectedModelLabel();
+      let currentModel=await selectedModelLabel();
       let reason=null;
       if(!result.modelLabel||!currentModel)reason="unknown";
       else if(result.modelLabel!==currentModel)reason="model";
@@ -296,7 +298,10 @@
       if(!reason){
         const verifiedModel=await selectedModelLabel();
         if(!verifiedModel)reason="unknown";
-        else if(verifiedModel!==result.modelLabel)reason="model";
+        else if(verifiedModel!==result.modelLabel){
+          currentModel=verifiedModel;
+          reason="model";
+        }
       }
       if(reason){
         // The user must review and send manually. Acknowledging the dialog
