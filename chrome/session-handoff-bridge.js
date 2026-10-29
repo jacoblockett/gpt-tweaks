@@ -3,6 +3,7 @@
   const prefix="gpt-tweaks.handoff.pending.";
   const enabledKey="gpt-tweaks.handoff.enabled";
   const modelPattern=/^[a-z0-9][a-z0-9._-]{0,99}$/i;
+  const modelLabelPattern=/^[^\r\n\u0000-\u001f]{1,100}$/u;
   const effortPattern=/^[a-z][a-z0-9_-]{0,30}$/i;
   function authorized(sender) {
     if(sender?.id!==chrome.runtime.id||!Number.isInteger(sender.tab?.id))return false;
@@ -30,9 +31,11 @@
           throw Error("Invalid session handoff contents");
         const target=destination(message.pathname);
         const model=modelPattern.test(message.model||"")?message.model:null;
+        const modelLabel=modelLabelPattern.test(message.modelLabel||"")?
+          message.modelLabel:null;
         const effort=effortPattern.test(message.effort||"")?message.effort:null;
         await chrome.storage.session.set({[key]:{
-          text:message.text,target,created:Date.now(),model,effort
+          text:message.text,target,created:Date.now(),model,modelLabel,effort
         }});
         return {ok:true,target};
       }
@@ -48,7 +51,7 @@
         return {ok:true};
       }
       return {ok:true,pending:true,text:data.text,
-        model:data.model||null,effort:data.effort||null};
+        model:data.model||null,modelLabel:data.modelLabel||null,effort:data.effort||null};
     })().then(reply,error=>reply({ok:false,error:String(error)}));
     return true;
   });
