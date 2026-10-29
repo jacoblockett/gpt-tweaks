@@ -9,7 +9,6 @@
   const nativeFetch=window.fetch.bind(window);
   const marker="GPT Tweaks session handoff request.";
   let armed=null;
-  let initializedModel=null;
   const validModel=value=>typeof value==="string"&&/^[a-z0-9][a-z0-9._-]{0,99}$/i.test(value);
 
   function report(id,ok,value,model=null) {
@@ -18,13 +17,6 @@
         {id,ok:false,error:String(value)})
     }));
   }
-  function announceModel(){
-    if(initializedModel)
-      document.dispatchEvent(new CustomEvent("gpt-tweaks:handoff:destination-model",{
-        detail:initializedModel
-      }));
-  }
-  document.addEventListener("gpt-tweaks:handoff:request-destination-model",announceModel);
   document.addEventListener("gpt-tweaks:handoff:arm",event=>{
     const id=event.detail;
     if(typeof id==="string"&&/^[a-zA-Z0-9_-]{12,80}$/.test(id))
@@ -47,15 +39,6 @@
         message.content?.parts?.some(part=>typeof part==="string"&&part.includes(marker))) ?
         body : null;
     }catch{return null;}
-  }
-  function isConversationInit(input,init){
-    try{
-      const raw=typeof input==="string"||input instanceof URL?input:input?.url;
-      const url=new URL(raw,location.href);
-      return url.origin===location.origin&&
-        url.pathname==="/backend-api/conversation/init"&&
-        String(init?.method||input?.method||"GET").toUpperCase()==="POST";
-    }catch{return false;}
   }
 
   async function collectMarkdown(response) {
@@ -168,19 +151,10 @@
   }
 
   window.fetch=function(...args) {
-    const initRequest=isConversationInit(args[0],args[1]);
     const request=armed?handoffRequest(args[0],args[1]):null;
     const handoff=request?armed:null;
     if(handoff)armed=null;
     const result=nativeFetch(...args);
-    if(initRequest)void result.then(async response=>{
-      if(!response.ok)return;
-      const data=await response.clone().json();
-      if(validModel(data?.default_model_slug)){
-        initializedModel=data.default_model_slug;
-        announceModel();
-      }
-    }).catch(()=>{});
     if(handoff){
       void result.then(async response=>{
         // Observe a clone: ChatGPT and Token Estimator continue unmodified.
