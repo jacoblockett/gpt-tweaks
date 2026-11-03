@@ -56,13 +56,18 @@
   // responsive header. Project rows carry an explicit project ID.
   function newChatTarget(target) {
     if(!(target instanceof Element))return null;
-    const button=target.closest('button[aria-label="New chat"],button[aria-label^="New chat in "]');
+    const button=target.closest("button");
     if(!button||!button.closest('#app-shell-sidebar,[data-app-shell-titlebar]'))return null;
+    const label=button.getAttribute("aria-label");
+    // The expanded sidebar's main New chat button has visible text, not an aria-label.
+    const expandedNewChat=!label&&
+      !!button.closest('[data-sidebar-navigation-root="true"] nav[aria-label="Chat history"] > div:first-child')&&
+      button.textContent?.trim()==="New chat";
     // Project New chat buttons are siblings of the project title row.
     // Their shared container carries "project:<id>" in the captured DOM.
     const projectContainer=button.closest('[data-sidebar-project-container-id^="project:"]');
     const projectId=projectContainer?.getAttribute("data-sidebar-project-container-id")?.slice(8)||null;
-    if(button.getAttribute("aria-label")!=="New chat"&&!projectId)return null;
+    if(label!=="New chat"&&!expandedNewChat&&!(label?.startsWith("New chat in ")&&projectId))return null;
     return {projectId};
   }
   function onMiddleClick(event) {
