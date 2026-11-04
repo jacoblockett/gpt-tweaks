@@ -38,16 +38,24 @@
       return true;
     }catch{return false;}
   }
-  function composerAttachmentState(composer,filename){
-    const form=composer?.closest("form");
-    const root=form?.querySelector("[data-composer-attachments]") ||
-      document.querySelector("[data-composer-attachments]");
-    if(!root)return {root:null,count:0,named:false};
-    const text=root.textContent||"";
-    const named=text.includes(filename) || root.querySelectorAll("[title],[aria-label],[alt]").length>0 &&
-      [...root.querySelectorAll("[title],[aria-label],[alt]")].some(el=>
-        ["title","aria-label","alt"].some(attr=>(el.getAttribute(attr)||"").includes(filename)));
-    return {root,count:root.children.length,named};
+  function composerAttachmentState(filename){
+    // ChatGPT may replace the composer during upload. Resolve the current,
+    // visible form on every check, not an editor captured before the handoff.
+    const editor=localComposer();
+    const candidate=editor?.closest("form[data-chatgpt-composer]");
+    const form=candidate?.isConnected&&candidate.getClientRects().length?candidate:
+      [...document.querySelectorAll("form[data-chatgpt-composer]")]
+        .find(form=>form.getClientRects().length);
+    const root=form?.querySelector("[data-composer-attachments]");
+    if(!root?.isConnected||!root.getClientRects().length)return {count:0,named:0};
+    // The outer attachment container has a layout wrapper; count file cards.
+    const cards=[...root.querySelectorAll('[class~="group/composer-attachment"]')];
+    const named=cards.filter(card=>
+      (card.textContent||"").includes(filename) ||
+      [...card.querySelectorAll("[aria-label],[title],[alt]")].some(el=>
+        ["aria-label","title","alt"].some(attr=>(el.getAttribute(attr)||"")===filename))
+    ).length;
+    return {count:cards.length,named};
   }
   async function attach(){
     if(busy||!getVerified())return;
@@ -58,16 +66,14 @@
       const data=await request("zip",{repo:getVerified(),branch:id("gtg-branch").value,
         commit:id("gtg-commit").value});
       const file=new File([base64Bytes(data.base64)],data.filename,{type:"application/zip"});
-      const composer=localComposer();
-      const before=composerAttachmentState(composer,file.name);
+      const before=composerAttachmentState(file.name);
       if(!uploadFile(file))throw Error("ChatGPT file uploader could not be found.");
       handedOff=true;
       let shown=false;
-      for(let i=0;i<60;i++){
+      for(let i=0;i<120;i++){
         await new Promise(resolve=>setTimeout(resolve,250));
-        const after=composerAttachmentState(composer,file.name);
-        if(after.root&&!after.root.hidden&&!before.named &&
-          (after.named||after.count>before.count)){shown=true;break;}
+        const after=composerAttachmentState(file.name);
+        if(after.named>before.named){shown=true;break;}
       }
       if(!shown)throw Error("Attachment handoff was attempted, but no new composer attachment was confirmed. Check the composer before retrying.");
       try{setHistory(await request("history-add",{repo:getVerified()}));}
