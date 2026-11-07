@@ -8,7 +8,11 @@
     "clipboardWrite"
   ],
   "action": {
-    "default_title": "Open GPT Tweaks settings"
+    "default_title": "Open GPT Tweaks settings",
+    "default_icon": {
+      "16": "assets/icon-16.png",
+      "32": "assets/icon-32.png"
+    }
   },
   "background": {
     "service_worker": "chrome/background.js"
@@ -87,5 +91,11 @@
       "world": "ISOLATED",
       "all_frames": false
     }
-  ]
+  ],
+  "icons": {
+    "16": "assets/icon-16.png",
+    "32": "assets/icon-32.png",
+    "48": "assets/icon-48.png",
+    "128": "assets/icon-128.png"
+  }
 }
