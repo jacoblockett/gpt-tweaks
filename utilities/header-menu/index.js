@@ -5,12 +5,32 @@
   globalThis.GPTTweaksHeaderMenu=true;
   const iconUrl=chrome.runtime.getURL("assets/gpt-tweaks.svg");
   const items=[
+    {id:"github-source",label:"Attach Source Code"},
     {id:"copy-entire-chat",label:"Copy Chat"},
-    {id:"session-handoff",label:"Session Handoff"},
-    {id:"github-source",label:"Attach Source Code"}
+    {id:"session-handoff",label:"Session Handoff"}
   ];
   const utilities=globalThis.__gptTweaksMenus;
-  let trigger=null,menu=null,queued=false;
+  let trigger=null,menu=null,queued=false,activeIndex=-1;
+  function rows(){return menu?[...menu.querySelectorAll('[role="menuitem"]')]:[];}
+  function select(index){
+    const entries=rows();
+    if(index<0||index>=entries.length)return;
+    activeIndex=index;
+    for(const [i,row] of entries.entries()){
+      if(i===index){
+        row.dataset.gtgActive="true";
+        row.setAttribute("data-highlighted","");
+        row.classList.add("bg-secondary-ghost-hover");
+        row.tabIndex=0;
+      }else{
+        row.removeAttribute("data-gtg-active");
+        row.removeAttribute("data-highlighted");
+        row.classList.remove("bg-secondary-ghost-hover");
+        row.tabIndex=-1;
+      }
+    }
+    entries[index].focus({preventScroll:true});
+  }
   // Match the captured ChatGPT chat-actions dropdown, rather than supplying
   // independent icons, layout, colors, or hover values.
   const menuClasses="no-drag z-50 m-px flex select-none flex-col overflow-y-auto "+
@@ -55,7 +75,7 @@
   }
   function close(focus=false){
     if(!menu)return;
-    menu.remove();menu=null;
+    menu.remove();menu=null;activeIndex=-1;
     trigger?.setAttribute("aria-expanded","false");
     if(trigger)trigger.dataset.state="closed";
     if(focus&&trigger?.isConnected)trigger.focus();
@@ -92,27 +112,21 @@
       console.warn("[GPT Tweaks] Unable to populate header menu",error);
       return;
     }
-    menu.addEventListener("keydown",event=>{
-      const entries=[...menu.querySelectorAll('[role="menuitem"]')];
-      const current=entries.indexOf(document.activeElement);
-      let next=-1;
-      if(event.key==="ArrowDown")next=(current+1)%entries.length;
-      else if(event.key==="ArrowUp")next=(current+entries.length-1)%entries.length;
-      else if(event.key==="Home")next=0;
-      else if(event.key==="End")next=entries.length-1;
-      else if(event.key==="Escape"){event.preventDefault();event.stopPropagation();close(true);return;}
-      else if(event.key==="Tab"){close();return;}
-      else if(event.key==="Enter"||event.key===" "){
-        event.preventDefault();event.stopPropagation();
-        const id=document.activeElement?.dataset.gtgHeaderAction;
-        if(id)act(id);
-        return;
-      }
-      if(next>=0){event.preventDefault();event.stopPropagation();entries[next].focus();}
-    });
+    // Mouse and keyboard both update the same selection. Neither owns a
+    // separate highlight, and opening the menu never selects a row.
+    const onHover=event=>{
+      const row=event.target instanceof Element
+        ?event.target.closest('[role="menuitem"]'):null;
+      if(!row||!menu?.contains(row))return;
+      const index=rows().indexOf(row);
+      if(index!==activeIndex)select(index);
+    };
+    menu.addEventListener("pointerover",onHover);
+    menu.addEventListener("pointermove",onHover);
+    activeIndex=-1;
     document.body.append(menu);
     trigger.setAttribute("aria-expanded","true");trigger.dataset.state="open";
-    position();menu.querySelector('[role="menuitem"]')?.focus();
+    position();
   }
   function mount(){
     const share=[...document.querySelectorAll('[data-app-shell-main-titlebar="true"] button[aria-label="Share"]')]
@@ -167,13 +181,33 @@
     event.stopPropagation();
   },true);
   document.addEventListener("keydown",event=>{
-    if(onTrigger(event)&&(event.key==="Enter"||event.key===" ")){
-      event.preventDefault();
-      event.stopPropagation();
-      if(!event.repeat)toggle();
-      return;
+    if(menu){
+      const count=rows().length;
+      let next=null;
+      if(event.key==="ArrowDown")next=activeIndex<0?0:(activeIndex+1)%count;
+      else if(event.key==="ArrowUp")next=activeIndex<0?count-1:(activeIndex+count-1)%count;
+      else if(event.key==="Home")next=0;
+      else if(event.key==="End")next=count-1;
+      if(next!==null){
+        event.preventDefault();event.stopPropagation();
+        if(count)select(next);
+        return;
+      }
+      if(event.key==="Escape"){
+        event.preventDefault();event.stopPropagation();
+        close(true);return;
+      }
+      if(event.key==="Tab"){close();return;}
+      if((event.key==="Enter"||event.key===" ")&&activeIndex>=0){
+        event.preventDefault();event.stopPropagation();
+        if(!event.repeat)act(items[activeIndex].id);
+        return;
+      }
     }
-    if(menu&&event.key==="Escape"&&!menu.contains(event.target))close();
+    if(onTrigger(event)&&(event.key==="Enter"||event.key===" ")){
+      event.preventDefault();event.stopPropagation();
+      if(!event.repeat)toggle();
+    }
   },true);
   window.addEventListener("resize",position);
   window.addEventListener("scroll",position,true);

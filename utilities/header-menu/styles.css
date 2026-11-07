@@ -12,3 +12,9 @@
   max-height:calc(100dvh - 16px);
   pointer-events:auto;
 }
+/* Only the most recently hovered or keyboard-selected row is highlighted.
+   Native interactive menu styles can otherwise highlight a stale hovered
+   row at the same time as the current keyboard selection. */
+#gtg-header-menu [role="menuitem"]:not([data-gtg-active="true"]):is(:hover,:focus-visible){
+  background-color:transparent;
+}

@@ -4,16 +4,27 @@
   const {isEnabled,activate}=globalThis.GPTTweaksEnhancedCopy;
   function copyIcon(size){
     const ns="http://www.w3.org/2000/svg";
+    // ChatGPT's own Copy message button uses an inline, filled 21px icon.
+    const source=document.querySelector(
+      'button[aria-label="Copy message"] svg,button[aria-label="Copy"] svg');
+    if(source){
+      const svg=source.cloneNode(true);
+      svg.setAttribute("width",String(size));
+      svg.setAttribute("height",String(size));
+      svg.classList.remove("icon-xs","icon-md");
+      return svg;
+    }
+    // On an empty conversation, reuse ChatGPT's built-in copy-code sprite.
     const svg=document.createElementNS(ns,"svg");
-    for(const [name,value] of Object.entries({
-      width:String(size),height:String(size),viewBox:"0 0 21 21",fill:"none",
-      "stroke":"currentColor","stroke-width":"1.5",
-      "stroke-linejoin":"round","aria-hidden":"true"
-    }))svg.setAttribute(name,value);
-    const path=document.createElementNS(ns,"path");
-    path.setAttribute("d",
-      "M7 6.5h7.5a2 2 0 0 1 2 2V15a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8.5a2 2 0 0 1 2-2ZM5 13H4.5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2H12a2 2 0 0 1 2 2v1.5");
-    svg.append(path);
+    for(const [key,value] of Object.entries({
+      width:String(size),height:String(size),viewBox:"0 0 20 20",
+      "aria-hidden":"true"
+    }))svg.setAttribute(key,value);
+    const use=document.createElementNS(ns,"use");
+    const sprite=document.documentElement.dataset.iconSpriteUrl;
+    if(sprite)use.setAttribute("href",sprite+"#codex-icon-square-on-square-light-20");
+    use.setAttribute("fill","currentColor");
+    svg.append(use);
     return svg;
   }
   globalThis.__gptTweaksMenus.register({
