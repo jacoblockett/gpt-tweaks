@@ -11,7 +11,7 @@
     function createUI() {
       host = document.createElement('div');
       host.id = 'ct-v1-marker';
-      host.className = 'pointer-events-none absolute inset-y-0 start-1/2 z-10 flex -translate-x-1/2 items-center justify-center whitespace-nowrap text-sm text-secondary';
+      host.className = 'pointer-events-none flex items-center justify-center whitespace-nowrap text-sm text-secondary';
       host.setAttribute('role', 'status');
       host.setAttribute('aria-live', 'polite');
       host.setAttribute('aria-atomic', 'true');

@@ -1,2 +1,10 @@
-/* Token estimates now render in ChatGPT's header.
- * The former composer progress-bar styling is no longer needed. */
+/* Position the estimate at the exact center of the visible chat titlebar.
+ * Keep all typography and spinner styling inherited from ChatGPT. */
+#ct-v1-marker {
+  position:absolute;
+  inset-block:0;
+  inset-inline-start:50%;
+  transform:translateX(-50%);
+  z-index:10;
+  pointer-events:none;
+}
