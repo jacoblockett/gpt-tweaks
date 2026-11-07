@@ -396,7 +396,8 @@
       if (!enabled) fetchController?.abort();
       else if (!wasEnabled && activeId) {
         document.dispatchEvent(new Event('ct-v1-bridge-ready'));
-        if (!running) void syncHistory(activeId, generation);
+        if (running) queued = true;
+        else void syncHistory(activeId, generation);
       }
     } catch (error) {
       console.warn('[GPT Tweaks Token Estimator] Cannot read settings:', error);
