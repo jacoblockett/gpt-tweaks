@@ -9,7 +9,7 @@
     {key:"handoff",label:"Session Handoff",paths:["M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z","M14 2v6h6","M8 13h8","m13 10 3 3-3 3"]},
     {key:"source",label:"Attach Source Code",paths:["m16 18 6-6-6-6","m8 6-6 6 6 6"]}
   ];
-  let host=null,trigger=null,menu=null,queued=false;
+  let trigger=null,menu=null,queued=false;
   function icon(item){
     const ns="http://www.w3.org/2000/svg",svg=document.createElementNS(ns,"svg");
     for(const [name,value] of Object.entries({width:"18",height:"18",viewBox:item.box||"0 0 24 24",
@@ -76,15 +76,14 @@
   function mount(){
     const share=[...document.querySelectorAll('[data-app-shell-main-titlebar="true"] button[aria-label="Share"]')]
       .find(button=>button.getClientRects().length&&!button.closest('[aria-hidden="true"]'));
-    const outer=share?.parentElement?.parentElement;
-    if(!outer?.parentElement||!outer.closest('[data-app-shell-main-titlebar="true"]')){
-      close();host?.remove();host=null;trigger=null;return;
+    const group=share?.parentElement;
+    if(!group?.isConnected||!group.closest('[data-app-shell-main-titlebar="true"]')){
+      close();trigger?.remove();trigger=null;return;
     }
-    if(host?.isConnected&&host.nextElementSibling===outer)return;
-    close();host?.remove();
-    // Clone only the Share button's visual wrappers, never its native behavior.
-    host=outer.cloneNode(false);
-    const group=share.parentElement.cloneNode(false);
+    if(trigger?.isConnected&&trigger.parentElement===group&&trigger.nextElementSibling===share)return;
+    close();trigger?.remove();
+    // Share's existing group is the verified interactive toolbar area.
+    // A separate cloned wrapper can sit behind the titlebar's pointer layer.
     trigger=share.cloneNode(false);trigger.removeAttribute("id");
     trigger.removeAttribute("aria-controls");
     trigger.setAttribute("aria-label","GPT Tweaks");
@@ -97,9 +96,17 @@
     mark.style.webkitMaskImage='url("'+iconUrl+'")';
     mark.style.maskImage='url("'+iconUrl+'")';
     trigger.append(mark,document.createTextNode("GPT Tweaks"));
-    trigger.addEventListener("click",event=>{event.preventDefault();toggle();});
-    group.append(trigger);host.append(group);outer.before(host);
+    group.insertBefore(trigger,share);
   }
+  // Capture clicks before React's parent handlers; the button is not React-owned.
+  document.addEventListener("click",event=>{
+    const button=event.target instanceof Element
+      ?event.target.closest('[data-gtg-header-trigger="true"]'):null;
+    if(!button||button!==trigger)return;
+    event.preventDefault();
+    event.stopPropagation();
+    toggle();
+  },true);
   document.addEventListener("pointerdown",event=>{
     if(menu&&!menu.contains(event.target)&&!trigger?.contains(event.target))close();
   },true);
