@@ -1,5 +1,4 @@
-/* Register feature icons and actions for the GPT Tweaks header menu.
- * Plus/slash injection is intentionally no longer installed. */
+/* Shared feature icon/action registry and composer lookup for the GPT Tweaks header dropdown. */
 (() => {
   "use strict";
   if(globalThis.__gptTweaksMenus)return;
