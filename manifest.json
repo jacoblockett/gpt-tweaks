@@ -46,8 +46,6 @@
       ],
       "js": [
         "shared/ui/menus/core.js",
-        "shared/ui/menus/plus.js",
-        "shared/ui/menus/slash.js",
         "utilities/github-source/ui/scrollbar.js",
         "shared/ui/select.js",
         "utilities/github-source/ui/revisions.js",
@@ -57,7 +55,6 @@
       ],
       "css": [
         "shared/ui/select.css",
-        "shared/ui/menus/styles.css",
         "utilities/github-source/ui/styles.css"
       ],
       "run_at": "document_start"
@@ -72,9 +69,7 @@
         "utilities/token-estimator/storage.js",
         "utilities/token-estimator/ui/indicator.js",
         "utilities/token-estimator/index.js",
-        "utilities/token-estimator/menu.js",
         "utilities/new-chat/index.js",
-        "utilities/new-chat/ui/menu.js",
         "utilities/session-handoff/ui/toast.js",
         "utilities/session-handoff/ui/model-confirmation.js",
         "utilities/session-handoff/index.js",

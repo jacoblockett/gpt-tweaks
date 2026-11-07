@@ -1,15 +1,13 @@
-/* Copy entire chat uses the native Chat actions menu and the shared plus/slash
- * entry points. Message Copy buttons remain entirely owned by ChatGPT. */
+/* Copy entire chat is activated by the GPT Tweaks header menu.
+ * Message Copy buttons remain entirely owned by ChatGPT. */
 (() => {
   "use strict";
   if(globalThis.GPTTweaksEnhancedCopy)return;
   const settingsPrefix="gpt-tweaks.copy.";
-  const triggerSelector='[data-app-shell-main-titlebar] button[aria-label="Chat actions"][aria-haspopup="menu"]';
   const idPattern=/^[a-f0-9-]{36}$/i;
   let enabled=false,loaded=false,invalidated=false,loading=null;
   let options={actions:true,menu:true,slash:true};
   let pending=null,toast=null,toastTimer=null;
-  let menuObserver=null,menuTimer=null;
 
   function conversationId(){
     return location.pathname.match(/(?:^|\/)c\/([0-9a-f-]{36})(?:\/|$)/i)?.[1]||null;
@@ -123,113 +121,6 @@
     }));
   }
 
-  // Native Radix menu content is portaled, not a descendant of the Chat
-  // actions button. Locate Archive/Delete after the menu is opened.
-  function menuItem(menu,label){
-    return [...menu.querySelectorAll('[role="menuitem"]')].find(item=>
-      new RegExp("^"+label+"(?: chat)?(?:\\s|$)","i").test(
-        (item.textContent||"").replace(/\s+/g," ").trim()))||null;
-  }
-  function createAction(archive){
-    const item=archive.cloneNode(true);
-    item.removeAttribute("id");
-    item.removeAttribute("data-state");
-    item.removeAttribute("data-disabled");
-    item.removeAttribute("aria-disabled");
-    item.removeAttribute("aria-keyshortcuts");
-    item.setAttribute("role","menuitem");
-    item.setAttribute("aria-label","Copy entire chat");
-    item.setAttribute("data-gtg-copy-entire","");
-    item.tabIndex=0;
-    for(const child of item.querySelectorAll("[id]"))child.removeAttribute("id");
-    let renamed=false;
-    const visit=node=>{
-      if(node.nodeType===3&&/\bArchive(?: chat)?\b/i.test(node.nodeValue||"")){
-        node.nodeValue=node.nodeValue.replace(/\bArchive(?: chat)?\b/i,"Copy entire chat");
-        renamed=true;
-      }else for(const child of node.childNodes)visit(child);
-    };
-    visit(item);
-    if(!renamed)item.textContent="Copy entire chat";
-    // Archive uses a CSS-masked span, not an SVG. Replace the actual
-    // captured menu icon slot so the cloned row never retains Archive's icon.
-    const slot=item.querySelector('[data-leading-icon-slot="menu"]');
-    if(slot){
-      const native=document.querySelector(
-        'button[aria-label="Copy"] svg, button[aria-label="Copy message"] svg');
-      const icon=native?.cloneNode(true)||svgIcon("copy");
-      icon.setAttribute("width","16");
-      icon.setAttribute("height","16");
-      icon.setAttribute("class","icon-sm shrink-0");
-      icon.setAttribute("aria-hidden","true");
-      icon.removeAttribute("data-gtg-copy-icon");
-      slot.replaceChildren(icon);
-    }
-    function activate(event){
-      event.preventDefault();
-      event.stopPropagation();
-      // Escape closes ChatGPT's portaled native menu without replacing it.
-      item.closest('[role="menu"]')?.dispatchEvent(new KeyboardEvent(
-        "keydown",{key:"Escape",code:"Escape",bubbles:true,cancelable:true}));
-      startCopy("actions");
-    }
-    item.addEventListener("click",activate);
-    item.addEventListener("keydown",event=>{
-      if(event.key==="Enter"||event.key===" "){
-        event.stopPropagation();
-        activate(event);
-      }
-    });
-    return item;
-  }
-
-  function inject(trigger){
-    if(!enabled||!options.actions||!trigger.isConnected||
-       !idPattern.test(conversationId()||"")||
-       trigger.getAttribute("aria-expanded")!=="true")return false;
-    // Verified from the captured opened-menu HTML: Chat actions'
-    // aria-controls is the id of the portaled Radix menu; the menu's
-    // aria-labelledby points back to this precise trigger.
-    const menuId=trigger.getAttribute("aria-controls");
-    const menu=menuId?document.getElementById(menuId):null;
-    if(!menu||menu.getAttribute("role")!=="menu"||
-       !menu.hasAttribute("data-radix-menu-content")||
-       menu.getAttribute("data-state")!=="open"||
-       menu.getAttribute("aria-labelledby")!==trigger.id)return false;
-    const archive=menuItem(menu,"Archive");
-    const remove=menuItem(menu,"Delete");
-    if(!archive||!remove||archive.parentElement!==menu||
-       remove.parentElement!==menu)return false;
-    if(!menu.querySelector("[data-gtg-copy-entire]"))
-      menu.insertBefore(createAction(archive),archive);
-    return true;
-  }
-  function stopMenuWatch(){
-    menuObserver?.disconnect();
-    menuObserver=null;
-    clearTimeout(menuTimer);
-    menuTimer=null;
-  }
-  function watchMenu(trigger){
-    stopMenuWatch();
-    if(!enabled||!options.actions)return;
-    menuObserver=new MutationObserver(()=>{
-      if(inject(trigger))stopMenuWatch();
-    });
-    menuObserver.observe(document.body,{childList:true,subtree:true,attributes:true,
-      attributeFilter:["aria-expanded"]});
-    if(inject(trigger)){stopMenuWatch();return;}
-    // A closed or unrelated menu must not leave a permanent DOM observer.
-    menuTimer=setTimeout(stopMenuWatch,2000);
-  }
-  function onMenuTrigger(event){
-    const trigger=event.target?.closest?.(triggerSelector);
-    if(!trigger)return;
-    if(event.type==="keydown"&&!["Enter"," ","ArrowDown"].includes(event.key))
-      return;
-    watchMenu(trigger);
-  }
-
   async function refresh(){
     if(invalidated)return;
     if(loading)return loading;
@@ -247,17 +138,10 @@
         if(/Extension context invalidated/i.test(String(error)))invalidated=true;
         else console.warn("[GPT Tweaks] Cannot read copy settings",error);
       }
-      if(!enabled){stopMenuWatch();cancelCopy();}
-      else if(!options.actions){
-        stopMenuWatch();
-        document.querySelectorAll("[data-gtg-copy-entire]").forEach(item=>item.remove());
-      }
+      if(!enabled)cancelCopy();
     })();
     try{await loading;}finally{loading=null;}
   }
-  document.addEventListener("pointerdown",onMenuTrigger,true);
-  document.addEventListener("click",onMenuTrigger,true);
-  document.addEventListener("keydown",onMenuTrigger,true);
   document.addEventListener("gpt-tweaks:copy:result",async event=>{
     let response;
     try{response=JSON.parse(event.detail);}catch{return;}
@@ -283,11 +167,10 @@
     }
   });
   function onNavigation(){
-    stopMenuWatch();
     if(pending&&conversationId()!==pending.conversation)cancelCopy();
   }
   window.addEventListener("popstate",onNavigation);
-  window.addEventListener("pagehide",()=>{stopMenuWatch();cancelCopy();});
+  window.addEventListener("pagehide",cancelCopy);
   if(window.navigation?.addEventListener)
     window.navigation.addEventListener("currententrychange",onNavigation);
   window.addEventListener("focus",()=>{void refresh();});
