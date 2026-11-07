@@ -36,7 +36,7 @@
     return loading;
   }
   function enabled(method) {
-    return !!(preferences?.enabled&&preferences[method]);
+    return method==="middle"&&preferences?.enabled===true;
   }
   function open(method,projectId=null) {
     if(!enabled(method)||invalidated)return;

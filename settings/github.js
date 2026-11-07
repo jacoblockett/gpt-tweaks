@@ -143,7 +143,6 @@ globalThis.__gptTweaksInitGitHubSettings=async ($,preferenceStore)=>{
 	void renderGithubAccount()
 
 	const historyKey = "gpt-tweaks.github.repository-history"
-	const historyStatus = $("repository-history-status")
 	const clearHistory = $("clear-repository-history")
 	const historyFeedback = $("repository-history-feedback")
 	function historyCount() {
@@ -155,11 +154,7 @@ globalThis.__gptTweaksInitGitHubSettings=async ($,preferenceStore)=>{
 		}
 	}
 	function renderHistoryStatus() {
-		const count = historyCount()
-		historyStatus.textContent =
-			count === 0 ? "No repositories saved yet." :
-			`${count} ${count === 1 ? "repository" : "repositories"} saved.`
-		clearHistory.hidden = count === 0
+		clearHistory.disabled = historyCount() === 0
 	}
 	clearHistory.addEventListener("click", () => {
 		preferenceStore.removeItem(historyKey)
@@ -170,12 +165,7 @@ globalThis.__gptTweaksInitGitHubSettings=async ($,preferenceStore)=>{
 	if (globalThis.chrome?.storage?.onChanged) {
 		chrome.storage.onChanged.addListener((changes, area) => {
 			if (area === "local" && changes[historyKey]) {
-				const value = changes[historyKey].newValue
-				let count = 0
-				try { const items = JSON.parse(value || "[]");count = Array.isArray(items) ? items.length : 0 } catch {}
-				historyStatus.textContent = count === 0 ? "No repositories saved yet." :
-					count + (count === 1 ? " repository saved." : " repositories saved.")
-				clearHistory.hidden = count === 0
+				renderHistoryStatus()
 			}
 			if (area === "local" && (changes["gpt-tweaks.github.auth"] || changes["gpt-tweaks.github.account"])) {
 				void renderGithubAccount()

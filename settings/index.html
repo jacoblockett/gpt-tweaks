@@ -16,7 +16,7 @@
 	<body>
 		<div class="layout">
 			<aside class="sidebar" aria-label="Navigation">
-				<div class="brand">GPT Tweaks</div>
+				<div class="brand"><img src="../assets/gpt-tweaks.svg" width="24" height="24" alt="" aria-hidden="true" />GPT Tweaks</div>
 				<nav class="nav">
 					<a href="#conversation" class="nav-item" data-section="conversation">
 						<svg
@@ -102,38 +102,6 @@
 							Copy the complete conversation as Markdown. History loads only when selected;
 							individual message Copy buttons remain native.
 						</p>
-						<div class="feature-body" id="copy-controls">
-							<div class="setting-row">
-								<div class="setting-text">
-									<div class="setting-title">Chat actions menu</div>
-									<div class="setting-description">Show Copy entire chat alongside Archive and Delete.</div>
-								</div>
-								<label class="switch" title="Enable Copy entire chat in Chat actions">
-									<input type="checkbox" id="copy-actions" checked aria-label="Enable Copy entire chat in Chat actions" />
-									<span class="track"></span>
-								</label>
-							</div>
-							<div class="setting-row">
-								<div class="setting-text">
-									<div class="setting-title">Attachment menu</div>
-									<div class="setting-description">Show Copy entire chat in the + menu next to the composer.</div>
-								</div>
-								<label class="switch" title="Enable Copy entire chat in the attachment menu">
-									<input type="checkbox" id="copy-menu" checked aria-label="Enable Copy entire chat in the attachment menu" />
-									<span class="track"></span>
-								</label>
-							</div>
-							<div class="setting-row">
-								<div class="setting-text">
-									<div class="setting-title">Slash command</div>
-									<div class="setting-description">Copy the conversation with <code>/copy-entire-chat</code>.</div>
-								</div>
-								<label class="switch" title="Enable Copy entire chat slash command">
-									<input type="checkbox" id="copy-slash" checked aria-label="Enable Copy entire chat slash command" />
-									<span class="track"></span>
-								</label>
-							</div>
-						</div>
 					</section>
 					<section id="session-handoff" class="feature" aria-labelledby="handoff-title">
 						<div class="feature-heading">
@@ -144,7 +112,7 @@
 							</label>
 						</div>
 						<p class="description">
-							Use <code>/handoff</code> to generate a text-only Markdown handoff, then continue in a new chat in this tab.
+							Use Session Handoff in the GPT Tweaks menu to generate a text-only Markdown handoff, then continue in a new chat in this tab.
 							The handoff is transferred directly as composer text; no file is created or attached. Project conversations stay in their project.
 						</p>
 					</section>
@@ -157,113 +125,8 @@
 							</label>
 						</div>
 						<p class="description">
-							Show estimated token usage above the ChatGPT message composer.
+							Automatically show the estimated token count in the center of the ChatGPT header.
 						</p>
-						<div class="feature-body" id="context-controls">
-							<h3 class="subheading">Visibility</h3>
-							<div class="setting-row">
-								<div class="setting-text">
-									<div class="setting-title">Show by default</div>
-									<div class="setting-description">
-										Show the display by default when first opening a chat that has not been manually toggled. Otherwise, use the + menu or
-										<code>/tokens</code>.
-									</div>
-								</div>
-								<label class="switch" title="Show token estimator by default">
-									<input type="checkbox" id="context-default-visible" aria-label="Show token estimator by default" />
-									<span class="track"></span>
-								</label>
-							</div>
-							<div class="setting-row">
-								<div class="setting-text">
-									<div class="setting-title">Attachment menu</div>
-									<div class="setting-description">Add a Tokens option to the + menu next to the message composer.</div>
-								</div>
-								<label class="switch" title="Show Tokens in attachment menu">
-									<input type="checkbox" id="context-menu" checked aria-label="Show Tokens in attachment menu" />
-									<span class="track"></span>
-								</label>
-							</div>
-							<div class="setting-row">
-								<div class="setting-text">
-									<div class="setting-title">Slash command</div>
-									<div class="setting-description">Use <code>/tokens</code> to show or hide the tracker.</div>
-								</div>
-								<label class="switch" title="Enable tokens slash command">
-									<input type="checkbox" id="context-slash" checked aria-label="Enable slash tokens command" />
-									<span class="track"></span>
-								</label>
-							</div>
-							<div class="feedback" id="context-feedback" role="status" aria-live="polite"></div>
-							<h3 class="subheading group-heading">Information shown</h3>
-							<div class="setting-row">
-								<div class="setting-text">
-									<div class="setting-title">Estimated percentage used</div>
-									<div class="setting-description">Show the percentage of the token target used.</div>
-								</div>
-								<label class="switch" title="Show estimated percentage">
-									<input
-										type="checkbox"
-										id="context-show-percent"
-										checked
-										aria-label="Show estimated percentage used" />
-									<span class="track"></span>
-								</label>
-							</div>
-							<div class="setting-row">
-								<div class="setting-text">
-									<div class="setting-title">Estimated tokens used</div>
-									<div class="setting-description">Show the estimated token count for the current conversation.</div>
-								</div>
-								<label class="switch" title="Show estimated tokens used">
-									<input type="checkbox" id="context-show-tokens" checked aria-label="Show estimated tokens used" />
-									<span class="track"></span>
-								</label>
-							</div>
-							<div class="setting-row">
-								<div class="setting-text">
-									<div class="setting-title">Configured token target</div>
-									<div class="setting-description">
-										Show the target token count alongside the estimated tokens used.
-									</div>
-								</div>
-								<label class="switch" title="Show configured token target">
-									<input type="checkbox" id="context-show-limit" checked aria-label="Show configured token target" />
-									<span class="track"></span>
-								</label>
-							</div>
-							<h3 class="subheading group-heading">Token usage target</h3>
-							<div class="setting-row">
-								<div class="setting-text">
-									<div class="setting-title">Enable usage target</div>
-									<div class="setting-description">Show a progress bar and optional target-based information.</div>
-								</div>
-								<label class="switch" title="Enable token usage target">
-									<input type="checkbox" id="context-target-enabled" checked aria-label="Enable token usage target" />
-									<span class="track"></span>
-								</label>
-							</div>
-							<div class="setting-row">
-								<div class="setting-text">
-									<label class="setting-title" for="context-target">Target tokens</label>
-									<div class="setting-description">
-										Used to calculate the progress bar and percentage. This does not limit ChatGPT's actual context
-										window.
-									</div>
-								</div>
-								<input
-									id="context-target"
-									class="token-target"
-									type="text"
-									inputmode="numeric"
-									pattern="[0-9]+"
-									autocomplete="off"
-									spellcheck="false"
-									value="512000"
-									required
-									aria-label="Target tokens" />
-							</div>
-						</div>
 					</section>
 
 				</div>
@@ -312,57 +175,15 @@
 							Attach a GitHub repository's source code to the current ChatGPT conversation as a ZIP file. Choose a
 							repository, then optionally select a branch and/or a commit.
 						</p>
-						<div class="feature-body" id="attachment-methods">
-							<div class="setting-row">
-								<div>
-									<div class="setting-title">Attachment menu</div>
-									<div class="setting-description">Add an option to the + menu next to the message composer.</div>
-								</div>
-								<label class="switch" title="Attachment menu">
-									<input type="checkbox" id="method-menu" checked aria-label="Enable attachment menu option" />
-									<span class="track"></span>
-								</label>
-							</div>
-							<div class="setting-row">
-								<div>
-									<div class="setting-title">Slash command</div>
-									<div class="setting-description">
-										Offer the repository attachment option when typing <code>/attach-github-source</code> in the
-										composer.
-									</div>
-								</div>
-								<label class="switch" title="Slash command">
-									<input type="checkbox" id="method-slash" checked aria-label="Enable slash command option" />
-									<span class="track"></span>
-								</label>
-							</div>
-							<div class="feedback" id="method-feedback" role="status" aria-live="polite"></div>
-						</div>
 					</section>
 
-					<section
-						id="repository-history"
-						class="feature github-settings-section"
-						aria-labelledby="repository-history-title">
+					<section id="repository-history" class="feature github-settings-section" aria-labelledby="repository-history-title">
 						<div class="feature-heading">
 							<h2 id="repository-history-title">Repository history</h2>
+							<button type="button" id="clear-repository-history" class="settings-action danger-action" disabled>Clear history</button>
 						</div>
-						<p class="description">
-							Previously attached repositories appear in the attachment selector for quick reuse. Individual entries can
-							also be removed there.
-						</p>
-						<div class="feature-body">
-							<div class="setting-row">
-								<div class="setting-text">
-									<div class="setting-title">Recently attached repositories</div>
-									<div class="setting-description" id="repository-history-status">No repositories saved yet.</div>
-								</div>
-								<button type="button" id="clear-repository-history" class="settings-action danger-action" hidden>
-									Clear history
-								</button>
-							</div>
-							<div class="feedback" id="repository-history-feedback" role="status" aria-live="polite"></div>
-						</div>
+						<p class="description">Previously attached repositories appear in the attachment selector for quick reuse. Individual entries can also be removed there.</p>
+						<div class="feedback" id="repository-history-feedback" role="status" aria-live="polite"></div>
 					</section>
 				</section>
 
@@ -390,44 +211,8 @@
 								<span class="track"></span>
 							</label>
 						</div>
-						<p class="description">More convenient ways to open a new chat session.</p>
+						<p class="description">Middle-click a New chat button to open a separate chat in your chosen destination.</p>
 						<div class="feature-body" id="new-chat-controls">
-							<div class="setting-row">
-								<div class="setting-text">
-									<div class="setting-title">Attachment menu</div>
-									<div class="setting-description">Show New Chat in the + menu by the message composer.</div>
-								</div>
-								<label class="switch" title="Enable new chat attachment menu option">
-									<input type="checkbox" id="new-chat-menu" checked aria-label="Enable new chat attachment menu option" />
-									<span class="track"></span>
-								</label>
-							</div>
-							<div class="setting-row">
-								<div class="setting-text">
-									<div class="setting-title">Middle-click navigation button</div>
-									<div class="setting-description">
-										Open a new chat by middle-clicking the New chat button in the sidebar.
-									</div>
-								</div>
-								<label class="switch" title="Enable middle-click">
-									<input
-										type="checkbox"
-										id="new-chat-middle-click"
-										checked
-										aria-label="Enable middle-click to open new chat" />
-									<span class="track"></span>
-								</label>
-							</div>
-							<div class="setting-row">
-								<div class="setting-text">
-									<div class="setting-title">Slash command</div>
-									<div class="setting-description">Open a new chat with <code>/new-chat</code>.</div>
-								</div>
-								<label class="switch" title="Enable new chat slash command">
-									<input type="checkbox" id="new-chat-slash" checked aria-label="Enable new chat slash command" />
-									<span class="track"></span>
-								</label>
-							</div>
 							<div class="setting-row">
 								<div class="setting-text">
 									<label for="new-chat-destination-trigger" class="setting-title">Open in</label>

@@ -1,230 +1,44 @@
 ;(async () => {
 	"use strict"
-	const { ready, preferences: preferenceStore } = globalThis.GPTTweaksStorage
+	const { ready, preferences: store } = globalThis.GPTTweaksStorage
 	await ready
 	const $ = id => document.getElementById(id)
-	const enabled = $("archive-enabled")
-	const menu = $("method-menu")
-	const slash = $("method-slash")
-	const methods = $("attachment-methods")
-	const feedback = $("method-feedback")
-	const preferences = {
-		enabled: preferenceStore.getItem("gpt-tweaks.archives.enabled") !== "false",
-		menu: preferenceStore.getItem("gpt-tweaks.archives.menu") !== "false",
-		slash: preferenceStore.getItem("gpt-tweaks.archives.slash") !== "false"
-	}
-	enabled.checked = preferences.enabled
-	menu.checked = preferences.menu
-	slash.checked = preferences.slash
-	if (!menu.checked && !slash.checked) menu.checked = true
 
-	function syncFeature() {
-		methods.classList.toggle("inactive", !enabled.checked)
-		menu.disabled = !enabled.checked
-		slash.disabled = !enabled.checked
-		preferenceStore.setItem("gpt-tweaks.archives.enabled", enabled.checked)
-		preferenceStore.setItem("gpt-tweaks.archives.menu", menu.checked)
-		preferenceStore.setItem("gpt-tweaks.archives.slash", slash.checked)
-	}
-	enabled.addEventListener("change", () => {
-		feedback.textContent = ""
-		syncFeature()
-	})
-	;[menu, slash].forEach(control =>
+	// Retain only feature-level controls. Legacy plus/slash and display
+	// preferences remain in storage but are no longer presented or rewritten.
+	const featureKeys = [
+		["archive-enabled", "gpt-tweaks.archives.enabled"],
+		["copy-enabled", "gpt-tweaks.copy.enabled"],
+		["handoff-enabled", "gpt-tweaks.handoff.enabled"],
+		["context-enabled", "gpt-tweaks.context.enabled"],
+		["new-chat-enabled", "gpt-tweaks.new-chat.enabled"]
+	]
+	for (const [id, key] of featureKeys) {
+		const control = $(id)
+		control.checked = store.getItem(key) !== "false"
 		control.addEventListener("change", () => {
-			if (!menu.checked && !slash.checked) {
-				control.checked = true
-				feedback.textContent = "Keep at least one attachment method enabled, or turn off the feature."
-			} else feedback.textContent = ""
-			syncFeature()
-		})
-	)
-	syncFeature()
-
-	await globalThis.__gptTweaksInitGitHubSettings($,preferenceStore);
-	// Conversation Token Estimator preferences (stable context storage keys)
-	const contextKeys = {
-		enabled: "gpt-tweaks.context.enabled",
-		defaultVisible: "gpt-tweaks.context.default-visible",
-		menu: "gpt-tweaks.context.menu",
-		slash: "gpt-tweaks.context.slash",
-		percent: "gpt-tweaks.context.percent",
-		tokens: "gpt-tweaks.context.tokens",
-		limit: "gpt-tweaks.context.limit",
-		targetEnabled: "gpt-tweaks.context.target-enabled"
-	}
-	const contextElements = {
-		enabled: $("context-enabled"),
-		defaultVisible: $("context-default-visible"),
-		menu: $("context-menu"),
-		slash: $("context-slash"),
-		percent: $("context-show-percent"),
-		tokens: $("context-show-tokens"),
-		limit: $("context-show-limit"),
-		targetEnabled: $("context-target-enabled")
-	}
-	const contextControls = $("context-controls")
-	const contextFeedback = $("context-feedback")
-	const contextTarget = $("context-target")
-	for (const [name, control] of Object.entries(contextElements)) {
-		const saved = preferenceStore.getItem(contextKeys[name])
-		control.checked = saved === null ? name !== "defaultVisible" : saved !== "false"
-	}
-	// Keep at least one way to toggle visibility whenever the tracker is enabled.
-	if (!contextElements.menu.checked && !contextElements.slash.checked) {
-		contextElements.menu.checked = true
-	}
-	function syncContext() {
-		const active = contextElements.enabled.checked
-		const targetEnabled = active && contextElements.targetEnabled.checked
-		contextControls.classList.toggle("inactive", !active)
-		for (const [name, control] of Object.entries(contextElements)) {
-			preferenceStore.setItem(contextKeys[name], String(control.checked))
-			if (name !== "enabled")
-				control.disabled = !active || ((name === "percent" || name === "limit") && !targetEnabled)
-		}
-		contextTarget.disabled = !targetEnabled
-	}
-	for (const [name, control] of Object.entries(contextElements)) {
-		control.addEventListener("change", () => {
-			if (name === "menu" || name === "slash") {
-				if (!contextElements.menu.checked && !contextElements.slash.checked) {
-					control.checked = true
-					contextFeedback.textContent = "Keep at least one way to toggle the tracker enabled, or turn off the feature."
-				} else contextFeedback.textContent = ""
-			}
-			syncContext()
-		})
-	}
-	syncContext()
-	const contextTargetKey = "gpt-tweaks.context.target-tokens"
-	const savedTarget = Number(preferenceStore.getItem(contextTargetKey))
-	let lastValidTarget = Number.isSafeInteger(savedTarget) && savedTarget > 0 ? savedTarget : 512000
-	contextTarget.value = String(lastValidTarget)
-	// Text field without number spinners; persist on blur rather than
-	// broadcasting every intermediate character through extension storage.
-	contextTarget.addEventListener("input", () => {
-		contextTarget.value = contextTarget.value.replace(/\D/g, "")
-		contextTarget.setCustomValidity("")
-	})
-	function commitContextTarget() {
-		const value = Number(contextTarget.value)
-		if (contextTarget.value === "0") {
-			lastValidTarget = 1
-			preferenceStore.setItem(contextTargetKey, "1")
-		} else if (contextTarget.value !== "" && Number.isSafeInteger(value) && value > 0) {
-			lastValidTarget = value
-			preferenceStore.setItem(contextTargetKey, String(value))
-		}
-		contextTarget.value = String(lastValidTarget)
-		contextTarget.setCustomValidity("")
-	}
-	contextTarget.addEventListener("blur", commitContextTarget)
-	contextTarget.addEventListener("keydown", event => {
-		if (event.key === "Enter") { event.preventDefault(); contextTarget.blur() }
-		if (event.key === "Escape") { event.preventDefault(); contextTarget.value = String(lastValidTarget); contextTarget.blur() }
-	})
-	// Reflect inline composer edits if the settings page is already open.
-	if (globalThis.chrome?.storage?.onChanged) {
-		chrome.storage.onChanged.addListener((changes, area) => {
-			if (area !== "local" || !changes[contextTargetKey] || document.activeElement === contextTarget) return
-			const value = Number(changes[contextTargetKey].newValue)
-			if (Number.isSafeInteger(value) && value >= 1) {
-				lastValidTarget = value
-				contextTarget.value = String(value)
-			}
+			store.setItem(key, String(control.checked))
+			if (id === "new-chat-enabled") syncNewChat()
 		})
 	}
 
+	await globalThis.__gptTweaksInitGitHubSettings($, store)
 
-	// Session handoff
-	const handoffEnabled = $("handoff-enabled")
-	handoffEnabled.checked = preferenceStore.getItem("gpt-tweaks.handoff.enabled") !== "false"
-	handoffEnabled.addEventListener("change", () =>
-		preferenceStore.setItem("gpt-tweaks.handoff.enabled", String(handoffEnabled.checked)))
-
-	// Copy entire chat entry points
-	const copyKeys = {
-		enabled: "gpt-tweaks.copy.enabled",
-		actions: "gpt-tweaks.copy.actions",
-		menu: "gpt-tweaks.copy.menu",
-		slash: "gpt-tweaks.copy.slash"
-	}
-	const copyControls = {
-		enabled: $("copy-enabled"),
-		actions: $("copy-actions"),
-		menu: $("copy-menu"),
-		slash: $("copy-slash")
-	}
-	for (const [name, control] of Object.entries(copyControls))
-		control.checked = preferenceStore.getItem(copyKeys[name]) !== "false"
-	if (!copyControls.actions.checked && !copyControls.menu.checked && !copyControls.slash.checked)
-		copyControls.actions.checked = true
-	function syncCopy() {
-		const active = copyControls.enabled.checked
-		$("copy-controls").classList.toggle("inactive", !active)
-		for (const [name, control] of Object.entries(copyControls)) {
-			if (name !== "enabled") control.disabled = !active
-			preferenceStore.setItem(copyKeys[name], String(control.checked))
-		}
-	}
-	for (const [name, control] of Object.entries(copyControls)) {
-		control.addEventListener("change", () => {
-			if (name !== "enabled" && !copyControls.actions.checked &&
-				!copyControls.menu.checked && !copyControls.slash.checked)
-				control.checked = true
-			syncCopy()
-		})
-	}
-	syncCopy()
-
-	// New chat settings
-	const newChatEnabled = $("new-chat-enabled")
-	const newChatMenu = $("new-chat-menu")
-	const newChatMiddle = $("new-chat-middle-click")
-	const newChatSlash = $("new-chat-slash")
-	const newChatDestination = $("new-chat-destination")
-	const newChatControls = $("new-chat-controls")
-	const newChatKeys = {
-		enabled: "gpt-tweaks.new-chat.enabled",
-		menu: "gpt-tweaks.new-chat.menu",
-		middle: "gpt-tweaks.new-chat.middle-click",
-		slash: "gpt-tweaks.new-chat.slash",
-		destination: "gpt-tweaks.new-chat.destination"
-	}
-	newChatEnabled.checked = preferenceStore.getItem(newChatKeys.enabled) !== "false"
-	newChatMenu.checked = preferenceStore.getItem(newChatKeys.menu) !== "false"
-	newChatMiddle.checked = preferenceStore.getItem(newChatKeys.middle) !== "false"
-	newChatSlash.checked = preferenceStore.getItem(newChatKeys.slash) !== "false"
-	newChatDestination.value = preferenceStore.getItem(newChatKeys.destination) === "window" ? "window" : "tab"
-	const destinationDropdown = globalThis.GPTTweaksSelect(newChatDestination,
+	const destination = $("new-chat-destination")
+	const destinationKey = "gpt-tweaks.new-chat.destination"
+	const enabled = $("new-chat-enabled")
+	const destinationControls = $("new-chat-controls")
+	destination.value = store.getItem(destinationKey) === "window" ? "window" : "tab"
+	const dropdown = globalThis.GPTTweaksSelect(destination,
 		$("new-chat-destination-trigger"), $("new-chat-destination-options"))
-	if (!newChatMenu.checked && !newChatMiddle.checked && !newChatSlash.checked) newChatMenu.checked = true
-
 	function syncNewChat() {
-		const active = newChatEnabled.checked
-		newChatControls.classList.toggle("inactive", !active)
-		newChatMenu.disabled = !active
-		newChatMiddle.disabled = !active
-		newChatSlash.disabled = !active
-		newChatDestination.disabled = !active
-		destinationDropdown.sync()
-		preferenceStore.setItem(newChatKeys.enabled, String(active))
-		preferenceStore.setItem(newChatKeys.menu, String(newChatMenu.checked))
-		preferenceStore.setItem(newChatKeys.middle, String(newChatMiddle.checked))
-		preferenceStore.setItem(newChatKeys.slash, String(newChatSlash.checked))
-		preferenceStore.setItem(newChatKeys.destination, newChatDestination.value)
+		const active = enabled.checked
+		destinationControls.classList.toggle("inactive", !active)
+		destination.disabled = !active
+		dropdown.sync()
 	}
-	newChatEnabled.addEventListener("change", syncNewChat)
-	for (const control of [newChatMenu, newChatMiddle, newChatSlash]) {
-		control.addEventListener("change", () => {
-			if (!newChatMenu.checked && !newChatMiddle.checked && !newChatSlash.checked) {
-				control.checked = true
-			}
-			syncNewChat()
-		})
-	}
-	newChatDestination.addEventListener("change", syncNewChat)
+	destination.addEventListener("change", () =>
+		store.setItem(destinationKey, destination.value))
 	syncNewChat()
 
 	const links = [...document.querySelectorAll("[data-section]")]

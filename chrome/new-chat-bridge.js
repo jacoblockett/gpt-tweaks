@@ -3,7 +3,7 @@
 // Privileged tab/window creation and new-chat preferences stay in the worker.
 (() => {
   const prefix="gpt-tweaks.new-chat.";
-  const keys=["enabled","middle-click","slash","destination","menu"].map(name=>prefix+name);
+  const keys=["enabled","destination"].map(name=>prefix+name);
   const projectPattern=/^g-p-[A-Za-z0-9_-]+$/;
   function allowedSender(sender) {
     if(sender?.id!==chrome.runtime.id||!Number.isInteger(sender.tab?.id))return false;
@@ -13,10 +13,7 @@
     const saved=await chrome.storage.local.get(keys);
     return {
       enabled:saved[keys[0]]!=="false",
-      middle:saved[keys[1]]!=="false",
-      slash:saved[keys[2]]!=="false",
-      menu:saved[keys[4]]!=="false",
-      destination:saved[keys[3]]==="window"?"window":"tab"
+      destination:saved[keys[1]]==="window"?"window":"tab"
     };
   }
   function destination(message) {
@@ -43,8 +40,7 @@
       if(message.type==="gpt-tweaks:new-chat:preferences")
         return {ok:true,data:prefs};
       const method=message.method;
-      if(!prefs.enabled||
-         !(method==="middle"&&prefs.middle||method==="slash"&&prefs.slash||method==="menu"&&prefs.menu))
+      if(!prefs.enabled||method!=="middle")
         return {ok:false,error:"New-chat shortcut disabled"};
       const url=destination(message);
       if(prefs.destination==="window")
