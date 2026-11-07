@@ -28,7 +28,12 @@
     scheduleScan();
   }
   function resetSlash(){for(const adapter of adapters.values())adapter.resetSlash();}
-  globalThis.__gptTweaksMenus=Object.freeze({register,resetSlash,composer:localComposer});
+  // Reuse the exact utility icons and activators registered for plus/slash.
+  globalThis.__gptTweaksMenus=Object.freeze({
+    register,resetSlash,composer:localComposer,
+    icon:(id,size)=>adapters.get(id)?.icon(size),
+    activate:(id,method)=>adapters.get(id)?.activate(method)
+  });
   function createAdapter(config){
     const visible=el=>!!(el?.isConnected&&el.getClientRects().length);
     function setMenuIcon(iconSlot){
@@ -47,7 +52,8 @@
       countUtilities:()=>adapters.size
     });
     function scan(){void plus.scanMenu();slash.ensureConnected();}
-    return {scan,resetSlash:slash.resetSlash,updateSlash:slash.updateSlash,
+    return {icon:config.icon,activate:config.activate,
+      scan,resetSlash:slash.resetSlash,updateSlash:slash.updateSlash,
       hasSlashMatch:slash.hasSlashMatch,handleDirectEnter:slash.handleDirectEnter,
       isOpen:()=>!!config.isOpen?.()};
   }

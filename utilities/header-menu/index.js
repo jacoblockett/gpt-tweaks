@@ -5,18 +5,53 @@
   globalThis.GPTTweaksHeaderMenu=true;
   const iconUrl=chrome.runtime.getURL("assets/gpt-tweaks.svg");
   const items=[
-    {key:"copy",label:"Copy Chat",paths:["M7 6.5h7.5a2 2 0 0 1 2 2V15a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8.5a2 2 0 0 1 2-2Z","M5 13h-.5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2H12a2 2 0 0 1 2 2v1.5"],box:"0 0 21 21"},
-    {key:"handoff",label:"Session Handoff",paths:["M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z","M14 2v6h6","M8 13h8","m13 10 3 3-3 3"]},
-    {key:"source",label:"Attach Source Code",paths:["m16 18 6-6-6-6","m8 6-6 6 6 6"]}
+    {id:"copy-entire-chat",label:"Copy Chat"},
+    {id:"session-handoff",label:"Session Handoff"},
+    {id:"github-source",label:"Attach Source Code"}
   ];
+  const utilities=globalThis.__gptTweaksMenus;
   let trigger=null,menu=null,queued=false;
-  function icon(item){
-    const ns="http://www.w3.org/2000/svg",svg=document.createElementNS(ns,"svg");
-    for(const [name,value] of Object.entries({width:"18",height:"18",viewBox:item.box||"0 0 24 24",
-      fill:"none",stroke:"currentColor","stroke-width":"1.8","stroke-linecap":"round",
-      "stroke-linejoin":"round","aria-hidden":"true"}))svg.setAttribute(name,value);
-    for(const d of item.paths){const path=document.createElementNS(ns,"path");path.setAttribute("d",d);svg.append(path);}
-    return svg;
+  // Match the captured ChatGPT chat-actions dropdown, rather than supplying
+  // independent icons, layout, colors, or hover values.
+  const menuClasses="no-drag z-50 m-px flex select-none flex-col overflow-y-auto "+
+    "bg-surface-elevated-secondary/90 text-default ring-(--color-border-overlay) "+
+    "ring-(length:--dropdown-overlay-ring-width) shadow-(--shadow-dropdown-overlay) "+
+    "backdrop-blur-sm rounded-2xl p-[var(--app-menu-gutter,var(--spacing))] "+
+    "min-w-[var(--app-menu-min-width,220px)]";
+  const rowClasses="no-drag itemBase-Uk8vyp rounded-xl text-default group "+
+    "itemInteractive-A3p9wI flex flex-col cursor-interaction "+
+    "hover:bg-secondary-ghost-hover focus-visible:bg-secondary-ghost-hover";
+  function menuRow(item){
+    const row=document.createElement("div");
+    row.className=rowClasses;
+    row.setAttribute("role","menuitem");
+    row.setAttribute("data-orientation","vertical");
+    row.tabIndex=-1;
+    row.dataset.gtgHeaderAction=item.id;
+    const content=document.createElement("div");
+    content.className="flex w-full min-w-0 items-center "+
+      "gap-[var(--spacing-menu-item-content,calc(var(--spacing)*1.5))]";
+    content.dataset.menuRowContent="true";
+    const body=document.createElement("span");
+    body.className="flex-1 min-w-0 truncate";
+    const inner=document.createElement("span");
+    inner.className="flex w-full items-center gap-1.5";
+    const iconSlot=document.createElement("span");
+    iconSlot.className="inline-flex flex-none items-center justify-center size-(--icon-leading-size)";
+    iconSlot.dataset.leadingIconSlot="menu";
+    const icon=utilities.icon(item.id,16);
+    if(!icon)throw Error("Missing registered GPT Tweaks icon: "+item.id);
+    icon.classList.add("icon-sm","shrink-0");
+    iconSlot.append(icon);
+    const label=document.createElement("span");
+    label.className="truncate";
+    label.textContent=item.label;
+    inner.append(iconSlot,label);
+    body.append(inner);
+    content.append(body);
+    row.append(content);
+    row.addEventListener("click",()=>act(item.id));
+    return row;
   }
   function close(focus=false){
     if(!menu)return;
@@ -25,15 +60,10 @@
     if(trigger)trigger.dataset.state="closed";
     if(focus&&trigger?.isConnected)trigger.focus();
   }
-  function act(key){
+  function act(id){
     close();
     try{
-      const calls={
-        copy:()=>globalThis.GPTTweaksEnhancedCopy?.activate("header"),
-        handoff:()=>globalThis.GPTTweaksHandoff?.activate("header"),
-        source:()=>globalThis.__gptTweaksGitHubSourceUI?.launch("header")
-      };
-      const result=calls[key]?.();
+      const result=utilities.activate(id,"header");
       if(result?.catch)void result.catch(error=>console.warn("[GPT Tweaks] Header menu action failed",error));
     }catch(error){console.warn("[GPT Tweaks] Header menu action failed",error);}
   }
@@ -47,15 +77,20 @@
   function toggle(){
     if(menu){close();return;}
     menu=document.createElement("div");
-    menu.id="gtg-header-menu";menu.setAttribute("role","menu");
+    menu.id="gtg-header-menu";
+    menu.className=menuClasses;
+    menu.setAttribute("role","menu");
+    menu.setAttribute("aria-orientation","vertical");
+    menu.setAttribute("data-side","bottom");
+    menu.setAttribute("data-align","end");
+    menu.setAttribute("data-state","open");
     menu.setAttribute("aria-label","GPT Tweaks");
-    for(const item of items){
-      const button=document.createElement("button");
-      button.type="button";button.className="gtg-header-item";
-      button.setAttribute("role","menuitem");button.dataset.gtgHeaderAction=item.key;
-      button.append(icon(item),document.createTextNode(item.label));
-      button.addEventListener("click",()=>act(item.key));
-      menu.append(button);
+    try{
+      for(const item of items)menu.append(menuRow(item));
+    }catch(error){
+      menu=null;
+      console.warn("[GPT Tweaks] Unable to populate header menu",error);
+      return;
     }
     menu.addEventListener("keydown",event=>{
       const entries=[...menu.querySelectorAll('[role="menuitem"]')];
@@ -67,6 +102,12 @@
       else if(event.key==="End")next=entries.length-1;
       else if(event.key==="Escape"){event.preventDefault();event.stopPropagation();close(true);return;}
       else if(event.key==="Tab"){close();return;}
+      else if(event.key==="Enter"||event.key===" "){
+        event.preventDefault();event.stopPropagation();
+        const id=document.activeElement?.dataset.gtgHeaderAction;
+        if(id)act(id);
+        return;
+      }
       if(next>=0){event.preventDefault();event.stopPropagation();entries[next].focus();}
     });
     document.body.append(menu);
@@ -86,6 +127,11 @@
     // A separate cloned wrapper can sit behind the titlebar's pointer layer.
     trigger=share.cloneNode(false);trigger.removeAttribute("id");
     trigger.removeAttribute("aria-controls");
+    // Share may be disabled during initial hydration; the extension must not
+    // permanently inherit that transient state.
+    trigger.disabled=false;
+    trigger.removeAttribute("aria-disabled");
+    trigger.removeAttribute("data-disabled");
     trigger.setAttribute("aria-label","GPT Tweaks");
     trigger.setAttribute("aria-haspopup","menu");
     trigger.setAttribute("aria-expanded","false");
@@ -95,15 +141,18 @@
     mark.className="gtg-header-mark";
     mark.style.webkitMaskImage='url("'+iconUrl+'")';
     mark.style.maskImage='url("'+iconUrl+'")';
-    trigger.append(mark,document.createTextNode("GPT Tweaks"));
+    const label=document.createElement("span");
+    label.className="max-sm:hidden";
+    label.textContent="GPT Tweaks";
+    trigger.append(mark,label);
     group.insertBefore(trigger,share);
   }
   const onTrigger=event=>event.target instanceof Element&&
     event.target.closest('[data-gtg-header-trigger="true"]')===trigger;
   document.addEventListener("pointerdown",event=>{
     if(onTrigger(event)&&event.button===0){
-      // ChatGPT can replace its React-owned toolbar between pointerdown
-      // and click. Handle the event proven to reach the injected button.
+      // Preserve the verified pointerdown activation; the cloned button
+      // itself is no longer disabled by Share's transient hydration state.
       event.preventDefault();
       event.stopPropagation();
       toggle();
