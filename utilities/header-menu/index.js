@@ -98,19 +98,32 @@
     trigger.append(mark,document.createTextNode("GPT Tweaks"));
     group.insertBefore(trigger,share);
   }
-  // Capture clicks before React's parent handlers; the button is not React-owned.
-  document.addEventListener("click",event=>{
-    const button=event.target instanceof Element
-      ?event.target.closest('[data-gtg-header-trigger="true"]'):null;
-    if(!button||button!==trigger)return;
-    event.preventDefault();
-    event.stopPropagation();
-    toggle();
-  },true);
+  const onTrigger=event=>event.target instanceof Element&&
+    event.target.closest('[data-gtg-header-trigger="true"]')===trigger;
   document.addEventListener("pointerdown",event=>{
+    if(onTrigger(event)&&event.button===0){
+      // ChatGPT can replace its React-owned toolbar between pointerdown
+      // and click. Handle the event proven to reach the injected button.
+      event.preventDefault();
+      event.stopPropagation();
+      toggle();
+      return;
+    }
     if(menu&&!menu.contains(event.target)&&!trigger?.contains(event.target))close();
   },true);
+  // Never activate twice if a click follows the handled pointerdown.
+  document.addEventListener("click",event=>{
+    if(!onTrigger(event))return;
+    event.preventDefault();
+    event.stopPropagation();
+  },true);
   document.addEventListener("keydown",event=>{
+    if(onTrigger(event)&&(event.key==="Enter"||event.key===" ")){
+      event.preventDefault();
+      event.stopPropagation();
+      if(!event.repeat)toggle();
+      return;
+    }
     if(menu&&event.key==="Escape"&&!menu.contains(event.target))close();
   },true);
   window.addEventListener("resize",position);

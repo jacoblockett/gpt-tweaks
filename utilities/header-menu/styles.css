@@ -1,13 +1,4 @@
-/* The trigger must share Share's interactive toolbar group and colors. */
-button[data-gtg-header-trigger="true"]{
-  position:relative;z-index:1;pointer-events:auto!important;
-  cursor:pointer;opacity:1!important;
-  color:var(--color-text-toolbar-action,var(--text-primary,#ededed))!important;
-}
-button[data-gtg-header-trigger="true"]:hover,
-button[data-gtg-header-trigger="true"][aria-expanded="true"]{
-  background:var(--bg-primary-ghost-hover,#393939);
-}
+/* The GPT Tweaks trigger inherits Share's native button classes and states. */
 /* ChatGPT-native header control and neutral dropdown palette. */
 .gtg-header-mark{
   display:inline-block;flex:none;width:20px;height:20px;background:currentColor;
