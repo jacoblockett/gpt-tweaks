@@ -15,7 +15,7 @@
   const storage = globalThis.GPTTweaksContextStorage;
   const view = globalThis.GPTTweaksContextIndicator(core);
   // The titlebar estimate is automatic, regardless of old display settings.
-  const enabled = true;
+  let enabled = true;
   let activeId = null;
   let activeEntries = [];
   let complete = false;
@@ -385,12 +385,30 @@
     }
   }
 
+  async function refreshEnabled() {
+    try {
+      const settings = await storage.preferences();
+      const wasEnabled = enabled;
+      enabled = settings.enabled !== false;
+      document.dispatchEvent(new CustomEvent('ct-v1-tracker-enabled',
+        {detail:enabled ? 'true' : 'false'}));
+      view.setVisible(enabled);
+      if (!enabled) fetchController?.abort();
+      else if (!wasEnabled && activeId) {
+        document.dispatchEvent(new Event('ct-v1-bridge-ready'));
+        if (!running) void syncHistory(activeId, generation);
+      }
+    } catch (error) {
+      console.warn('[GPT Tweaks Token Estimator] Cannot read settings:', error);
+    }
+  }
+
   async function start() {
     document.addEventListener('ct-v1-history', onHistoryMessage);
     document.addEventListener('ct-v1-outgoing', onOutgoing);
     document.addEventListener('ct-v1-activity', scheduleActivitySync);
     document.addEventListener('ct-v1-stream', onStream);
-    view.setVisible(true);
+    await refreshEnabled();
     void switchConversation(conversationId());
     let lastUrl = location.href;
     function onNavigation() {
@@ -415,6 +433,10 @@
         if (activeId && !view.isMounted()) view.mount();
       }, 3000);
     }
+    chrome.runtime.onMessage.addListener(message => {
+      if (message?.type === 'gpt-tweaks:context:settings-changed')
+        void refreshEnabled();
+    });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) return;
       if (enabled && activeId && (!complete || Date.now() - lastSync > 30000)) {

@@ -74,7 +74,6 @@
   }
   const localComposer=()=>globalThis.__gptTweaksMenus.composer();
   function isEnabled(method) {
-    if(method==="header")return Promise.resolve(true);
     return request("feature-status",{method}).then(x=>x.enabled);
   }
   function clearUi() {
@@ -104,7 +103,6 @@
   });
   async function launch(method) {
     if(!(await isEnabled(method))||modal)return;
-    globalThis.__gptTweaksMenus.resetSlash();
     history=[];mine=[];repositoriesLoading=true;repositoriesFailed=false;
     activeRepoName="";activeRepoQuery="";
     const dialog=document.createElement("dialog");

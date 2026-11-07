@@ -5,9 +5,11 @@ const {repoMeta,branches,commits,zip,history,storeHistory,listOwnRepos}=globalTh
 async function dispatch(message) {
   switch(message.kind){
     case "gpt-github-feature-status":{
-      if(!["menu","slash"].includes(message.method))throw Error("Unknown attachment method.");
-      const data=await chrome.storage.local.get(["gpt-tweaks.archives.enabled","gpt-tweaks.archives."+message.method]);
-      return {enabled:data["gpt-tweaks.archives.enabled"]!=="false"&&data["gpt-tweaks.archives."+message.method]!=="false"};
+      if(!["header","menu","slash"].includes(message.method))throw Error("Unknown attachment method.");
+      const key="gpt-tweaks.archives.enabled";
+      const methodKey="gpt-tweaks.archives."+message.method;
+      const data=await chrome.storage.local.get(message.method==="header"?[key]:[key,methodKey]);
+      return {enabled:data[key]!=="false"&&(message.method==="header"||data[methodKey]!=="false")};
     }
     case "gpt-github-meta":return repoMeta(message.repo);
     case "gpt-github-branches":return branches(message);
