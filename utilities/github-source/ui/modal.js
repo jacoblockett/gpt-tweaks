@@ -407,5 +407,5 @@
       status("Could not find that repository.",true);
     }
   }
-  globalThis.__gptTweaksGitHubSourceUI={launch,isEnabled,isOpen:()=>modal !== null};
+  globalThis.__gptTweaksGitHubSourceUI={launch};
 })();

@@ -1,8 +1,5 @@
 (() => {
   "use strict";
-  const COMMAND="/attach-github-source";
-  const COMMAND_TITLE="Attach GitHub Source";
-  const ARCHIVE_DESCRIPTION="Attach a GitHub repository source code.";
   function githubIcon(size){
     const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
     svg.setAttribute("width",String(size));
@@ -26,15 +23,10 @@
     return svg;
   }
 
-  const {launch,isEnabled,isOpen}=globalThis.__gptTweaksGitHubSourceUI;
+  const {launch}=globalThis.__gptTweaksGitHubSourceUI;
   globalThis.__gptTweaksMenus.register({
     id:"github-source",
-    command:COMMAND,
-    title:COMMAND_TITLE,
-    description:ARCHIVE_DESCRIPTION,
     icon:githubIcon,
-    isEnabled,
-    isOpen,
     activate:launch
   });
 

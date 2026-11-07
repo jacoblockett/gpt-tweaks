@@ -1,17 +1,15 @@
 (() => {
 "use strict";
-const {PREFIX,APP_INSTALL_URL,APP_MANAGE_URL,authStart,authPoll,authStatus,disconnect,installationStatus}=globalThis.__gptTweaksGitHubConnection;
-const {repoMeta,branches,commits,zip,history,storeHistory,listOwnRepos}=globalThis.__gptTweaksGitHubRepositories;
+const {PREFIX,APP_INSTALL_URL,authStart,authPoll,authStatus,disconnect,installationStatus}=globalThis.__gptTweaksGitHubConnection;
+const {branches,commits,zip,history,storeHistory,listOwnRepos}=globalThis.__gptTweaksGitHubRepositories;
 async function dispatch(message) {
   switch(message.kind){
     case "gpt-github-feature-status":{
-      if(!["header","menu","slash"].includes(message.method))throw Error("Unknown attachment method.");
+      if(message.method!=="header")throw Error("Unknown attachment method.");
       const key="gpt-tweaks.archives.enabled";
-      const methodKey="gpt-tweaks.archives."+message.method;
-      const data=await chrome.storage.local.get(message.method==="header"?[key]:[key,methodKey]);
-      return {enabled:data[key]!=="false"&&(message.method==="header"||data[methodKey]!=="false")};
+      const data=await chrome.storage.local.get(key);
+      return {enabled:data[key]!=="false"};
     }
-    case "gpt-github-meta":return repoMeta(message.repo);
     case "gpt-github-branches":return branches(message);
     case "gpt-github-commits":return commits(message);
     case "gpt-github-zip":return zip(message);
@@ -29,8 +27,6 @@ async function dispatch(message) {
     case "gpt-github-install-status":return installationStatus();
     case "gpt-github-install-open":
       await chrome.tabs.create({url:APP_INSTALL_URL,active:true});return true;
-    case "gpt-github-install-manage":
-      await chrome.tabs.create({url:APP_MANAGE_URL,active:true});return true;
     case "gpt-github-auth-status":return authStatus();
     case "gpt-github-auth-start":return authStart();
     case "gpt-github-auth-poll":return authPoll();

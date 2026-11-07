@@ -112,7 +112,6 @@ async function disconnect() {
   return {connected:false};
 }
 const APP_INSTALL_URL="https://github.com/apps/gpt-tweaks/installations/new";
-const APP_MANAGE_URL="https://github.com/settings/installations";
 async function installationStatus() {
   const auth=await readAuth();
   if(!auth?.access_token)return {connected:false,installationsCount:0,accounts:[]};
@@ -134,5 +133,5 @@ async function authStatus() {
     supported:!!GITHUB_APP_CLIENT_ID};
 }
 
-globalThis.__gptTweaksGitHubConnection={GITHUB_APP_CLIENT_ID,PREFIX,MAX_ZIP_BYTES,REPO,SHA,ROOT,validBranch,validateSpec,readAuth,api,authStart,authPoll,disconnect,installationStatus,authStatus,APP_INSTALL_URL,APP_MANAGE_URL};
+globalThis.__gptTweaksGitHubConnection={GITHUB_APP_CLIENT_ID,PREFIX,MAX_ZIP_BYTES,REPO,SHA,ROOT,validBranch,validateSpec,readAuth,api,authStart,authPoll,disconnect,installationStatus,authStatus,APP_INSTALL_URL};
 })();

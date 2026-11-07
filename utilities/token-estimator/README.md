@@ -1,14 +1,17 @@
 # Token Estimator
 
-Port of the original standalone ChatGPT Context Tracker 1.0 into GPT Tweaks, presented as Token Estimator.
+GPT Tweaks displays an estimated conversation token count in the center of ChatGPT's titlebar. The display is automatic when **Token Estimator** is enabled in extension settings. An empty new chat starts at **0 tokens**; existing chats show the ChatGPT-style spinner and **Loading token estimate** while initial history loads, then show **N tokens**. There is no progress bar, percentage, target, or per-conversation manual visibility option.
 
-- `estimator-core.js` estimates tokens and classifies/counts messages in **both** execution worlds. The estimator and reconciliation semantics are carried over unchanged.
-- `history-bridge.js` runs at `document_start` in `MAIN` to passively summarize ChatGPT history and generation SSE. Its DOM events contain numeric estimates and message IDs, not message text or request headers.
-- `storage.js` is an `ISOLATED`-world proxy. `chrome/token-estimator-bridge.js` validates the sender, exposes context preferences, per-conversation boolean visibility choices, and numeric cache records, and keeps browser storage restricted to trusted contexts.
-- `index.js` owns state, pagination, streaming reconciliation and numeric caching. `ui/indicator.js` owns the native-composer indicator, theme alignment and React remount lifecycle. `ui/styles.css` owns the small page-level footer transparency adjustment.
+## Runtime
 
-Settings are controlled by `settings/index.html`: enable **Token Estimator** to allow the indicator; **Show by default** sets initial visibility only for chats without a saved manual choice. `+ → Tokens` or `/tokens` saves a per-conversation visible/hidden choice, including across revisits and page reloads. Editing Show by default does not change the current display. The personal target defaults to **512,000 tokens**, independent of actual server context limits. The indicator centers the optional token usage and percentage label over the progress bar, with the progress line masked behind the text. The target is read-only in the composer and can be changed only on the trusted extension settings page. The message-count algorithm is retained in the core but is not displayed or configured by this utility. Existing `gpt-tweaks.context.*` preferences and `ct-v1-*` bridge events remain unchanged for backward compatibility. The original standalone extension's cached estimates are not migrated across extension IDs; they are rehydrated from ChatGPT history.
+- `estimator-core.js` implements the retained numeric token/message accounting algorithm in both execution worlds.
+- `history-bridge.js` executes in `MAIN` at `document_start`, passively summarizing ChatGPT history responses and generation streams. DOM events carry numeric summaries and message IDs, not full message text or request headers.
+- `storage.js` proxies validated cache records and the `enabled` preference through `chrome/token-estimator-bridge.js`. Extension storage remains restricted to trusted contexts.
+- `index.js` handles history pagination, estimates, stream reconciliation, caching, route transitions and the feature enable switch.
+- `ui/indicator.js` displays the header estimate and native-style spinner. `ui/styles.css` centers the status.
 
-**Integrated:** Token Estimator registers `Tokens` in ChatGPT's `+` and `/tokens` command menus through the same shared menu adapter used by GitHub Source. Both commands toggle the same per-conversation visibility state; neither modifies the master enable switch or Show by default. The Target Exceeded pill has been removed entirely. Threshold colors remain on the bar and counter.
+Preserve `gpt-tweaks.context.enabled`, `gpt-tweaks.context.conversation.*` cached records, cache version/algorithm identifiers, and active `ct-v1-*` events. Obsolete visibility/target keys may remain stored on installed browsers but are not used or cleared. The estimate is not a measurement of ChatGPT's actual model context limit.
 
-Run `node tests/token-estimator.test.js` for dependency-free, simulated estimator/history/stream/storage regression tests. These **do not** prove compatibility with the live authenticated ChatGPT history endpoint, or native composer geometry in a signed-in Brave browser. Visual and authenticated behavior need user validation.
+## Verification
+
+Source checks can confirm syntax, dependencies and manifest order. Authenticated history retrieval, real streaming estimates, responsive titlebar positioning and loading behavior must still be checked in Brave.

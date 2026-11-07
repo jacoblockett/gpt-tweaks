@@ -136,15 +136,6 @@ h2 {
 	transition: opacity 0.16s;
 }
 .feature-body.inactive { opacity: 0.46; }
-.subheading {
-	margin: 0 0 4px;
-	font-size: 12px;
-	font-weight: 680;
-	letter-spacing: 0.07em;
-	text-transform: uppercase;
-	color: #a9a0b6;
-}
-.group-heading { margin-top: 30px; }
 .setting-row {
 	display: flex;
 	align-items: center;
@@ -166,10 +157,6 @@ h2 {
 	color: var(--muted);
 	font-size: 13px;
 	line-height: 1.55;
-}
-code {
-	font-size: 0.94em;
-	color: #d3c2fc;
 }
 .switch {
 	position: relative;
