@@ -6,7 +6,6 @@
   const settingsPrefix="gpt-tweaks.copy.";
   const idPattern=/^[a-f0-9-]{36}$/i;
   let enabled=false,loaded=false,invalidated=false,loading=null;
-  let options={actions:true,menu:true,slash:true};
   let pending=null,toast=null,toastTimer=null;
 
   function conversationId(){
@@ -38,9 +37,6 @@
       path("M5.3 10.6L8.9 14.2L16 7.1",
         {stroke:"currentColor","stroke-width":"1.7",
           "stroke-linecap":"round","stroke-linejoin":"round"});
-    }else if(state==="copy"){
-      path("M7 6.5h7.5a2 2 0 0 1 2 2V15a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8.5a2 2 0 0 1 2-2ZM5 13H4.5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2H12a2 2 0 0 1 2 2v1.5",
-        {stroke:"currentColor","stroke-width":"1.5","stroke-linejoin":"round"});
     }else{
       path("M6 6L15 15M15 6L6 15",
         {stroke:"currentColor","stroke-width":"1.7",
@@ -106,8 +102,8 @@
     document.dispatchEvent(new CustomEvent("gpt-tweaks:copy:cancel",{detail:id}));
     clearToast();
   }
-  function startCopy(method="actions"){
-    if(!enabled||(method!=="header"&&!options[method])||pending)return;
+  function startCopy(){
+    if(!enabled||pending)return;
     const conversation=conversationId();
     if(!idPattern.test(conversation||"")){
       showToast("error","Couldn't identify this chat.");
@@ -129,8 +125,6 @@
         const response=await chrome.runtime.sendMessage({type:"gpt-tweaks:copy:preferences"});
         if(!response?.ok)throw Error(response?.error||"Copy preferences unavailable");
         enabled=response.enabled===true;
-        options={actions:response.actions===true,menu:response.menu===true,
-          slash:response.slash===true};
         loaded=true;
       }catch(error){
         enabled=false;
@@ -179,20 +173,15 @@
   });
   chrome.storage?.onChanged?.addListener((changes,area)=>{
     if(area!=="local"||
-       !["enabled","actions","menu","slash"].some(method=>changes[settingsPrefix+method]))
+       !changes[settingsPrefix+"enabled"])
       return;
     void refresh();
   });
   globalThis.GPTTweaksEnhancedCopy=Object.freeze({
-    isEnabled:async method=>{
-      if(method!=="menu"&&method!=="slash")return false;
-      if(!loaded)await refresh();
-      return enabled&&options[method]&&idPattern.test(conversationId()||"");
-    },
     activate:async method=>{
-      if(method!=="menu"&&method!=="slash"&&method!=="header")return;
+      if(method!=="header")return;
       if(!loaded)await refresh();
-      startCopy(method);
+      startCopy();
     }
   });
   void refresh();

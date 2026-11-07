@@ -259,11 +259,11 @@
     }
   }
   async function activate(method) {
-    if(!["slash","menu","header"].includes(method)||busy||invalidated)return;
+    if(method!=="header"||busy||invalidated)return;
     if(!enabled)await refresh();
     if(!enabled||busy||invalidated)return;
     const node=editor();
-    if(!node||editorText(node)){error("Finish or clear the current draft before /handoff");return;}
+    if(!node||editorText(node)){error("Finish or clear the current draft before Session Handoff");return;}
     busy=true;
     let closeToast=()=>{};
     try{
@@ -328,14 +328,7 @@
       if(!done?.ok)throw Error(done?.error||"Unable to clear handoff");
     }catch(reason){error("Unable to transfer handoff",reason);}
   }
-  globalThis.GPTTweaksHandoff=Object.freeze({
-    isEnabled:async method=>{
-      if(method!=="slash"&&method!=="menu")return false;
-      if(!enabled)await refresh();
-      return enabled&&!invalidated;
-    },
-    activate
-  });
+  globalThis.GPTTweaksHandoff=Object.freeze({activate});
   window.addEventListener("focus",()=>{void refresh();});
   void refresh();
   void receive();

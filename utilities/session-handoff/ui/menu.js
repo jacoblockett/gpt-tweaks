@@ -18,10 +18,8 @@
     }
     return svg;
   }
-  const {isEnabled,activate}=globalThis.GPTTweaksHandoff;
+  const {activate}=globalThis.GPTTweaksHandoff;
   globalThis.__gptTweaksMenus.register({
-    id:"session-handoff",command:"/handoff",title:"Session Handoff",
-    description:"Continue this conversation in a new chat.",
-    icon:handoffIcon,isEnabled,activate
+    id:"session-handoff",icon:handoffIcon,activate
   });
 })();

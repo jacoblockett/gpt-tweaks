@@ -1,9 +1,9 @@
 "use strict";
 
-// Only nonsecret Copy entire chat menu preferences cross the trusted-worker boundary.
+// Only the Copy Chat feature enable setting crosses the trusted-worker boundary.
 (() => {
   const prefix="gpt-tweaks.copy.";
-  const keys=["enabled","actions","menu","slash"].map(name=>prefix+name);
+  const keys=[prefix+"enabled"];
   function authorized(sender){
     if(sender?.id!==chrome.runtime.id||!Number.isInteger(sender.tab?.id))return false;
     try{return new URL(sender.url).origin==="https://chatgpt.com";}catch{return false;}
@@ -16,8 +16,7 @@
     }
     chrome.storage.local.get(keys).then(saved=>{
       const allowed=key=>saved[key]!==false&&saved[key]!=="false";
-      reply({ok:true,enabled:allowed(keys[0]),actions:allowed(keys[1]),
-        menu:allowed(keys[2]),slash:allowed(keys[3])});
+      reply({ok:true,enabled:allowed(keys[0])});
     },error=>reply({ok:false,error:String(error)}));
     return true;
   });

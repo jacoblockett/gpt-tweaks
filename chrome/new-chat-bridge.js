@@ -22,7 +22,7 @@
     const path=typeof message.pathname==="string"?message.pathname:"";
     const match=path.match(/^\/g\/(g-p-[A-Za-z0-9_-]+)(?:\/|$)/);
     // A project-row New chat button chooses that project explicitly.
-    const explicit=message.method==="middle"?message.projectId:null;
+    const explicit=message.projectId;
     if(explicit!=null&&!projectPattern.test(explicit))
       throw Error("Invalid project ID");
     const project=explicit||match?.[1];
@@ -39,14 +39,13 @@
       const prefs=await preferences();
       if(message.type==="gpt-tweaks:new-chat:preferences")
         return {ok:true,data:prefs};
-      const method=message.method;
-      if(!prefs.enabled||method!=="middle")
+      if(!prefs.enabled||message.method!=="middle")
         return {ok:false,error:"New-chat shortcut disabled"};
       const url=destination(message);
       if(prefs.destination==="window")
-        await chrome.windows.create({url,focused:method!=="middle"});
+        await chrome.windows.create({url,focused:false});
       else
-        await chrome.tabs.create({url,active:method!=="middle"});
+        await chrome.tabs.create({url,active:false});
       return {ok:true};
     })().then(respond,error=>respond({ok:false,error:String(error)}));
     return true;

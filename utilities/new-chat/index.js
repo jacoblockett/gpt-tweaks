@@ -1,6 +1,7 @@
 (() => {
   "use strict";
-  if(globalThis.GPTTweaksNewChat)return;
+  if(globalThis.__gptTweaksNewChatInitialized)return;
+  globalThis.__gptTweaksNewChatInitialized=true;
 
   let preferences=null,loading=null,invalidated=false;
   function reportError(label,error) {
@@ -86,12 +87,5 @@
   });
   void refresh();
 
-  globalThis.GPTTweaksNewChat=Object.freeze({
-    isEnabled:async method=>{
-      if(method!=="slash"&&method!=="menu")return false;
-      if(!preferences)await refresh();
-      return enabled(method);
-    },
-    activate:method=>{if(method==="slash"||method==="menu")open(method);}
-  });
+
 })();

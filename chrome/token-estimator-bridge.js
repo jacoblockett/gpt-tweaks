@@ -5,9 +5,8 @@
 (() => {
   const prefix = "gpt-tweaks.context.";
   const cachePrefix = prefix + "conversation.";
-  const visibilityPrefix = prefix + "visibility.";
   const idPattern = /^[a-f0-9-]{36}$/i;
-  const options = ["enabled", "default-visible", "menu", "slash", "percent", "tokens", "limit", "target-enabled", "target-tokens"];
+  const options = ["enabled"];
   const preferenceKeys = options.map(name => prefix + name);
   function authorized(sender) {
     return sender.id === chrome.runtime.id && sender.tab?.id >= 0 &&
@@ -31,28 +30,7 @@
     switch (message.type) {
       case "gpt-tweaks:context:preferences": {
         const saved = await chrome.storage.local.get(preferenceKeys);
-        const readBool = (key, defaultValue) => saved[prefix + key] === undefined ? defaultValue :
-          saved[prefix + key] !== "false";
-        const value = Number(saved[prefix + "target-tokens"]);
-        return {enabled:readBool("enabled", true), defaultVisible:readBool("default-visible", false),
-          menu:readBool("menu", true), slash:readBool("slash", true),
-          percent:readBool("percent", true), tokens:readBool("tokens", true),
-          limit:readBool("limit", true), targetEnabled:readBool("target-enabled", true),
-          target:Number.isSafeInteger(value) && value > 0 ? value : 512000};
-      }
-      case "gpt-tweaks:context:get-visibility": {
-        if (!idPattern.test(message.id || "")) throw new Error("Invalid conversation ID");
-        const key = visibilityPrefix + message.id.toLowerCase();
-        const value = (await chrome.storage.local.get(key))[key];
-        return typeof value === "boolean" ? value : null;
-      }
-      case "gpt-tweaks:context:set-visibility": {
-        if (!idPattern.test(message.id || "") || typeof message.visible !== "boolean")
-          throw new Error("Invalid conversation visibility");
-        await chrome.storage.local.set({
-          [visibilityPrefix + message.id.toLowerCase()]:message.visible
-        });
-        return true;
+        return {enabled:saved[prefix+"enabled"]!=="false"};
       }
       case "gpt-tweaks:context:load": {
         if (!idPattern.test(message.id || "")) throw new Error("Invalid conversation ID");

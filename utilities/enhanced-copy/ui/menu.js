@@ -1,7 +1,7 @@
-/* Share ChatGPT's existing plus/slash menu rendering and keyboard behavior. */
+/* Reuse ChatGPT copy imagery in the GPT Tweaks header menu. */
 (() => {
   "use strict";
-  const {isEnabled,activate}=globalThis.GPTTweaksEnhancedCopy;
+  const {activate}=globalThis.GPTTweaksEnhancedCopy;
   function copyIcon(size){
     const ns="http://www.w3.org/2000/svg";
     // ChatGPT's own Copy message button uses an inline, filled 21px icon.
@@ -28,8 +28,6 @@
     return svg;
   }
   globalThis.__gptTweaksMenus.register({
-    id:"copy-entire-chat",command:"/copy-entire-chat",title:"Copy entire chat",
-    description:"Copy the entire conversation to the clipboard.",
-    icon:copyIcon,isEnabled,activate
+    id:"copy-entire-chat",icon:copyIcon,activate
   });
 })();

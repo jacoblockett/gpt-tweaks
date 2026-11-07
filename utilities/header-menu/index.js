@@ -1,4 +1,4 @@
-/* Independent GPT Tweaks header menu; existing plus and slash entries remain. */
+/* GPT Tweaks header menu, using the shared feature icon/action registry. */
 (() => {
   "use strict";
   if(globalThis.GPTTweaksHeaderMenu)return;
