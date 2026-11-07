@@ -4,7 +4,6 @@
   const core = globalThis.CTCore;
   if (!core || document.getElementById('ct-v1-marker')) return;
 
-  const DEFAULT_TARGET = 512000;
   // Generation streams drive updates and completion reconciliation; history
   // retrieval remains available for old conversations and recovery.
   const MAX_PAGES = 200;
@@ -15,13 +14,8 @@
   const ESTIMATE_ALGORITHM = 'network-text-deduplicated-fullscan-contextfix-finalcount';
   const storage = globalThis.GPTTweaksContextStorage;
   const view = globalThis.GPTTweaksContextIndicator(core);
-  let enabled = true;
-  let defaultVisible = false;
-  let initialVisibility = null; // Snapshot when the current chat is loaded.
-  let visibility = null; // Manual choice, null until the chat is touched.
-  let flags = {percent:true, tokens:true, limit:true, targetEnabled:true};
-
-  let target = DEFAULT_TARGET;
+  // The titlebar estimate is automatic, regardless of old display settings.
+  const enabled = true;
   let activeId = null;
   let activeEntries = [];
   let complete = false;
@@ -60,8 +54,8 @@
   }
 
   function render() {
-    view.render({activeEntries, observedEntries, streamEntries, target, complete,
-      initialDiscovery, lastError, flags});
+    view.render({activeEntries, observedEntries, streamEntries, complete,
+      initialDiscovery, lastError});
   }
   function validCached(value) {
     return value && value.version === 1 && value.algorithm === ESTIMATE_ALGORITHM && Array.isArray(value.entries) &&
@@ -296,15 +290,7 @@
     if (fetchController) fetchController.abort();
     running = false;
     queued = false;
-    // The default is sampled only when loading a conversation, not when
-    // the setting changes. Preserve an untitled chat's manual selection
-    // across its first send and assignment of a conversation ID.
-    const preserveUntitled = firstSend && activeId === null;
-    if (!preserveUntitled) {
-      visibility = null;
-      initialVisibility = defaultVisible;
-    }
-    view.setVisible(enabled && (visibility ?? initialVisibility));
+    // The status resets immediately when the conversation changes.
     activeId = id;
     activeEntries = [];
     complete = false;
@@ -318,7 +304,8 @@
     observedEntries.clear();
     streamFinished = false;
     initialDiscovery = !firstSend;
-    view.setConversation(null);
+    view.setConversation(id);
+    render();
     if (!id) {
       blankChatSent = false;
       blankChatOutgoing.clear();
@@ -334,19 +321,6 @@
     blankChatOutgoing.clear();
     blankChatStream.clear();
     const serial = generation;
-    // A manual choice belongs to the conversation, including later visits.
-    // Keep the display unmounted until its saved visibility has been read.
-    let savedVisibility = null;
-    try { savedVisibility = await storage.getVisibility(id); }
-    catch (error) { console.warn('[GPT Tweaks] Cannot load token estimator visibility:', error); }
-    if (generation !== serial) return;
-    if (visibility === null && typeof savedVisibility === 'boolean') visibility = savedVisibility;
-    else if (preserveUntitled && typeof visibility === 'boolean') {
-      void storage.setVisibility(id, visibility).catch(error =>
-        console.warn('[GPT Tweaks] Cannot save token estimator visibility:', error));
-    }
-    view.setVisible(enabled && (visibility ?? initialVisibility));
-    view.setConversation(id);
     const cached = await load(id);
     if (generation !== serial) return;
     if (cached) {
@@ -411,58 +385,12 @@
     }
   }
 
-  function toggleTokens() {
-    if (!enabled) return;
-    visibility = !(visibility ?? initialVisibility);
-    view.setVisible(visibility);
-    if (activeId) {
-      void storage.setVisibility(activeId, visibility).catch(error =>
-        console.warn('[GPT Tweaks] Cannot save token estimator visibility:', error));
-    }
-    render();
-  }
-
-  // Register via the same shared menu API as GitHub Source.
-  globalThis.GPTTweaksContextTokens = Object.freeze({
-    isEnabled:async method => {
-      const settings = await storage.preferences();
-      return settings.enabled !== false && settings[method] !== false;
-    },
-    activate:toggleTokens
-  });
-
-  async function refreshPreferences() {
-    try {
-      const settings = await storage.preferences();
-      const previouslyEnabled = enabled;
-      enabled = settings.enabled !== false;
-      document.dispatchEvent(new CustomEvent('ct-v1-tracker-enabled',
-        {detail:enabled ? 'true' : 'false'}));
-      if (!enabled) fetchController?.abort();
-      const nextDefault = settings.defaultVisible === true;
-      // New defaults affect only subsequently loaded chats. Do not change
-      // this chat's display, whether or not it has been toggled manually.
-      if (initialVisibility === null) initialVisibility = nextDefault;
-      defaultVisible = nextDefault;
-      if (Number.isSafeInteger(settings.target) && settings.target > 0) target = settings.target;
-      flags = {percent:settings.percent !== false, tokens:settings.tokens !== false,
-        limit:settings.limit !== false, targetEnabled:settings.targetEnabled !== false};
-      view.setVisible(enabled && (visibility ?? initialVisibility));
-      render();
-      if (enabled && !previouslyEnabled && activeId) {
-        document.dispatchEvent(new Event('ct-v1-bridge-ready'));
-        if (!running) void syncHistory(activeId, generation);
-      }
-    } catch (error) {
-      console.warn('[GPT Tweaks] Cannot load token estimator settings:', error);
-    }
-  }
   async function start() {
     document.addEventListener('ct-v1-history', onHistoryMessage);
     document.addEventListener('ct-v1-outgoing', onOutgoing);
     document.addEventListener('ct-v1-activity', scheduleActivitySync);
     document.addEventListener('ct-v1-stream', onStream);
-    await refreshPreferences();
+    view.setVisible(true);
     void switchConversation(conversationId());
     let lastUrl = location.href;
     function onNavigation() {
@@ -492,18 +420,6 @@
       if (enabled && activeId && (!complete || Date.now() - lastSync > 30000)) {
         void syncHistory(activeId, generation);
       }
-      view.updateTheme();
-    });
-    window.addEventListener('resize', () => {
-      view.align();
-    });
-    // Theme switches are infrequent, unlike transcript mutations.
-    const themeObserver = new MutationObserver(() => {
-      view.updateTheme();
-    });
-    themeObserver.observe(document.documentElement, {attributes:true, attributeFilter:['data-theme','data-appearance-theme','class','style']});
-    chrome.runtime.onMessage.addListener(message => {
-      if (message?.type === 'gpt-tweaks:context:settings-changed') void refreshPreferences();
     });
   }
 
