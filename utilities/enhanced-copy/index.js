@@ -109,7 +109,7 @@
     clearToast();
   }
   function startCopy(method="actions"){
-    if(!enabled||!options[method]||pending)return;
+    if((method!=="header"&&(!enabled||!options[method]))||pending)return;
     const conversation=conversationId();
     if(!idPattern.test(conversation||"")){
       showToast("error","Couldn't identify this chat.");
@@ -307,7 +307,7 @@
       return enabled&&options[method]&&idPattern.test(conversationId()||"");
     },
     activate:method=>{
-      if(method==="menu"||method==="slash")startCopy(method);
+      if(method==="menu"||method==="slash"||method==="header")startCopy(method);
     }
   });
   void refresh();

@@ -80,12 +80,14 @@
         "utilities/session-handoff/index.js",
         "utilities/session-handoff/ui/menu.js",
         "utilities/enhanced-copy/index.js",
-        "utilities/enhanced-copy/ui/menu.js"
+        "utilities/enhanced-copy/ui/menu.js",
+        "utilities/header-menu/index.js"
       ],
       "css": [
         "utilities/token-estimator/ui/styles.css",
         "utilities/session-handoff/ui/toast.css",
-        "utilities/enhanced-copy/ui/toast.css"
+        "utilities/enhanced-copy/ui/toast.css",
+        "utilities/header-menu/styles.css"
       ],
       "run_at": "document_idle",
       "world": "ISOLATED",
@@ -97,5 +99,15 @@
     "32": "assets/icon-32.png",
     "48": "assets/icon-48.png",
     "128": "assets/icon-128.png"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "assets/gpt-tweaks.svg"
+      ],
+      "matches": [
+        "https://chatgpt.com/*"
+      ]
+    }
+  ]
 }

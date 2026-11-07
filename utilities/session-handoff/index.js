@@ -259,7 +259,7 @@
     }
   }
   async function activate(method) {
-    if(!["slash","menu"].includes(method)||!enabled||busy||invalidated)return;
+    if(!["slash","menu","header"].includes(method)||(method!=="header"&&!enabled)||busy||invalidated)return;
     const node=editor();
     if(!node||editorText(node)){error("Finish or clear the current draft before /handoff");return;}
     busy=true;

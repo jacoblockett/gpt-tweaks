@@ -74,6 +74,7 @@
   }
   const localComposer=()=>globalThis.__gptTweaksMenus.composer();
   function isEnabled(method) {
+    if(method==="header")return Promise.resolve(true);
     return request("feature-status",{method}).then(x=>x.enabled);
   }
   function clearUi() {
