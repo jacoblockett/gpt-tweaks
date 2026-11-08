@@ -10,26 +10,28 @@
     {id:"session-handoff",label:"Session Handoff"}
   ];
   const utilities=globalThis.__gptTweaksMenus;
-  let trigger=null,menu=null,queued=false,activeIndex=-1;
+  let trigger=null,menu=null,queued=false,activeIndex=-1,selectionSource=null;
   function rows(){return menu?[...menu.querySelectorAll('[role="menuitem"]')]:[];}
-  function select(index){
+  function select(index,source){
     const entries=rows();
-    if(index<0||index>=entries.length)return;
+    if(index>=entries.length)return;
     activeIndex=index;
+    selectionSource=index<0?null:source;
     for(const [i,row] of entries.entries()){
-      if(i===index){
+      const active=i===index;
+      if(active){
         row.dataset.gtgActive="true";
         row.setAttribute("data-highlighted","");
         row.classList.add("bg-secondary-ghost-hover");
-        row.tabIndex=0;
       }else{
         row.removeAttribute("data-gtg-active");
         row.removeAttribute("data-highlighted");
         row.classList.remove("bg-secondary-ghost-hover");
-        row.tabIndex=-1;
       }
+      row.tabIndex=active?0:-1;
     }
-    entries[index].focus({preventScroll:true});
+    if(source==="keyboard"&&index>=0)entries[index].focus({preventScroll:true});
+    else if(menu?.contains(document.activeElement))document.activeElement.blur();
   }
   // Match the captured ChatGPT chat-actions dropdown, rather than supplying
   // independent icons, layout, colors, or hover values.
@@ -75,7 +77,7 @@
   }
   function close(focus=false){
     if(!menu)return;
-    menu.remove();menu=null;activeIndex=-1;
+    menu.remove();menu=null;activeIndex=-1;selectionSource=null;
     trigger?.setAttribute("aria-expanded","false");
     if(trigger)trigger.dataset.state="closed";
     if(focus&&trigger?.isConnected)trigger.focus();
@@ -112,18 +114,30 @@
       console.warn("[GPT Tweaks] Unable to populate header menu",error);
       return;
     }
-    // Mouse and keyboard both update the same selection. Neither owns a
-    // separate highlight, and opening the menu never selects a row.
+    // Pointer highlights are transient. Only arrow-key selection persists
+    // when the pointer leaves a row.
     const onHover=event=>{
+      if(event.pointerType!=="mouse"&&event.pointerType!=="pen")return;
       const row=event.target instanceof Element
         ?event.target.closest('[role="menuitem"]'):null;
       if(!row||!menu?.contains(row))return;
       const index=rows().indexOf(row);
-      if(index!==activeIndex)select(index);
+      if(index!==activeIndex||selectionSource!=="pointer")select(index,"pointer");
+    };
+    const onPointerOut=event=>{
+      if(selectionSource!=="pointer")return;
+      const row=event.target instanceof Element
+        ?event.target.closest('[role="menuitem"]'):null;
+      if(!row||row!==rows()[activeIndex]||row.contains(event.relatedTarget))return;
+      select(-1,null);
     };
     menu.addEventListener("pointerover",onHover);
     menu.addEventListener("pointermove",onHover);
-    activeIndex=-1;
+    menu.addEventListener("pointerout",onPointerOut);
+    menu.addEventListener("pointerleave",()=>{
+      if(selectionSource==="pointer")select(-1,null);
+    });
+    activeIndex=-1;selectionSource=null;
     document.body.append(menu);
     trigger.setAttribute("aria-expanded","true");trigger.dataset.state="open";
     position();
@@ -190,7 +204,7 @@
       else if(event.key==="End")next=count-1;
       if(next!==null){
         event.preventDefault();event.stopPropagation();
-        if(count)select(next);
+        if(count)select(next,"keyboard");
         return;
       }
       if(event.key==="Escape"){
