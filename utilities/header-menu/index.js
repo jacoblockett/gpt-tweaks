@@ -97,6 +97,9 @@
     menu.style.top=(below+height+8<=innerHeight?below:Math.max(8,rect.top-height-8))+"px";
   }
   function toggle(){
+    // A React navigation change can remove the Share/GPT Tweaks controls.
+    // Never open a detached menu or intercept unrelated page interactions.
+    if(!trigger?.isConnected){close();return;}
     if(menu){close();return;}
     menu=document.createElement("div");
     menu.id="gtg-header-menu";
@@ -176,7 +179,8 @@
     trigger.append(mark,label);
     group.insertBefore(trigger,share);
   }
-  const onTrigger=event=>event.target instanceof Element&&
+  const onTrigger=event=>!!trigger?.isConnected&&
+    event.target instanceof Element&&
     event.target.closest('[data-gtg-header-trigger="true"]')===trigger;
   document.addEventListener("pointerdown",event=>{
     if(onTrigger(event)&&event.button===0){
