@@ -128,7 +128,8 @@
       if(selectionSource!=="pointer")return;
       const row=event.target instanceof Element
         ?event.target.closest('[role="menuitem"]'):null;
-      if(!row||row!==rows()[activeIndex]||row.contains(event.relatedTarget))return;
+      if(!row||row!==rows()[activeIndex]||
+         (event.relatedTarget instanceof Node&&row.contains(event.relatedTarget)))return;
       select(-1,null);
     };
     menu.addEventListener("pointerover",onHover);
