@@ -7,6 +7,9 @@
     let visible = false;
     let host = null, label = null, loading = null;
     let state = null, scheduled = false;
+    let secondLine = null, spacer = null, observedTitle = null;
+    const sizes = new ResizeObserver(scheduleMount);
+    const titleChanges = new MutationObserver(scheduleMount);
 
     function createUI() {
       host = document.createElement('div');
@@ -36,12 +39,74 @@
     }
 
     function mount() {
-      if (!visible) { host?.remove(); return; }
+      if (!visible) {
+        host?.remove();
+        secondLine?.remove();
+        spacer?.remove();
+        return;
+      }
       const target = titlebar();
-      if (!target) { host?.remove(); return; }
+      if (!target) {
+        host?.remove();
+        secondLine?.remove();
+        spacer?.remove();
+        return;
+      }
       if (!host) createUI();
-      if (host.parentElement !== target) target.append(host);
+      if (!host.isConnected) target.append(host);
       render();
+    }
+
+    function align() {
+      if (!visible || !host) return;
+      const title = titlebar();
+      if (!title) return;
+      if (observedTitle !== title) {
+        sizes.disconnect();
+        titleChanges.disconnect();
+        observedTitle = title;
+        sizes.observe(title);
+        titleChanges.observe(title, {childList:true, subtree:true, characterData:true});
+      }
+      if (!host.isConnected) title.append(host);
+
+      // Check actual rendered controls, not viewport breakpoints. The native
+      // titlebar has overflow clipping, so the fallback must be outside it.
+      const bounds = title.getBoundingClientRect();
+      const width = host.getBoundingClientRect().width;
+      if (!bounds.width || !width) return;
+      const left = bounds.left + bounds.width / 2 - width / 2;
+      const right = left + width;
+      const overlap = [...title.querySelectorAll('button, a, input, select, [role="button"], [role="tab"]')]
+        .some(element => {
+          if (element.closest('[aria-hidden="true"]')) return false;
+          const rect = element.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0 &&
+            rect.right + 8 > left && rect.left - 8 < right;
+        });
+
+      const header = title.closest('[data-app-shell-titlebar="true"]');
+      if (overlap && header?.parentElement) {
+        if (!secondLine) {
+          secondLine = document.createElement('div');
+          secondLine.id = 'ct-v1-token-next-line';
+        }
+        if (!spacer) {
+          spacer = document.createElement('div');
+          spacer.id = 'ct-v1-token-spacer';
+          spacer.setAttribute('aria-hidden', 'true');
+        }
+        if (!secondLine.isConnected) document.body.append(secondLine);
+        if (spacer.previousElementSibling !== header) header.after(spacer);
+        secondLine.style.left = bounds.left + 'px';
+        secondLine.style.width = bounds.width + 'px';
+        secondLine.style.top = header.getBoundingClientRect().bottom + 'px';
+        if (host.parentElement !== secondLine) secondLine.append(host);
+      } else {
+        if (host.parentElement !== title) title.append(host);
+        secondLine?.remove();
+        spacer?.remove();
+      }
     }
 
     function render(next = state) {
@@ -59,6 +124,7 @@
       label.style.display = pending ? 'none' : '';
       label.textContent = failed ? 'Token estimate unavailable' :
         format.format(estimate.tokens) + ' tokens';
+      scheduleMount();
     }
 
     function scheduleMount() {
@@ -66,13 +132,17 @@
       scheduled = true;
       requestAnimationFrame(() => {
         scheduled = false;
-        if (!host?.isConnected || host.parentElement !== titlebar()) mount();
+        if (!host?.isConnected) mount();
+        align();
       });
     }
 
+    // React can replace titlebar elements without resizing the viewport.
     new MutationObserver(scheduleMount).observe(document.documentElement, {
       childList:true, subtree:true
     });
+    window.addEventListener('resize', scheduleMount);
+    window.visualViewport?.addEventListener('resize', scheduleMount);
     return {
       setConversation(id) { activeId = id; mount(); },
       setVisible(next) { visible = !!next; mount(); },

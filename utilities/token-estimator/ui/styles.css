@@ -1,10 +1,31 @@
-/* Position the estimate at the exact center of the visible chat titlebar.
- * Keep all typography and spinner styling inherited from ChatGPT. */
+/* Keep the estimate centered inside ChatGPT's titlebar when space permits. */
 #ct-v1-marker {
   position:absolute;
   inset-block:0;
   inset-inline-start:50%;
   transform:translateX(-50%);
   z-index:10;
+  pointer-events:none;
+}
+
+/* The native titlebar clips overflow. Render the second line outside it and
+   reserve matching space in the page so the next line doesn't cover the chat. */
+#ct-v1-token-next-line {
+  position:fixed;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  height:28px;
+  z-index:29;
+  pointer-events:none;
+}
+#ct-v1-token-next-line #ct-v1-marker {
+  position:static;
+  inset:auto;
+  transform:none;
+}
+#ct-v1-token-spacer {
+  height:28px;
+  flex:none;
   pointer-events:none;
 }
