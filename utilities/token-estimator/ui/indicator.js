@@ -7,7 +7,7 @@
     let visible = false;
     let host = null, label = null, loading = null;
     let state = null, scheduled = false;
-    let secondLine = null, spacer = null, observedTitle = null;
+    let spacer = null, observedTitle = null, observedChat = null;
     const sizes = new ResizeObserver(scheduleMount);
     const titleChanges = new MutationObserver(scheduleMount);
 
@@ -39,74 +39,75 @@
     }
 
     function mount() {
-      if (!visible) {
+      if (!visible || !titlebar()) {
         host?.remove();
-        secondLine?.remove();
-        spacer?.remove();
-        return;
-      }
-      const target = titlebar();
-      if (!target) {
-        host?.remove();
-        secondLine?.remove();
         spacer?.remove();
         return;
       }
       if (!host) createUI();
-      if (!host.isConnected) target.append(host);
+      // ChatGPT clips its inner titlebar. Render the counter outside the
+      // clipped subtree in both positions, not just on the fallback line.
+      if (!host.isConnected) document.body.append(host);
       render();
     }
 
     function align() {
       if (!visible || !host) return;
       const title = titlebar();
-      if (!title) return;
-      if (observedTitle !== title) {
+      const header = title?.closest('[data-app-shell-titlebar="true"]');
+      if (!header) {
+        host.remove();
+        spacer?.remove();
+        return;
+      }
+      // The titlebar is only one flex segment of the header. Center against
+      // the visible chat content viewport, not that segment or its buttons.
+      const surface = header.closest('[data-app-shell-main-surface="browser"]');
+      const chat = surface?.querySelector('[data-app-shell-main-content-layout]') || surface || header;
+      if (observedTitle !== title || observedChat !== chat) {
         sizes.disconnect();
         titleChanges.disconnect();
         observedTitle = title;
+        observedChat = chat;
         sizes.observe(title);
-        titleChanges.observe(title, {childList:true, subtree:true, characterData:true});
+        sizes.observe(header);
+        if (chat !== header && chat !== title) sizes.observe(chat);
+        titleChanges.observe(header, {childList:true, subtree:true, characterData:true});
       }
-      if (!host.isConnected) title.append(host);
-
-      // Check actual rendered controls, not viewport breakpoints. The native
-      // titlebar has overflow clipping, so the fallback must be outside it.
-      const bounds = title.getBoundingClientRect();
+      if (!host.isConnected) document.body.append(host);
+      const bounds = chat.getBoundingClientRect();
+      const headerBounds = header.getBoundingClientRect();
       const width = host.getBoundingClientRect().width;
       if (!bounds.width || !width) return;
-      const left = bounds.left + bounds.width / 2 - width / 2;
-      const right = left + width;
-      const overlap = [...title.querySelectorAll('button, a, input, select, [role="button"], [role="tab"]')]
+      const center = bounds.left + bounds.width / 2;
+      const left = center - width / 2;
+      const right = center + width / 2;
+
+      // All header controls, including those OUTSIDE the titlebar segment,
+      // can obstruct the full-chat center. Check actual rendered rectangles.
+      const overlap = [...header.querySelectorAll('button, a, input, select, [role="button"], [role="tab"]')]
         .some(element => {
           if (element.closest('[aria-hidden="true"]')) return false;
           const rect = element.getBoundingClientRect();
           return rect.width > 0 && rect.height > 0 &&
             rect.right + 8 > left && rect.left - 8 < right;
         });
-
-      const header = title.closest('[data-app-shell-titlebar="true"]');
-      if (overlap && header?.parentElement) {
-        if (!secondLine) {
-          secondLine = document.createElement('div');
-          secondLine.id = 'ct-v1-token-next-line';
-        }
+      const fallback = overlap && !!header.parentElement;
+      if (fallback) {
         if (!spacer) {
           spacer = document.createElement('div');
           spacer.id = 'ct-v1-token-spacer';
           spacer.setAttribute('aria-hidden', 'true');
         }
-        if (!secondLine.isConnected) document.body.append(secondLine);
         if (spacer.previousElementSibling !== header) header.after(spacer);
-        secondLine.style.left = bounds.left + 'px';
-        secondLine.style.width = bounds.width + 'px';
-        secondLine.style.top = header.getBoundingClientRect().bottom + 'px';
-        if (host.parentElement !== secondLine) secondLine.append(host);
-      } else {
-        if (host.parentElement !== title) title.append(host);
-        secondLine?.remove();
-        spacer?.remove();
-      }
+      } else spacer?.remove();
+
+      // One physical x-coordinate for both lines. Fixed positioning in body
+      // avoids ChatGPT's overflow clipping without changing the chat center.
+      host.style.left = center + 'px';
+      host.style.top = (fallback
+        ? headerBounds.bottom + 14
+        : headerBounds.top + headerBounds.height / 2) + 'px';
     }
 
     function render(next = state) {

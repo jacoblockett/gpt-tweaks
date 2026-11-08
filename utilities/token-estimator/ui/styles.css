@@ -1,29 +1,13 @@
-/* Keep the estimate centered inside ChatGPT's titlebar when space permits. */
+/* Chat-centered in both modes, independent of titlebar flex segments.
+ * The status is placed outside ChatGPT's clipped header subtree. */
 #ct-v1-marker {
-  position:absolute;
-  inset-block:0;
-  inset-inline-start:50%;
-  transform:translateX(-50%);
-  z-index:10;
-  pointer-events:none;
-}
-
-/* The native titlebar clips overflow. Render the second line outside it and
-   reserve matching space in the page so the next line doesn't cover the chat. */
-#ct-v1-token-next-line {
   position:fixed;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  height:28px;
+  transform:translate(-50%, -50%);
   z-index:29;
   pointer-events:none;
 }
-#ct-v1-token-next-line #ct-v1-marker {
-  position:static;
-  inset:auto;
-  transform:none;
-}
+
+/* Reserve room for the optional second line below the header. */
 #ct-v1-token-spacer {
   height:28px;
   flex:none;
