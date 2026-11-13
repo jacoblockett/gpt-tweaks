@@ -24,4 +24,5 @@ importScripts("./token-estimator-bridge.js");
 importScripts("./new-chat-bridge.js");
 importScripts("./session-handoff-bridge.js");
 importScripts("./timestamps-bridge.js");
+importScripts("./notifications-bridge.js");
 importScripts("./enhanced-copy-bridge.js");
