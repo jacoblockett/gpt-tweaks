@@ -12,6 +12,7 @@
 - `utilities/session-handoff/`: generation, model/effort continuity, intake and recovery.
 - `utilities/token-estimator/`: automatic header token counter, streaming/history reconciliation and numeric cache.
 - `utilities/message-timestamps/`: native action-row timestamps from verified user submission metadata and successfully rendered assistant completions. Historical assistant completion times are intentionally unknown unless captured live.
+- `utilities/notifications/`: background-only response alerts triggered by successfully completed and rendered assistant messages; sound playback is owned by the Chromium offscreen document.
 - `utilities/new-chat/`: native New chat middle-click shortcuts and project-aware new tab/window creation.
 - `shared/conversation/`: common conversation history/content extraction.
 - `shared/ui/feature-registry.js`: the small shared icon/action registry and composer selector used by the header.
@@ -32,7 +33,7 @@
 ## Persistent data
 
 - Keep `gpt-tweaks.github.*` authorization and history keys intact.
-- Keep the active feature enable keys, `gpt-tweaks.new-chat.destination`, token estimator cache records `gpt-tweaks.context.conversation.*`, and session handoff state.
+- Keep the active feature enable keys, including `gpt-tweaks.notifications.enabled`, `gpt-tweaks.new-chat.destination`, token estimator cache records `gpt-tweaks.context.conversation.*`, and session handoff state.
 - Keep token algorithm identifiers, cache formats and active `ct-v1-*` events unchanged unless migration is explicitly requested.
 - Obsolete settings keys from deleted plus/slash menus, targets and visibility toggles may remain in users' storage. Do not clear stored preferences or caches as part of source cleanup.
 
