@@ -37,6 +37,7 @@
         "utilities/token-estimator/history-bridge.js",
         "utilities/session-handoff/stream-bridge.js",
         "utilities/message-timestamps/stream-bridge.js",
+        "utilities/notifications/stream-bridge.js",
         "utilities/enhanced-copy/history-bridge.js"
       ],
       "run_at": "document_start",
