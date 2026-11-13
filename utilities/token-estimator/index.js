@@ -4,12 +4,8 @@
   const core = globalThis.CTCore;
   if (!core || document.getElementById('ct-v1-marker')) return;
 
-  // Generation streams drive updates and completion reconciliation; history
-  // retrieval remains available for old conversations and recovery.
-  const MAX_PAGES = 200;
-  const MAX_RECORDS = 100000;
-  const PAGE_TURNS = 10;
-  const SYNC_TURNS = 2;
+  // Passive only: never issue history requests for automatic token estimates.
+  // Reuse ChatGPT's own history pages and the existing persistent numeric cache.
   // Cache entry format is internal and independent of the extension version.
   const ESTIMATE_ALGORITHM = 'network-text-deduplicated-fullscan-contextfix-finalcount';
   const storage = globalThis.GPTTweaksContextStorage;
@@ -19,14 +15,12 @@
   let activeId = null;
   let activeEntries = [];
   let complete = false;
-  let requestSequence = 0;
-  const pendingRequests = new Map();
-  let running = false;
-  let queued = false;
   let generation = 0;
-  let fetchController = null;
-  let lastSync = 0;
   let lastError = '';
+  let expectedBefore = null;
+  let hydrating = false;
+  const pendingPages = [];
+  const seenPages = new Set();
   let routeTimer = null;
   const streamEntries = new Map();
   // Numeric summaries for text-bearing stream records that the history API
@@ -34,12 +28,7 @@
   const observedEntries = new Map();
   const blankChatStream = new Map();
   let streamFinished = false;
-  let nativeSeed = null;
-  let firstSyncTimer = null;
-  // A failed history URL is not proof that future requests will fail. Allow
-  // later user activity to retry with bounded backoff instead of blacklisting.
-  let historyRetryAfter = 0;
-  let history404Streak = 0;
+
   let initialDiscovery = true;
   // A first send starts on an ID-less page, before ChatGPT updates the URL.
   let blankChatSent = false;
@@ -81,56 +70,49 @@
     return snapshot;
   }
 
-  function fetchPage(id, before, pageSize, signal) {
-    return new Promise((resolve, reject) => {
-      const seq = ++requestSequence;
-      const timeout = setTimeout(() => {
-        pendingRequests.delete(seq);
-        reject(new Error('Timed out reading ChatGPT conversation history'));
-      }, 18000);
-      const finish = (error, data) => {
-        clearTimeout(timeout);
-        signal?.removeEventListener('abort', onAbort);
-        pendingRequests.delete(seq);
-        if (error) reject(error);
-        else resolve(data);
-      };
-      const onAbort = () => {
-        document.dispatchEvent(new CustomEvent('ct-v1-history-cancel', {detail: String(seq)}));
-        finish(new DOMException('Canceled', 'AbortError'));
-      };
-      if (signal?.aborted) return onAbort();
-      pendingRequests.set(seq, finish);
-      signal?.addEventListener('abort', onAbort, {once:true});
-      document.dispatchEvent(new CustomEvent('ct-v1-history-request', {
-        detail: JSON.stringify({seq,id,before,pageSize})
-      }));
-    });
-  }
-
   function acceptNativePage(id, page) {
-    if (id !== activeId || !page || !Array.isArray(page.entries)) return;
-    nativeSeed = page;
-    historyRetryAfter = 0;
-    history404Streak = 0;
-    if (!running) {
-      clearTimeout(firstSyncTimer);
-      firstSyncTimer = null;
-      void syncHistory(id, generation);
+    if(id!==activeId||!page||!Array.isArray(page.entries))return;
+    if(hydrating){pendingPages.push(page);return;}
+    const before=page.before||null;
+    const signature=JSON.stringify([before,page.page_info?.start_cursor,
+      page.entries.map(entry=>entry[0])]);
+    if(seenPages.has(signature))return;
+    const entries=core.uniqueEntries(page.entries);
+    if(!before){
+      const prior=activeEntries.slice(),priorComplete=complete;
+      const joined=prior.length?core.reconcilePage(prior,entries,[]):null;
+      if(joined){
+        applyEntries(joined);
+        complete=priorComplete||!page.page_info?.has_previous_page;
+      }else if(!prior.length){
+        applyEntries(entries);
+        complete=!page.page_info?.has_previous_page;
+      }else{
+        // Do not claim a complete estimate without an overlapping page.
+        applyEntries(core.uniqueEntries([...prior,...entries]));
+        complete=false;
+      }
+      expectedBefore=page.page_info?.has_previous_page?
+        page.page_info.start_cursor:null;
+    }else{
+      // Only join a proven contiguous pagination chain.
+      if(before!==expectedBefore)return;
+      applyEntries(core.mergeOlder(entries,activeEntries));
+      expectedBefore=page.page_info?.has_previous_page?
+        page.page_info.start_cursor:null;
+      if(!page.page_info?.has_previous_page)complete=true;
     }
+    seenPages.add(signature);
+    initialDiscovery=false;
+    render();
+    void save(id,activeEntries.slice(),complete);
   }
 
   function onHistoryMessage(event) {
     let message;
-    try { message = JSON.parse(event.detail); } catch (_) { return; }
-    if (!message || message.id !== activeId) return;
-    if (message.type === 'native') { acceptNativePage(message.id, message.response); return; }
-    if ((message.type === 'result' || message.type === 'error') && pendingRequests.has(message.seq)) {
-      pendingRequests.get(message.seq)(
-        message.type === 'error' ? new Error(message.error || 'History request failed') : null,
-        message.response
-      );
-    }
+    try{message=JSON.parse(event.detail);}catch{return;}
+    if(message?.type==="native"&&message.id===activeId)
+      acceptNativePage(message.id,message.response);
   }
 
   function applyEntries(entries) {
@@ -177,128 +159,16 @@
     }
   }
 
-  async function syncHistory(id, serial) {
-    if (!enabled) return;
-    if (running) { queued = true; return; }
-    if (Date.now() < historyRetryAfter) return;
-    running = true;
-    lastError = '';
-    fetchController = new AbortController();
-    const signal = fetchController.signal;
-    let pages = 0;
-    let cursor = null;
-    let newerEntries = [];
-    let sawEnd = false;
-    const cached = complete ? activeEntries.slice() : null;
-    const seed = nativeSeed;
-    nativeSeed = null;
-    if (seed) {
-      newerEntries = core.uniqueEntries(seed.entries);
-      // A cached complete history may already contain this page. Preserve all
-      // earlier messages while replacing updated recent records and branches.
-      const reconciled = cached ? core.reconcilePage(cached, newerEntries, []) : null;
-      if (reconciled) {
-        applyEntries(reconciled);
-        complete = true;
-        await save(id, activeEntries, true);
-        running = false;
-        fetchController = null;
-        initialDiscovery = false;
-        render();
-        lastSync = Date.now();
-        return;
-      }
-      applyEntries(newerEntries);
-      complete = !seed.page_info.has_previous_page;
-      if (complete) {
-        await save(id, activeEntries, true);
-        running = false;
-        fetchController = null;
-        initialDiscovery = false;
-        render();
-        lastSync = Date.now();
-        return;
-      }
-      cursor = seed.page_info.start_cursor;
-    }
-    const previousCursors = new Set();
-    try {
-      while (pages < MAX_PAGES && newerEntries.length < MAX_RECORDS) {
-        if (generation !== serial || activeId !== id) return;
-        const response = await fetchPage(id, cursor, cached ? SYNC_TURNS : PAGE_TURNS, signal);
-        const part = response.entries;
-        pages++;
-        if (generation !== serial || activeId !== id) return;
-        let updated = cached ? core.reconcilePage(cached, part, newerEntries) : null;
-        if (updated) {
-          applyEntries(updated);
-          complete = true;
-          sawEnd = true;
-          await save(id, activeEntries, true);
-          break;
-        }
-        newerEntries = core.mergeOlder(part, newerEntries);
-        if (!cached) {
-          applyEntries(newerEntries);
-          complete = false;
-        }
-        const info = response.page_info;
-        if (!info.has_previous_page) {
-          applyEntries(newerEntries);
-          complete = true;
-          sawEnd = true;
-          await save(id, activeEntries, true);
-          break;
-        }
-        if (!info.start_cursor || previousCursors.has(info.start_cursor)) throw new Error('History pagination did not advance');
-        cursor = info.start_cursor;
-        previousCursors.add(cursor);
-        // A small delay prevents a rapid burst of authenticated requests.
-        await new Promise(resolve => setTimeout(resolve, 700));
-        if (document.hidden) break;
-      }
-      if (!sawEnd && newerEntries.length) {
-        applyEntries(cached ? core.uniqueEntries([...cached, ...newerEntries]) : newerEntries);
-        await save(id, activeEntries, false);
-      }
-      lastSync = Date.now();
-      history404Streak = 0;
-      historyRetryAfter = 0;
-    } catch (err) {
-      if (signal.aborted || generation !== serial) return;
-      lastError = err instanceof Error ? err.message : String(err);
-      if (/HTTP 404/.test(lastError)) {
-        history404Streak++;
-        historyRetryAfter = Date.now() + Math.min(300000, 15000 * 2 ** Math.min(5, history404Streak - 1));
-      }
-      console.warn('[GPT Tweaks Token Estimator] Cannot load history:', lastError);
-      if (newerEntries.length) await save(id, activeEntries, false);
-    } finally {
-      if (generation === serial) {
-        running = false;
-        fetchController = null;
-        initialDiscovery = false;
-        render();
-        if (queued) { queued = false; void syncHistory(id, serial); }
-      }
-    }
-  }
-
   async function switchConversation(id, firstSend = false) {
     generation++;
-    clearTimeout(firstSyncTimer);
-    if (fetchController) fetchController.abort();
-    running = false;
-    queued = false;
     // The status resets immediately when the conversation changes.
     activeId = id;
     activeEntries = [];
     complete = false;
     lastError = '';
-    lastSync = 0;
-    historyRetryAfter = 0;
-    history404Streak = 0;
-    nativeSeed = null;
+    expectedBefore=null;
+    seenPages.clear();pendingPages.length=0;
+    hydrating=!!id;
     pendingOutgoing.clear();
     streamEntries.clear();
     observedEntries.clear();
@@ -307,6 +177,7 @@
     view.setConversation(id);
     render();
     if (!id) {
+      hydrating=false;
       blankChatSent = false;
       blankChatOutgoing.clear();
       blankChatStream.clear();
@@ -333,14 +204,12 @@
       // conversation should show the initial-discovery spinner.
       initialDiscovery = false;
     }
+    initialDiscovery=false;
+    hydrating=false;
+    for(const page of pendingPages.splice(0))acceptNativePage(id,page);
     render();
-    // The original page request is the preferred history source. The
-    // fallback is one delayed request only, not a recurring fetch loop.
+    // Replay only previously observed native pages, never start a new fetch.
     document.dispatchEvent(new Event('ct-v1-bridge-ready'));
-    firstSyncTimer = setTimeout(() => {
-      if (enabled && generation === serial && activeId === id && !running && !nativeSeed && !complete)
-        void syncHistory(id, serial);
-    }, 4500);
   }
 
   function scheduleActivitySync() {
@@ -377,11 +246,8 @@
         if (entry[1] > 0) observedEntries.set(messageId, entry);
       }
       void save(activeId, activeEntries.slice(), complete);
-      // Stream EOF replaces the old 8/45-second polling guesses. Reconcile
-      // provisional message IDs with the actual persisted history.
-      historyRetryAfter = 0;
-      if (running) queued = true;
-      else void syncHistory(activeId, generation);
+      // Reconcile only when ChatGPT itself supplies a history page.
+      // A streaming event must never launch extension-owned pagination.
     }
   }
 
@@ -393,12 +259,8 @@
       document.dispatchEvent(new CustomEvent('ct-v1-tracker-enabled',
         {detail:enabled ? 'true' : 'false'}));
       view.setVisible(enabled);
-      if (!enabled) fetchController?.abort();
-      else if (!wasEnabled && activeId) {
+      if(!wasEnabled&&enabled&&activeId)
         document.dispatchEvent(new Event('ct-v1-bridge-ready'));
-        if (running) queued = true;
-        else void syncHistory(activeId, generation);
-      }
     } catch (error) {
       console.warn('[GPT Tweaks Token Estimator] Cannot read settings:', error);
     }
@@ -438,12 +300,7 @@
       if (message?.type === 'gpt-tweaks:context:settings-changed')
         void refreshEnabled();
     });
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) return;
-      if (enabled && activeId && (!complete || Date.now() - lastSync > 30000)) {
-        void syncHistory(activeId, generation);
-      }
-    });
+
   }
 
   void start();
