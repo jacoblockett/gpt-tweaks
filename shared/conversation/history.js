@@ -8,6 +8,7 @@
   const nativeFetch=window.fetch.bind(window);
   const prefix="/backend-api/conversations/";
   const headersById=new Map();
+  const pageObservers=new Set();
   const validId=id=>typeof id==="string"&&/^[a-f0-9-]{36}$/i.test(id);
 
   function identify(value) {
@@ -123,6 +124,11 @@
       if(!Array.isArray(page?.messages)||!page.page_info||
          typeof page.page_info.has_previous_page!=="boolean")
         throw Error("Unsupported conversation history response");
+      // Let metadata consumers reuse an explicitly requested history page.
+      // Keep raw message contents inside the MAIN world and the caller.
+      for(const subscriber of pageObservers){
+        try{subscriber(id,before,page);}catch{}
+      }
       return page;
     }finally{settle(token,status);}
   }
@@ -148,6 +154,11 @@
     throw Error("History exceeds the pagination limit");
   }
   window.GPTTweaksConversationHistory=Object.freeze({
-    identify,captureHeaders,fetchPage,scan
+    identify,captureHeaders,fetchPage,scan,
+    observePage(listener){
+      if(typeof listener!=="function")throw Error("Invalid page observer");
+      pageObservers.add(listener);
+      return ()=>pageObservers.delete(listener);
+    }
   });
 })();
