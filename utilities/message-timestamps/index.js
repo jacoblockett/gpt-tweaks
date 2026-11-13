@@ -7,8 +7,8 @@
   const formatter=new Intl.DateTimeFormat(undefined,{
     year:"numeric",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"
   });
-  const times=new Map(),requested=new Set(),pendingUsers=new Map();
-  let active=null,sequence=0,inflight=false,scheduled=false;
+  const times=new Map(),pendingUsers=new Map();
+  let active=null,scheduled=false;
 
   function conversationId(){
     return location.pathname.match(/(?:^|\/)c\/([a-f0-9-]{36})(?:\/|$)/i)?.[1]||null;
@@ -80,19 +80,29 @@
     else record(item.id,item.at,true);
     schedule();
   });
-  document.addEventListener("gpt-tweaks:timestamps:history",event=>{
+  // The token estimator observes native ChatGPT history responses once.
+  // Reuse its timestamp metadata instead of issuing any history requests.
+  document.addEventListener("ct-v1-history",event=>{
     const payload=parse(event);
-    if(payload?.conversation!==active||payload.seq!==sequence)return;
-    inflight=false;
-    for(const {id,at} of payload.entries||[])
-      if(validId(id)&&Number.isSafeInteger(at))record(id,at,false);
-    if(payload.error)console.warn("[GPT Tweaks] Timestamp history lookup",payload.error);
+    if(payload?.type!=="native"||payload.id!==active||!active)return;
+    const entries=[];
+    for(const pair of payload.response?.userTimes||[]){
+      if(!Array.isArray(pair)||!validId(pair[0])||
+         !Number.isSafeInteger(pair[1])||pair[1]<946684800000)continue;
+      record(pair[0],pair[1],false);
+      entries.push(pair);
+    }
+    if(entries.length)void message("saveBatch",{
+      conversation:active,entries
+    }).then(reply=>{
+      if(!reply?.ok)console.warn("[GPT Tweaks] Timestamp cache save",reply?.error);
+    }).catch(error=>console.warn("[GPT Tweaks] Timestamp cache save",error));
     schedule();
   });
   function syncConversation(){
     const id=conversationId();
     if(id===active)return;
-    active=id;times.clear();requested.clear();inflight=false;sequence++;
+    active=id;times.clear();
     if(!id)return;
     const expected=id;
     void message("read",{conversation:id}).then(result=>{
@@ -103,6 +113,7 @@
           record(messageId,value[1],false);
       }
       schedule();
+      document.dispatchEvent(new Event("ct-v1-bridge-ready"));
     }).catch(error=>console.warn("[GPT Tweaks] Timestamp read failed",error));
   }
   function timestampUsers(){
@@ -114,23 +125,6 @@
         pendingUsers.delete(id);
       }
     }
-    if(inflight)return;
-    const missing=[];
-    for(const node of document.querySelectorAll(
-      '[data-chatgpt-search-message-ids]')){
-      if(roleOf(node)!=="user")continue;
-      const id=(node.getAttribute("data-chatgpt-search-message-ids")||"").split(/\s+/)[0];
-      if(validId(id)&&!times.has(id)&&!requested.has(id)){
-        missing.push(id);requested.add(id);
-      }
-      if(missing.length===100)break;
-    }
-    if(!missing.length)return;
-    inflight=true;
-    const seq=++sequence;
-    document.dispatchEvent(new CustomEvent("gpt-tweaks:timestamps:lookup",{
-      detail:JSON.stringify({conversation:active,seq,ids:missing})
-    }));
   }
   function render(){
     scheduled=false;
