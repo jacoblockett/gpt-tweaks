@@ -6,8 +6,7 @@
     if(sender?.id!==chrome.runtime.id||!Number.isInteger(sender.tab?.id))return false;
     try{return new URL(sender.url).origin==="https://chatgpt.com";}catch{return false;}
   };
-  // Serialize writes so concurrent user/assistant completions cannot erase
-  // one another by reading the same previous storage snapshot.
+  // Serialize concurrent user submission writes to avoid lost updates.
   let writes=Promise.resolve();
   chrome.runtime.onMessage.addListener((message,sender,reply)=>{
     if(message?.type!=="gpt-tweaks:timestamps"||!["read","save"].includes(message.action))
@@ -19,7 +18,7 @@
       const key=prefix+message.conversation;
       const stored=(await chrome.storage.local.get(key))[key]||{};
       if(message.action==="read")return {ok:true,entries:stored};
-      if(!validId(message.id)||!["user","assistant"].includes(message.role)||
+      if(!validId(message.id)||message.role!=="user"||
          !Number.isSafeInteger(message.at)||message.at<946684800000||
          Math.abs(Date.now()-message.at)>120000)
         throw Error("Invalid timestamp");
