@@ -62,6 +62,7 @@
     const reader=copy.body.getReader(),decoder=new TextDecoder();
     const messages=new Map();
     let currentId=null,conversation=request.conversation,buffer="",dataLines=[],ended=false;
+    let finalPublished=false;
     const take=m=>{
       if(!validId(m?.id)||!m.author?.role)return;
       messages.set(m.id,m);
@@ -85,6 +86,26 @@
         m[parts[0]][parts[1]]=op.v;
       }
     };
+    // ChatGPT may keep a generation stream open or abort its transport after
+    // sending a successful final end_turn. Do not require network EOF to
+    // publish a verified final reply; the isolated side still waits for the
+    // completed turn and its rendered action controls.
+    const publishFinal=()=>{
+      if(finalPublished)return;
+      const completed=[...messages.values()].filter(m=>{
+        const status=typeof m.status==="string"?m.status:m.status?.type;
+        const channel=m.channel||m.metadata?.channel;
+        return m.author?.role==="assistant"&&(!m.recipient||m.recipient==="all")&&
+          (!channel||channel==="final")&&m.end_turn===true&&
+          (status==null||status==="finished_successfully")&&
+          m.metadata?.is_complete!==false&&
+          m.metadata?.is_visually_hidden_from_conversation!==true;
+      });
+      const final=completed[completed.length-1];
+      if(!final)return;
+      finalPublished=true;
+      publish("final",{id:final.id,conversation});
+    };
     const handle=raw=>{
       if(!raw||raw==="[DONE]")return;
       let p;
@@ -95,6 +116,7 @@
       if(p?.v?.message)take(p.v.message);
       if(Array.isArray(p?.v))for(const op of p.v)operation(op);
       else if(p?.o)operation(p);
+      publishFinal();
     };
     const line=s=>{
       if(s.endsWith("\r"))s=s.slice(0,-1);
@@ -120,18 +142,7 @@
       if(!ended)void reader.cancel().catch(()=>{});
       try{reader.releaseLock();}catch{}
     }
-    if(!ended)return; // An interrupted stream does not establish completion.
-    const completed=[...messages.values()].filter(m=>{
-      const status=typeof m.status==="string"?m.status:m.status?.type;
-      const channel=m.channel||m.metadata?.channel;
-      return m.author?.role==="assistant"&&(!m.recipient||m.recipient==="all")&&
-        (!channel||channel==="final")&&m.end_turn===true&&
-        (status==null||status==="finished_successfully")&&
-        m.metadata?.is_complete!==false&&
-        m.metadata?.is_visually_hidden_from_conversation!==true;
-    });
-    const final=completed[completed.length-1];
-    if(final)publish("final",{id:final.id,conversation});
+    if(ended)publishFinal();
   }
   window.fetch=function(...args){
     const request=generation(args[0],args[1]);
