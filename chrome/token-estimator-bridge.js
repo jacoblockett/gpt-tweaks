@@ -26,6 +26,7 @@
         cache.observedEntries.length <= 100000 && cache.observedEntries.every(cleanEntry))) &&
       typeof cache.complete === "boolean" && Number.isFinite(cache.updated);
   }
+  let saves=Promise.resolve();
   async function handle(message) {
     switch (message.type) {
       case "gpt-tweaks:context:preferences": {
@@ -51,8 +52,13 @@
     if (!message?.type?.startsWith("gpt-tweaks:context:") ||
         message.type === "gpt-tweaks:context:settings-changed") return;
     if (!authorized(sender)) {respond({ok:false,error:"Unauthorized request"});return;}
-    void handle(message).then(data => respond({ok:true,data}), error =>
-      respond({ok:false,error:error?.message || String(error)}));
+    // Preserve write order even if successive saves require asynchronous storage.
+    const operation=message.type==="gpt-tweaks:context:save"?
+      (saves=saves.catch(()=>{}).then(()=>handle(message))):
+      (message.type==="gpt-tweaks:context:load"?
+        saves.catch(()=>{}).then(()=>handle(message)):handle(message));
+    void operation.then(data=>respond({ok:true,data}),error=>
+      respond({ok:false,error:error?.message||String(error)}));
     return true;
   });
   chrome.storage.onChanged.addListener((changes, area) => {
