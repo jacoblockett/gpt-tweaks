@@ -69,13 +69,32 @@
         clearTimeout(timeout);
         document.removeEventListener("gpt-tweaks:history:permission",receive);
         if(response.ok&&typeof response.token==="string")resolve(response.token);
-        else reject(Error(response.error||"History requests are paused by the safety limit"));
+        else{
+          const error=Error(response.error||"History requests are paused by the safety limit");
+          if(Number.isFinite(response.retryAt))error.retryAt=response.retryAt;
+          reject(error);
+        }
       }
       document.addEventListener("gpt-tweaks:history:permission",receive);
       document.dispatchEvent(new CustomEvent("gpt-tweaks:history:permit",{
         detail:JSON.stringify({id:requestId,conversation:id})
       }));
     });
+  }
+  async function controlledPermit(id,signal){
+    // A user-invoked multi-page copy may wait for the minimum 30-second gap,
+    // but never loop through hourly limits or a 429 cooldown.
+    for(let tries=0;tries<3;tries++){
+      if(signal?.aborted)throw Error("History request canceled");
+      try{return await permit(id);}
+      catch(error){
+        const remaining=Number(error.retryAt)-Date.now();
+        if(!Number.isFinite(remaining)||remaining<=0||remaining>35000||tries===2)
+          throw error;
+        await delay(remaining+100,signal);
+      }
+    }
+    throw Error("History request unavailable");
   }
   function settle(token,status){
     document.dispatchEvent(new CustomEvent("gpt-tweaks:history:settle",{
@@ -91,7 +110,7 @@
     const headers=requestHeaders(id);
     // Every extension-created request passes the shared cross-tab budget.
     // Never retry network/HTTP failures automatically.
-    const token=await permit(id);
+    const token=await controlledPermit(id,signal);
     let status=0;
     try{
       if(signal?.aborted)throw Error("History request canceled");
