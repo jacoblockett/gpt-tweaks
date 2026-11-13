@@ -17,8 +17,9 @@
   const message=(action,extra={})=>chrome.runtime.sendMessage({
     type:"gpt-tweaks:timestamps",action,...extra
   });
-  function entry(id,role){
-    for(const node of document.querySelectorAll("[data-chatgpt-search-message-ids]")){
+  function entry(id,role,knownNode=null){
+    for(const node of knownNode?[knownNode]:
+      document.querySelectorAll("[data-chatgpt-search-message-ids]")){
       const ids=(node.getAttribute("data-chatgpt-search-message-ids")||"").split(/\s+/);
       if(!ids.includes(id)||!node.querySelector('[data-conversation-role="'+role+'"]'))
         continue;
@@ -32,8 +33,8 @@
     }
     return null;
   }
-  function dateLabel(id,role,at){
-    const target=entry(id,role);
+  function dateLabel(id,role,at,knownNode=null){
+    const target=entry(id,role,knownNode);
     if(!target)return;
     if(role==="assistant"&&target.node.closest(
       '[data-talvt-turn-state="complete"]')===null)return;
@@ -157,7 +158,18 @@
   function render(){
     scheduled=false;
     syncConversation();
-    for(const [id,value] of times)dateLabel(id,value.role,value.at);
+    // One DOM walk per rendering tick, including on long conversations.
+    // All stored off-screen messages render when ChatGPT virtualizes them in.
+    for(const node of document.querySelectorAll("[data-chatgpt-search-message-ids]")){
+      const role=node.querySelector('[data-conversation-role="user"]')?
+        "user":node.querySelector('[data-conversation-role="assistant"]')?
+        "assistant":null;
+      if(!role)continue;
+      for(const id of (node.getAttribute("data-chatgpt-search-message-ids")||"").split(/\s+/)){
+        const value=times.get(id);
+        if(value?.role===role){dateLabel(id,role,value.at,node);break;}
+      }
+    }
     timestampUsers();
     completeAssistant();
   }
