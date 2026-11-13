@@ -4,7 +4,7 @@
 
   // Keep the handoff short enough to preserve useful context in the next chat.
   const prompt=[
-    "GPT Tweaks session handoff request. Summarize this conversation for a new session; do not perform any tasks.",
+    "Session transfer request: summarize this conversation for continuation in a new chat; do not perform any tasks.",
     "Use the language predominantly used by the USER in this conversation, not the language of this instruction, quoted material, or assistant replies.",
     "If the user uses multiple languages, favor their most recent substantive conversation language. Write all sections naturally in that language.",
     "Output only plain Markdown text, with no file, attachment, download link, introduction, or conclusion.",
@@ -65,8 +65,8 @@
       function cleanup(){clearInterval(timer);}
     });
   }
-  function insert(node,text) {
-    if(editorText(node))throw Error("Composer must be empty");
+  function insert(node,text,{replaceDraft=false}={}) {
+    if(editorText(node)&&!replaceDraft)throw Error("Composer must be empty");
     node.focus();
     if(node.matches("textarea,input")){
       const proto=Object.getPrototypeOf(node);
@@ -77,7 +77,7 @@
     }else{
       const range=document.createRange();
       range.selectNodeContents(node);
-      range.collapse(false);
+      if(!replaceDraft)range.collapse(false);
       const selection=window.getSelection();
       selection.removeAllRanges();selection.addRange(range);
       if(!document.execCommand("insertText",false,text))
@@ -109,15 +109,10 @@
   async function submit(node) {
     const form=node.closest("form");
     if(!form)throw Error("ChatGPT composer form not found");
-    // The control may appear only after ProseMirror registers the new text.
-    // A real form submission is the fallback when ChatGPT renames the button.
-    const button=await waitFor(()=>sendButton(form),3000).catch(reason=>{
-      if(!/Timed out waiting for ChatGPT/.test(String(reason)))throw reason;
-      return null;
-    });
-    if(button)button.click();
-    else if(typeof form.requestSubmit==="function")form.requestSubmit();
-    else throw Error("ChatGPT has no available send control");
+    // Wait until ChatGPT has registered the inserted text and exposed its
+    // enabled, visible submit control. Never submit an unready form blindly.
+    const button=await waitFor(()=>node.isConnected&&sendButton(form),12000);
+    button.click();
     // Confirm the draft was actually submitted before awaiting a response
     // or deleting the pending transfer in the receiving conversation.
     await waitFor(()=>{
@@ -125,14 +120,27 @@
       return current&&!editorText(current);
     },10000);
   }
+  function readyComposer(){
+    const node=editor();
+    const picker=pickerButton();
+    if(!node?.isConnected||!node.closest("form")||
+       !node.getClientRects().length||
+       node.getAttribute("aria-disabled")==="true"||
+       node.hasAttribute("disabled")||!picker?.isConnected||
+       !picker.getClientRects().length||picker.disabled)return null;
+    return node;
+  }
   async function send(text) {
-    const node=await waitFor(editor);
+    const node=await waitFor(readyComposer,30000);
     insert(node,text);
     await submit(node);
   }
   // Work exclusively with ChatGPT's observed model-picker DOM.
   async function openPicker(){
-    const button=await waitFor(pickerButton,5000).catch(()=>null);
+    const button=await waitFor(()=>{
+      const node=pickerButton();
+      return node?.isConnected&&node.getClientRects().length?node:null;
+    },15000).catch(()=>null);
     if(!button)return null;
     const opened=button.getAttribute("aria-expanded")!=="true";
     if(opened)button.click();
@@ -143,7 +151,7 @@
       return [...document.querySelectorAll(
         '[role="menu"][data-radix-menu-content][data-state="open"]')]
         .find(node=>node.getAttribute("aria-labelledby")===button.id)||null;
-    },3500).catch(()=>null);
+    },10000).catch(()=>null);
     if(!menu){
       if(opened&&button.getAttribute("aria-expanded")==="true")
         button.click();
@@ -172,6 +180,15 @@
       selected[0].querySelector('[data-menu-row-content="true"] > span')?.textContent?.trim():null;
     const closed=await closePicker(picker);
     return closed&&label&&label.length<=100?label:null;
+  }
+  async function waitForModelLabel(timeout=20000){
+    const until=Date.now()+timeout;
+    do{
+      const label=await selectedModelLabel();
+      if(label)return label;
+      await new Promise(resolve=>setTimeout(resolve,350));
+    }while(Date.now()<until);
+    return null;
   }
   async function matchEffort(wanted){
     // A model without effort controls can transfer only if both sides lack them.
@@ -269,7 +286,7 @@
     try{
       closeToast=globalThis.GPTTweaksHandoffToast?.show()||closeToast;
       const sourcePath=location.pathname;
-      const modelLabel=await selectedModelLabel();
+      const modelLabel=await waitForModelLabel();
       const effort=selectedEffort();
       const {text,model}=await generate();
       const result=await message("prepare",{
@@ -278,7 +295,10 @@
       if(!result?.ok)throw Error(result?.error||"Unable to save handoff");
       // Same tab; a project chat remains inside its originating project.
       location.assign(result.target);
-    }catch(reason){error("Unable to complete handoff",reason);}
+    }catch(reason){
+      error("Unable to complete handoff",reason);
+      globalThis.GPTTweaksHandoffModelNotice?.show({reason:"transfer"});
+    }
     finally{closeToast();busy=false;}
   }
   async function receive() {
@@ -287,18 +307,19 @@
       const result=await message("read",{pathname:location.pathname});
       if(!result?.ok)throw Error(result?.error||"Unable to retrieve handoff");
       if(!result.pending)return;
-      // Paste before resolving the destination model so the user retains
-      // the complete draft even if the model or effort cannot be verified.
-      const node=await waitFor(editor);
-      insert(node,intake+"\n\n"+result.text);
-      let currentModel=await selectedModelLabel();
+      // The destination is a newly loaded SPA. Require a live composer and
+      // model-picker trigger before touching either. Replace stale drafts
+      // rather than aborting or appending to unrelated text.
+      const node=await waitFor(readyComposer,30000);
+      insert(node,intake+"\n\n"+result.text,{replaceDraft:true});
+      let currentModel=await waitForModelLabel();
       let reason=null;
       if(!result.modelLabel||!currentModel)reason="unknown";
       else if(result.modelLabel!==currentModel)reason="model";
       else if(!await matchEffort(result.effort))reason="effort";
       // The selected model must remain unchanged after effort adjustment.
       if(!reason){
-        const verifiedModel=await selectedModelLabel();
+        const verifiedModel=await waitForModelLabel();
         if(!verifiedModel)reason="unknown";
         else if(verifiedModel!==result.modelLabel){
           currentModel=verifiedModel;
@@ -326,7 +347,10 @@
       await submit(node);
       const done=await message("complete",{pathname:location.pathname});
       if(!done?.ok)throw Error(done?.error||"Unable to clear handoff");
-    }catch(reason){error("Unable to transfer handoff",reason);}
+    }catch(reason){
+      error("Unable to transfer handoff",reason);
+      globalThis.GPTTweaksHandoffModelNotice?.show({reason:"transfer"});
+    }
   }
   globalThis.GPTTweaksHandoff=Object.freeze({activate});
   window.addEventListener("focus",()=>{void refresh();});
