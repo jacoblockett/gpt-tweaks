@@ -10,11 +10,11 @@
 - `utilities/github-source/`: GitHub authorization, repository discovery/history, ZIP attachment and modal.
 - `utilities/enhanced-copy/`: Copy Chat, history retrieval and clipboard feedback.
 - `utilities/session-handoff/`: generation, model/effort continuity, intake and recovery.
-- `utilities/token-estimator/`: automatic header token counter, streaming/history reconciliation and numeric cache.
-- `utilities/message-timestamps/`: native user-message action-row timestamps from submission metadata. Assistant messages never display timestamps or track assistant completions.
+- `utilities/token-estimator/`: passive header token counter from ChatGPT's native history responses, live SSE and persistent numeric cache. Never initiate background history pagination.
+- `utilities/message-timestamps/`: native user-message action-row timestamps from live submissions and the same passive history responses, persisted in bounded user-only metadata batches. Never initiate separate history lookups.
 - `utilities/notifications/`: background-only alerts triggered directly by successful final assistant SSE messages, using Session Handoff-compatible delta parsing, without DOM/action-toolbar dependencies. Sound playback is owned by the Chromium offscreen document.
 - `utilities/new-chat/`: native New chat middle-click shortcuts and project-aware new tab/window creation.
-- `shared/conversation/`: common conversation history/content extraction.
+- `shared/conversation/`: common conversation history/content extraction and fail-closed request permission relay. Only explicitly requested workflows (such as Copy Chat) can fetch additional history, with a global persistent 30-second spacing limit, eight requests/hour, 25 requests/day, and at least one hour of cooldown after HTTP 429. Native ChatGPT requests are never delayed or counted.
 - `shared/ui/feature-registry.js`: the small shared icon/action registry and composer selector used by the header.
 - `shared/ui/select.*`: dropdown control reused by GitHub and Settings.
 
@@ -27,7 +27,7 @@
 - Preserve header dropdown mouse/keyboard focus behavior: no initially selected item, one shared hover/arrow selection and Escape dismissal.
 - Preserve project-aware New chat middle-click interception for both sidebar states, and the Open in destination preference.
 - Preserve GitHub App client ID, account installation workflow, private repository access, repository history, branch/commit selection, and archive handoff.
-- Keep browser storage restricted to trusted contexts, authorization checks in service workers and numeric history summaries separate from page text.
+- Keep browser storage restricted to trusted contexts, authorization checks in service workers and numeric history summaries separate from page text. Never restore autonomous history crawls for either automatic feature. Never bypass the global history limiter from an extension-generated history request.
 - Preserve MV3 permissions and execution contexts/load order, active runtime message names, enabled feature settings and authorized sender validation.
 
 ## Persistent data
