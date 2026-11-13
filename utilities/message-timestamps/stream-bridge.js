@@ -74,14 +74,15 @@
       const parts=op.p.slice(9).split("/");
       if(!parts.length||parts.length>2||
          !["end_turn","status","channel","recipient","metadata"].includes(parts[0])||
-         (parts.length===2&&(!["channel","is_complete","is_visually_hidden_from_conversation"].includes(parts[1])||
-          parts[0]!=="metadata")))return;
+         (parts.length===2&&!(parts[0]==="metadata"&&
+           ["channel","is_complete","is_visually_hidden_from_conversation"].includes(parts[1]))&&
+          !(parts[0]==="status"&&parts[1]==="type")))return;
       const m=messages.get(currentId);
       if(!m||!["add","replace"].includes(op.o))return;
       if(parts.length===1)m[parts[0]]=op.v;
       else{
-        if(!m.metadata||typeof m.metadata!=="object")m.metadata={};
-        m.metadata[parts[1]]=op.v;
+        if(!m[parts[0]]||typeof m[parts[0]]!=="object")m[parts[0]]={};
+        m[parts[0]][parts[1]]=op.v;
       }
     };
     const handle=raw=>{
