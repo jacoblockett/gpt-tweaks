@@ -5,7 +5,9 @@
   "description": "UI and UX tweaks to ChatGPT's online web interface.",
   "permissions": [
     "storage",
-    "clipboardWrite"
+    "clipboardWrite",
+    "notifications",
+    "offscreen"
   ],
   "action": {
     "default_title": "Open GPT Tweaks settings",
@@ -78,6 +80,7 @@
         "utilities/enhanced-copy/index.js",
         "utilities/enhanced-copy/ui/menu.js",
         "utilities/message-timestamps/index.js",
+        "utilities/notifications/index.js",
         "utilities/header-menu/index.js"
       ],
       "css": [
