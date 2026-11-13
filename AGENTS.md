@@ -11,8 +11,8 @@
 - `utilities/enhanced-copy/`: Copy Chat, history retrieval and clipboard feedback.
 - `utilities/session-handoff/`: generation, model/effort continuity, intake and recovery.
 - `utilities/token-estimator/`: automatic header token counter, streaming/history reconciliation and numeric cache.
-- `utilities/message-timestamps/`: native user-message action-row timestamps from submission metadata. Assistant messages never display timestamps; verified final assistant completion events remain available solely for notification delivery.
-- `utilities/notifications/`: background-only response alerts triggered by successfully completed and rendered assistant messages; sound playback is owned by the Chromium offscreen document.
+- `utilities/message-timestamps/`: native user-message action-row timestamps from submission metadata. Assistant messages never display timestamps or track assistant completions.
+- `utilities/notifications/`: background-only alerts triggered directly by successful final assistant SSE messages, using Session Handoff-compatible delta parsing, without DOM/action-toolbar dependencies. Sound playback is owned by the Chromium offscreen document.
 - `utilities/new-chat/`: native New chat middle-click shortcuts and project-aware new tab/window creation.
 - `shared/conversation/`: common conversation history/content extraction.
 - `shared/ui/feature-registry.js`: the small shared icon/action registry and composer selector used by the header.
