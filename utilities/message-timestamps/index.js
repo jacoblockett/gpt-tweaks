@@ -17,11 +17,19 @@
   const message=(action,extra={})=>chrome.runtime.sendMessage({
     type:"gpt-tweaks:timestamps",action,...extra
   });
+  // In the supplied HTML, the user's role heading is a sibling of its
+  // message-ID container. The assistant's role heading is its child.
+  function roleOf(node){
+    const header=node.querySelector(':scope > h4[data-conversation-role]')||
+      node.parentElement?.querySelector(':scope > h4[data-conversation-role]');
+    const role=header?.getAttribute("data-conversation-role");
+    return role==="user"||role==="assistant"?role:null;
+  }
   function entry(id,role,knownNode=null){
     for(const node of knownNode?[knownNode]:
       document.querySelectorAll("[data-chatgpt-search-message-ids]")){
       const ids=(node.getAttribute("data-chatgpt-search-message-ids")||"").split(/\s+/);
-      if(!ids.includes(id)||!node.querySelector('[data-conversation-role="'+role+'"]'))
+      if(!ids.includes(id)||roleOf(node)!==role)
         continue;
       if(role==="assistant"&&!node.querySelector(
         '[data-chatgpt-selection-message-id="'+id+'"]'))continue;
@@ -120,7 +128,7 @@
     const missing=[];
     for(const node of document.querySelectorAll(
       '[data-chatgpt-search-message-ids]')){
-      if(!node.querySelector('[data-conversation-role="user"]'))continue;
+      if(roleOf(node)!=="user")continue;
       const id=(node.getAttribute("data-chatgpt-search-message-ids")||"").split(/\s+/)[0];
       if(validId(id)&&!times.has(id)&&!requested.has(id)){
         missing.push(id);requested.add(id);
@@ -161,9 +169,7 @@
     // One DOM walk per rendering tick, including on long conversations.
     // All stored off-screen messages render when ChatGPT virtualizes them in.
     for(const node of document.querySelectorAll("[data-chatgpt-search-message-ids]")){
-      const role=node.querySelector('[data-conversation-role="user"]')?
-        "user":node.querySelector('[data-conversation-role="assistant"]')?
-        "assistant":null;
+      const role=roleOf(node);
       if(!role)continue;
       for(const id of (node.getAttribute("data-chatgpt-search-message-ids")||"").split(/\s+/)){
         const value=times.get(id);
