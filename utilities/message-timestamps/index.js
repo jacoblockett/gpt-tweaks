@@ -1,5 +1,4 @@
-/* Only user submissions receive visible timestamps. Completed assistant
- * responses are observed separately for out-of-focus notifications. */
+/* User-message timestamps only. Assistant completions belong to notifications. */
 (() => {
   "use strict";
   if(globalThis.__gptTweaksTimestamps)return;
@@ -8,9 +7,8 @@
   const formatter=new Intl.DateTimeFormat(undefined,{
     year:"numeric",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"
   });
-  const times=new Map(),requested=new Set(),pendingFinals=new Map(),pendingUsers=new Map();
-  const notified=new Set();
-  let active=null,sequence=0,inflight=false,scheduled=false,finalizing=new Set();
+  const times=new Map(),requested=new Set(),pendingUsers=new Map();
+  let active=null,sequence=0,inflight=false,scheduled=false;
 
   function conversationId(){
     return location.pathname.match(/(?:^|\/)c\/([a-f0-9-]{36})(?:\/|$)/i)?.[1]||null;
@@ -82,12 +80,6 @@
     else record(item.id,item.at,true);
     schedule();
   });
-  document.addEventListener("gpt-tweaks:timestamps:final",event=>{
-    const item=parse(event);
-    if(!validId(item?.id))return;
-    pendingFinals.set(item.id,item);
-    schedule();
-  });
   document.addEventListener("gpt-tweaks:timestamps:history",event=>{
     const payload=parse(event);
     if(payload?.conversation!==active||payload.seq!==sequence)return;
@@ -101,7 +93,6 @@
     const id=conversationId();
     if(id===active)return;
     active=id;times.clear();requested.clear();inflight=false;sequence++;
-    pendingFinals.clear();notified.clear();
     if(!id)return;
     const expected=id;
     void message("read",{conversation:id}).then(result=>{
@@ -141,34 +132,6 @@
       detail:JSON.stringify({conversation:active,seq,ids:missing})
     }));
   }
-  function completeAssistant(){
-    for(const [id,item] of pendingFinals){
-      if(!active||item.conversation&&item.conversation!==active)continue;
-      const target=entry(id,"assistant");
-      if(!target||!target.node.closest('[data-talvt-turn-state="complete"]')||
-         finalizing.has(id))continue;
-      finalizing.add(id);
-      // The completed turn and its toolbar must survive a subsequent
-      // rendering tick before recording the visible completion moment.
-      setTimeout(()=>{
-        finalizing.delete(id);
-        if(!active||item.conversation&&item.conversation!==active)return;
-        const current=entry(id,"assistant");
-        if(!current||!current.node.closest('[data-talvt-turn-state="complete"]'))
-          return;
-        // Assistant completion is a notification trigger, not a timestamp.
-        if(!notified.has(id)){
-          notified.add(id);
-          document.dispatchEvent(new CustomEvent(
-            "gpt-tweaks:timestamps:completed",{
-              detail:JSON.stringify({id,conversation:active})
-            }));
-        }
-        pendingFinals.delete(id);
-        schedule();
-      },75);
-    }
-  }
   function render(){
     scheduled=false;
     syncConversation();
@@ -187,7 +150,6 @@
       }
     }
     timestampUsers();
-    completeAssistant();
   }
   function schedule(){
     if(scheduled)return;
