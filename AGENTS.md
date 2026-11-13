@@ -11,6 +11,7 @@
 - `utilities/enhanced-copy/`: Copy Chat, history retrieval and clipboard feedback.
 - `utilities/session-handoff/`: generation, model/effort continuity, intake and recovery.
 - `utilities/token-estimator/`: automatic header token counter, streaming/history reconciliation and numeric cache.
+- `utilities/message-timestamps/`: native action-row timestamps from verified user submission metadata and successfully rendered assistant completions. Historical assistant completion times are intentionally unknown unless captured live.
 - `utilities/new-chat/`: native New chat middle-click shortcuts and project-aware new tab/window creation.
 - `shared/conversation/`: common conversation history/content extraction.
 - `shared/ui/feature-registry.js`: the small shared icon/action registry and composer selector used by the header.
