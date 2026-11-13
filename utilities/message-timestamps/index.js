@@ -45,12 +45,15 @@
   function dateLabel(id,at,knownNode=null){
     const target=entry(id,"user",knownNode);
     if(!target)return;
-    let label=target.row.querySelector(":scope > .gtg-message-timestamp");
+    // The native action controls live inside ChatGPT's hover-hidden wrapper.
+    // Reparent any label installed by an older version instead of leaving
+    // it outside that wrapper where it remains visible at rest.
+    let label=target.node.querySelector(".gtg-message-timestamp");
     if(!label){
       label=document.createElement("time");
       label.className="gtg-message-timestamp";
-      target.row.prepend(label);
     }
+    if(label.parentElement!==target.toolbar)target.toolbar.append(label);
     const iso=new Date(at).toISOString();
     if(label.dateTime!==iso){
       label.dateTime=iso;
