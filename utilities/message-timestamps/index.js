@@ -89,14 +89,17 @@
     for(const pair of payload.response?.userTimes||[]){
       if(!Array.isArray(pair)||!validId(pair[0])||
          !Number.isSafeInteger(pair[1])||pair[1]<946684800000)continue;
+      const unseen=!times.has(pair[0]);
       record(pair[0],pair[1],false);
-      entries.push(pair);
+      if(unseen)entries.push(pair);
     }
-    if(entries.length)void message("saveBatch",{
-      conversation:active,entries
-    }).then(reply=>{
-      if(!reply?.ok)console.warn("[GPT Tweaks] Timestamp cache save",reply?.error);
-    }).catch(error=>console.warn("[GPT Tweaks] Timestamp cache save",error));
+    for(let i=0;i<entries.length;i+=200){
+      void message("saveBatch",{
+        conversation:active,entries:entries.slice(i,i+200)
+      }).then(reply=>{
+        if(!reply?.ok)console.warn("[GPT Tweaks] Timestamp cache save",reply?.error);
+      }).catch(error=>console.warn("[GPT Tweaks] Timestamp cache save",error));
+    }
     schedule();
   });
   function syncConversation(){
