@@ -14,7 +14,7 @@
 - `utilities/message-timestamps/`: native user-message action-row timestamps from live submissions and the same passive history responses, persisted in bounded user-only metadata batches. Never initiate separate history lookups.
 - `utilities/notifications/`: background-only alerts triggered directly by successful final assistant SSE messages, using Session Handoff-compatible delta parsing, without DOM/action-toolbar dependencies. Sound playback is owned by the Chromium offscreen document.
 - `utilities/new-chat/`: native New chat middle-click shortcuts and project-aware new tab/window creation.
-- `shared/conversation/`: common conversation history/content extraction and fail-closed request permission relay. Only explicitly requested workflows (such as Copy Chat) can fetch additional history, with a global persistent 30-second spacing limit, eight requests/hour, 25 requests/day, and at least one hour of cooldown after HTTP 429. Native ChatGPT requests are never delayed or counted.
+- `shared/conversation/`: common conversation history/content extraction and fail-closed request permission relay. Only explicitly requested workflows (such as Copy Chat) can fetch additional history, with a global persistent 30-second spacing limit, eight requests/hour, 25 requests/day, and an exponential cooldown after HTTP 429 (one hour initially, up to 24 hours on repeated failures). Native ChatGPT requests are never delayed or counted.
 - `shared/ui/feature-registry.js`: the small shared icon/action registry and composer selector used by the header.
 - `shared/ui/select.*`: dropdown control reused by GitHub and Settings.
 
