@@ -1,5 +1,5 @@
-/* Timestamp labels share each native message action row without modifying
- * ChatGPT buttons. Unknown historical completion times are not fabricated. */
+/* Only user submissions receive visible timestamps. Completed assistant
+ * responses are observed separately for out-of-focus notifications. */
 (() => {
   "use strict";
   if(globalThis.__gptTweaksTimestamps)return;
@@ -9,6 +9,7 @@
     year:"numeric",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"
   });
   const times=new Map(),requested=new Set(),pendingFinals=new Map(),pendingUsers=new Map();
+  const notified=new Set();
   let active=null,sequence=0,inflight=false,scheduled=false,finalizing=new Set();
 
   function conversationId(){
@@ -41,36 +42,31 @@
     }
     return null;
   }
-  function dateLabel(id,role,at,knownNode=null){
-    const target=entry(id,role,knownNode);
+  function dateLabel(id,at,knownNode=null){
+    const target=entry(id,"user",knownNode);
     if(!target)return;
-    if(role==="assistant"&&target.node.closest(
-      '[data-talvt-turn-state="complete"]')===null)return;
     let label=target.row.querySelector(":scope > .gtg-message-timestamp");
     if(!label){
       label=document.createElement("time");
       label.className="gtg-message-timestamp";
-      if(role==="user")target.row.prepend(label);
-      else target.row.append(label);
+      target.row.prepend(label);
     }
     const iso=new Date(at).toISOString();
     if(label.dateTime!==iso){
       label.dateTime=iso;
       label.textContent=formatter.format(at);
-      label.title=(role==="user"?"Submitted":"Response completed")+
-        ": "+new Date(at).toLocaleString();
+      label.title="Submitted: "+new Date(at).toLocaleString();
     }
   }
-  function record(id,role,at,save){
-    if(!validId(id)||!["user","assistant"].includes(role)||
-       !Number.isSafeInteger(at)||at<946684800000)return;
+  function record(id,at,save){
+    if(!validId(id)||!Number.isSafeInteger(at)||at<946684800000)return;
     if(!times.has(id)){
-      times.set(id,{role,at});
+      times.set(id,at);
       if(save&&active)void message("save",{
-        conversation:active,id,role,at
+        conversation:active,id,role:"user",at
       }).catch(error=>console.warn("[GPT Tweaks] Timestamp save failed",error));
     }
-    dateLabel(id,role,times.get(id).at);
+    dateLabel(id,times.get(id));
   }
   function parse(event){
     try{return JSON.parse(event.detail);}catch{return null;}
@@ -80,7 +76,7 @@
     if(!validId(item?.id)||!Number.isSafeInteger(item.at))return;
     if(!active||item.conversation&&item.conversation!==active)
       pendingUsers.set(item.id,item);
-    else record(item.id,"user",item.at,true);
+    else record(item.id,item.at,true);
     schedule();
   });
   document.addEventListener("gpt-tweaks:timestamps:final",event=>{
@@ -94,7 +90,7 @@
     if(payload?.conversation!==active||payload.seq!==sequence)return;
     inflight=false;
     for(const {id,at} of payload.entries||[])
-      if(validId(id)&&Number.isSafeInteger(at))record(id,"user",at,false);
+      if(validId(id)&&Number.isSafeInteger(at))record(id,at,false);
     if(payload.error)console.warn("[GPT Tweaks] Timestamp history lookup",payload.error);
     schedule();
   });
@@ -102,15 +98,15 @@
     const id=conversationId();
     if(id===active)return;
     active=id;times.clear();requested.clear();inflight=false;sequence++;
+    pendingFinals.clear();notified.clear();
     if(!id)return;
     const expected=id;
     void message("read",{conversation:id}).then(result=>{
       if(active!==expected||!result?.ok)return;
       for(const [messageId,value] of Object.entries(result.entries||{})){
         if(validId(messageId)&&Array.isArray(value)&&
-           ["user","assistant"].includes(value[0])&&
-           Number.isSafeInteger(value[1]))
-          record(messageId,value[0],value[1],false);
+           value[0]==="user"&&Number.isSafeInteger(value[1]))
+          record(messageId,value[1],false);
       }
       schedule();
     }).catch(error=>console.warn("[GPT Tweaks] Timestamp read failed",error));
@@ -120,7 +116,7 @@
     for(const [id,item] of pendingUsers){
       if(item.conversation&&item.conversation!==active)continue;
       if(entry(id,"user")){
-        record(id,"user",item.at,true);
+        record(id,item.at,true);
         pendingUsers.delete(id);
       }
     }
@@ -157,14 +153,14 @@
         const current=entry(id,"assistant");
         if(!current||!current.node.closest('[data-talvt-turn-state="complete"]'))
           return;
-        // Fire a separate event only for newly completed, rendered replies.
-        // Notifications own their focus and preference checks.
-        const fresh=!times.has(id);
-        record(id,"assistant",Date.now(),true);
-        if(fresh)document.dispatchEvent(new CustomEvent(
-          "gpt-tweaks:timestamps:completed",{
-            detail:JSON.stringify({id,conversation:active})
-          }));
+        // Assistant completion is a notification trigger, not a timestamp.
+        if(!notified.has(id)){
+          notified.add(id);
+          document.dispatchEvent(new CustomEvent(
+            "gpt-tweaks:timestamps:completed",{
+              detail:JSON.stringify({id,conversation:active})
+            }));
+        }
         pendingFinals.delete(id);
         schedule();
       },75);
@@ -177,10 +173,14 @@
     // All stored off-screen messages render when ChatGPT virtualizes them in.
     for(const node of document.querySelectorAll("[data-chatgpt-search-message-ids]")){
       const role=roleOf(node);
-      if(!role)continue;
+      if(role!=="user"){
+        // Remove labels from previous extension versions, if present.
+        node.querySelectorAll(".gtg-message-timestamp").forEach(label=>label.remove());
+        continue;
+      }
       for(const id of (node.getAttribute("data-chatgpt-search-message-ids")||"").split(/\s+/)){
-        const value=times.get(id);
-        if(value?.role===role){dateLabel(id,role,value.at,node);break;}
+        const at=times.get(id);
+        if(at){dateLabel(id,at,node);break;}
       }
     }
     timestampUsers();
