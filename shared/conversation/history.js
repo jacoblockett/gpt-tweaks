@@ -54,6 +54,34 @@
       signal?.addEventListener("abort",abort,{once:true});
     });
   }
+  function permit(id){
+    return new Promise((resolve,reject)=>{
+      // Fail closed: a missing/disabled guard must never permit an API request.
+      const requestId=crypto.randomUUID();
+      const timeout=setTimeout(()=>{
+        document.removeEventListener("gpt-tweaks:history:permission",receive);
+        reject(Error("Extension history safety guard unavailable"));
+      },7000);
+      function receive(event){
+        let response;
+        try{response=JSON.parse(event.detail);}catch{return;}
+        if(response?.id!==requestId)return;
+        clearTimeout(timeout);
+        document.removeEventListener("gpt-tweaks:history:permission",receive);
+        if(response.ok&&typeof response.token==="string")resolve(response.token);
+        else reject(Error(response.error||"History requests are paused by the safety limit"));
+      }
+      document.addEventListener("gpt-tweaks:history:permission",receive);
+      document.dispatchEvent(new CustomEvent("gpt-tweaks:history:permit",{
+        detail:JSON.stringify({id:requestId,conversation:id})
+      }));
+    });
+  }
+  function settle(token,status){
+    document.dispatchEvent(new CustomEvent("gpt-tweaks:history:settle",{
+      detail:JSON.stringify({token,status})
+    }));
+  }
   async function fetchPage(id,{before=null,pageSize=10,signal}={}){
     if(!validId(id))throw Error("Invalid conversation ID");
     const url=new URL(prefix+encodeURIComponent(id),location.origin);
@@ -61,25 +89,25 @@
     url.searchParams.set("include_has_versions","true");
     if(before)url.searchParams.set("before",before);
     const headers=requestHeaders(id);
-    for(let attempt=0;attempt<3;attempt++){
+    // Every extension-created request passes the shared cross-tab budget.
+    // Never retry network/HTTP failures automatically.
+    const token=await permit(id);
+    let status=0;
+    try{
       if(signal?.aborted)throw Error("History request canceled");
-      try{
-        const response=await nativeFetch(url.href,{
-          method:"GET",headers,credentials:"include",cache:"no-store",signal
-        });
-        if(!response.ok)throw Error("History request returned HTTP "+response.status);
-        const page=await response.json();
-        if(!Array.isArray(page?.messages)||!page.page_info||
-           typeof page.page_info.has_previous_page!=="boolean")
-          throw Error("Unsupported conversation history response");
-        return page;
-      }catch(error){
-        if(signal?.aborted)throw error;
-        if(error?.name!=="TypeError"||attempt===2)throw error;
-        await delay(400*(attempt+1),signal);
-      }
-    }
+      const response=await nativeFetch(url.href,{
+        method:"GET",headers,credentials:"include",cache:"no-store",signal
+      });
+      status=response.status;
+      if(!response.ok)throw Error("History request returned HTTP "+response.status);
+      const page=await response.json();
+      if(!Array.isArray(page?.messages)||!page.page_info||
+         typeof page.page_info.has_previous_page!=="boolean")
+        throw Error("Unsupported conversation history response");
+      return page;
+    }finally{settle(token,status);}
   }
+
   // Fetch oldest pages as necessary even when only the latest turns exist in
   // ChatGPT's virtualized DOM. Caller owns the raw messages and their lifetime.
   async function scan(id,{signal,onPage,maxPages=2000}={}){
