@@ -49,6 +49,7 @@
         "https://chatgpt.com/*"
       ],
       "js": [
+        "shared/conversation/rate-bridge.js",
         "shared/ui/feature-registry.js",
         "utilities/github-source/ui/scrollbar.js",
         "shared/ui/select.js",
