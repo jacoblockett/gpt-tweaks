@@ -9,6 +9,7 @@
 	const featureKeys = [
 		["archive-enabled", "gpt-tweaks.archives.enabled"],
 		["copy-enabled", "gpt-tweaks.copy.enabled"],
+		["notifications-enabled", "gpt-tweaks.notifications.enabled"],
 		["handoff-enabled", "gpt-tweaks.handoff.enabled"],
 		["context-enabled", "gpt-tweaks.context.enabled"],
 		["new-chat-enabled", "gpt-tweaks.new-chat.enabled"]
