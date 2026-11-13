@@ -40,7 +40,8 @@
       }
       return {ok:true};
     };
-    const operation=message.action==="read"?run():
+    const operation=message.action==="read"?
+      writes.catch(()=>{}).then(run):
       (writes=writes.catch(()=>{}).then(run));
     /* writes are serialized for both individual submissions and history pages. */
     operation.then(reply,error=>reply({ok:false,error:String(error)}));
