@@ -268,7 +268,7 @@
 
   // The isolated script can arrive after the initial network response.
   document.addEventListener('ct-v1-bridge-ready', () => {
-    if (!trackingEnabled) return;
+    // User timestamps still need passive native pages when tokens are disabled.
     for(const [id,pages] of nativePages)
       for(const response of pages.values())publish("native",{id,response});
   });
