@@ -9,7 +9,7 @@
   // Serialize concurrent user submission writes to avoid lost updates.
   let writes=Promise.resolve();
   chrome.runtime.onMessage.addListener((message,sender,reply)=>{
-    if(message?.type!=="gpt-tweaks:timestamps"||!["read","save"].includes(message.action))
+    if(message?.type!=="gpt-tweaks:timestamps"||!["read","save","saveBatch"].includes(message.action))
       return false;
     if(!authorized(sender)||!validId(message.conversation)){
       reply({ok:false,error:"Unauthorized timestamp request"});return false;
@@ -18,21 +18,31 @@
       const key=prefix+message.conversation;
       const stored=(await chrome.storage.local.get(key))[key]||{};
       if(message.action==="read")return {ok:true,entries:stored};
-      if(!validId(message.id)||message.role!=="user"||
-         !Number.isSafeInteger(message.at)||message.at<946684800000||
-         Math.abs(Date.now()-message.at)>120000)
-        throw Error("Invalid timestamp");
-      // A message ID has exactly one event time. Do not move it on rerender.
-      if(!Object.hasOwn(stored,message.id)){
-        stored[message.id]=[message.role,message.at];
+      // Server-provided native history timestamps can be old. They must be
+      // validated structurally but never treated as a fresh submission.
+      const entries=message.action==="saveBatch"?message.entries:
+        [[message.id,message.at]];
+      if(!Array.isArray(entries)||entries.length<1||entries.length>500||
+         (message.action==="save"&&message.role!=="user")||
+         entries.some(pair=>!Array.isArray(pair)||!validId(pair[0])||
+           !Number.isSafeInteger(pair[1])||pair[1]<946684800000||
+           pair[1]>Date.now()+300000))throw Error("Invalid timestamp metadata");
+      let changed=false;
+      for(const [id,at] of entries){
+        if(!Object.hasOwn(stored,id)){
+          stored[id]=["user",at];changed=true;
+        }
+      }
+      if(changed){
         const ids=Object.keys(stored);
-        for(const old of ids.slice(0,Math.max(0,ids.length-1000)))delete stored[old];
+        for(const old of ids.slice(0,Math.max(0,ids.length-10000)))delete stored[old];
         await chrome.storage.local.set({[key]:stored});
       }
       return {ok:true};
     };
-    const operation=message.action==="save"?
-      (writes=writes.catch(()=>{}).then(run)):run();
+    const operation=message.action==="read"?run():
+      (writes=writes.catch(()=>{}).then(run));
+    /* writes are serialized for both individual submissions and history pages. */
     operation.then(reply,error=>reply({ok:false,error:String(error)}));
     return true;
   });
