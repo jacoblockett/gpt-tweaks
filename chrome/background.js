@@ -20,6 +20,7 @@ chrome.action.onClicked.addListener(() => {
 
 // GitHub source utility, loaded only in trusted extension service worker.
 importScripts("../utilities/github-source/connection.js","../utilities/github-source/repositories.js","../utilities/github-source/service.js","./github-bridge.js");
+importScripts("./history-guard.js");
 importScripts("./token-estimator-bridge.js");
 importScripts("./new-chat-bridge.js");
 importScripts("./session-handoff-bridge.js");
