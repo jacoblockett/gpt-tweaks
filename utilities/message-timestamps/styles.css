@@ -1,7 +1,7 @@
 /* Place timestamps at the far right of native per-message toolbars. */
 .gtg-message-timestamp {
   flex: 0 0 auto;
-  margin-inline-start: auto;
+  margin-inline-start: 6px;
   color: var(--text-tertiary, currentColor);
   opacity: .66;
   font-size: 11px;
