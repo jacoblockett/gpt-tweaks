@@ -13,7 +13,9 @@
     heading.textContent="Handoff not sent";
     const explanation=document.createElement("p");
     explanation.id="gtg-handoff-model-description";
-    if(reason==="model"&&sourceModel&&destinationModel){
+    if(reason==="transfer"){
+      explanation.textContent="The session handoff could not finish automatically. No automatic submission will be attempted. Check the composer before sending manually, or reload this tab to retry. See the extension console for details.";
+    }else if(reason==="model"&&sourceModel&&destinationModel){
       explanation.textContent="The new chat uses a different model ("+
         destinationModel+") from the original chat ("+sourceModel+
         "). The handoff has been pasted into the composer but was not sent. Review the model and thinking effort before sending it manually.";
