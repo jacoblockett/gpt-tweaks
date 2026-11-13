@@ -4,40 +4,9 @@
   if(window.__gptTweaksTimestampBridge)return;
   window.__gptTweaksTimestampBridge=true;
   const originalFetch=window.fetch.bind(window);
-  const history=window.GPTTweaksConversationHistory;
   const validId=value=>typeof value==="string"&&/^[a-f0-9-]{36}$/i.test(value);
   const publish=(type,payload)=>document.dispatchEvent(new CustomEvent(
     "gpt-tweaks:timestamps:"+type,{detail:JSON.stringify(payload)}));
-
-  document.addEventListener("gpt-tweaks:timestamps:lookup",async event=>{
-    let request;
-    try{request=JSON.parse(event.detail);}catch{return;}
-    const {conversation,seq,ids}=request||{};
-    if(!validId(conversation)||!Number.isSafeInteger(seq)||
-       !Array.isArray(ids)||ids.length>100||ids.some(id=>!validId(id)))return;
-    const wanted=new Set(ids),found=[];
-    if(!wanted.size)return;
-    try {
-      await history.scan(conversation,{maxPages:500,onPage:page=>{
-        for(const message of page.messages){
-          if(!wanted.has(message?.id)||message.author?.role!=="user"||
-             message.metadata?.is_visually_hidden_from_conversation===true||
-             message.metadata?.is_user_system_message===true)continue;
-          // create_time is not assumed to be a completion timestamp.
-          // Display it only for users, if an actual history response supplies it.
-          const seconds=message.create_time;
-          if(typeof seconds!=="number"||!Number.isFinite(seconds)||
-             seconds<946684800||seconds>Date.now()/1000+300)continue;
-          found.push({id:message.id,at:Math.round(seconds*1000)});
-          wanted.delete(message.id);
-        }
-        return wanted.size>0;
-      }});
-      publish("history",{conversation,seq,entries:found});
-    }catch(error){
-      publish("history",{conversation,seq,entries:found,error:String(error)});
-    }
-  });
 
   function generation(input,init){
     try{
