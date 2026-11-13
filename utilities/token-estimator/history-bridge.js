@@ -13,8 +13,8 @@
   document.addEventListener('ct-v1-tracker-enabled', event => {
     trackingEnabled = event.detail === 'true';
   });
+  // Bounded in-memory replay of history pages ChatGPT fetched itself.
   const nativePages = new Map();
-  const inflight = new Map();
   const historyPrefix = '/backend-api/conversations/';
   const validId = id => typeof id === 'string' && /^[a-f\d-]{36}$/i.test(id);
 
@@ -26,7 +26,17 @@
   function summarize(payload) {
     if (!Array.isArray(payload?.messages) || !payload.page_info)
       throw new Error('Unsupported conversation-history response');
-    return {entries: core.summarizePage(payload.messages), page_info: {
+    const userTimes=[];
+    for(const message of payload.messages){
+      const seconds=message?.create_time;
+      if(validId(message?.id)&&message.author?.role==="user"&&
+         message.metadata?.is_visually_hidden_from_conversation!==true&&
+         message.metadata?.is_user_system_message!==true&&
+         typeof seconds==="number"&&Number.isFinite(seconds)&&
+         seconds>=946684800&&seconds<=Date.now()/1000+300)
+        userTimes.push([message.id,Math.round(seconds*1000)]);
+    }
+    return {entries: core.summarizePage(payload.messages),userTimes,page_info: {
       has_previous_page: !!payload.page_info.has_previous_page,
       start_cursor: payload.page_info.start_cursor || null
     }};
@@ -44,17 +54,24 @@
     const method = String(init?.method || input?.method || 'GET').toUpperCase();
     return {url, method};
   }
-  function captureResponse(id, response) {
+  function captureResponse(id, before, response) {
+    // A 429 on a native request also pauses all extension-created requests.
+    // It does not alter ChatGPT's own fetch.
+    if(response?.status===429)document.dispatchEvent(
+      new Event("gpt-tweaks:history:rate-limited"));
     if (!response?.ok || !response.clone) return;
-    // Do not delay ChatGPT's own response; consume its clone asynchronously.
     const copy = response.clone();
     setTimeout(async () => {
       try {
-        const data = summarize(await copy.json());
-        nativePages.set(id, data);
-        publish('native', {id, response:data});
+        const data = {...summarize(await copy.json()),before};
+        let pages=nativePages.get(id);
+        if(!pages){pages=new Map();nativePages.set(id,pages);}
+        pages.set(before||"",data);
+        while(pages.size>32)pages.delete(pages.keys().next().value);
+        while(nativePages.size>8)nativePages.delete(nativePages.keys().next().value);
+        publish("native",{id,response:data});
       } catch (_) { /* The app owns this response; never interfere with it. */ }
-    }, 0);
+    },0);
   }
 
   function captureOutgoing(input, init) {
@@ -215,18 +232,18 @@
   }
 
   window.fetch = function (...args) {
-    if (!trackingEnabled) return nativeFetch(...args);
     const {url, method} = getArgs(args[0], args[1]);
-    let id = null;
+    let id = null, before=null;
     let generation = false;
     let generationId = null;
-    if (method === 'GET') {
-      const match = identify(url);
-      if (match && !match.url.searchParams.has('before')) {
-        id = match.id;
-        history.captureHeaders(id, args[0], args[1]);
+    if(method==="GET"){
+      const match=identify(url);
+      if(match){
+        id=match.id;
+        before=match.url.searchParams.get("before");
+        if(!before)history.captureHeaders(id,args[0],args[1]);
       }
-    } else if (method === 'POST') {
+    } else if (method === 'POST' && trackingEnabled) {
       try {
         const u = new URL(url, location.href);
         if (u.origin === location.origin &&
@@ -240,7 +257,7 @@
       } catch (_) { /* Keep ChatGPT's request unchanged. */ }
     }
     const result = nativeFetch(...args);
-    if (id) result.then(response => captureResponse(id, response), () => {});
+    if (id) result.then(response => captureResponse(id,before,response), () => {});
     if (generation) result.then(response => observeGeneration(response, generationId), () => {
       document.dispatchEvent(new CustomEvent('ct-v1-stream', {
         detail: JSON.stringify({type:'done', id:generationId, entries:[]})
@@ -252,27 +269,7 @@
   // The isolated script can arrive after the initial network response.
   document.addEventListener('ct-v1-bridge-ready', () => {
     if (!trackingEnabled) return;
-    for (const [id, response] of nativePages) publish('native', {id, response});
-  });
-  document.addEventListener('ct-v1-history-cancel', event => {
-    inflight.get(Number(event.detail))?.abort();
-  });
-  document.addEventListener('ct-v1-history-request', async event => {
-    if (!trackingEnabled) return;
-    let request;
-    try { request = JSON.parse(event.detail); } catch (_) { return; }
-    if (!request || !validId(request.id) || !Number.isSafeInteger(request.seq)) return;
-    const {id, seq, before, pageSize} = request;
-    const controller = new AbortController();
-    inflight.set(seq, controller);
-    try {
-      const page = await history.fetchPage(id, {before, pageSize, signal:controller.signal});
-      if (!controller.signal.aborted)
-        publish('result', {id, seq, response:summarize(page)});
-    } catch (error) {
-      if (!controller.signal.aborted) publish('error', {
-        id, seq, error:error instanceof Error ? error.message : String(error)
-      });
-    } finally { inflight.delete(seq); }
+    for(const [id,pages] of nativePages)
+      for(const response of pages.values())publish("native",{id,response});
   });
 })();
