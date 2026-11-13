@@ -1,6 +1,7 @@
-/* MAIN-world completion observer. Parse verified final SSE messages without
- * requiring their DOM nodes, action bars or the network connection to close.
- * Only an assistant message ID and conversation ID cross into the isolated world. */
+/* MAIN-world completion observer for ChatGPT generation SSE.
+ * Do not depend on DOM/action bars or EOF. Observe final-channel message
+ * markers and successful end_turn/status patches, then emit metadata only.
+ * Original response and all ChatGPT network requests remain untouched. */
 (() => {
   "use strict";
   if(window.__gptTweaksNotificationStream)return;
@@ -30,89 +31,142 @@
        !/text\/event-stream/i.test(response.headers?.get("content-type")||""))return;
     let clone;
     try{clone=response.clone();}catch{return;}
-    const reader=clone.body.getReader();
-    const decoder=new TextDecoder();
+    const reader=clone.body.getReader(),decoder=new TextDecoder();
     const messages=new Map();
-    let currentId=null,conversation=initialConversation,buffer="",dataLines=[];
-    let published=false;
+    let currentId=null,finalMarkerId=null,conversation=initialConversation;
+    let buffer="",dataLines=[],published=false;
 
-    function takeMessage(message){
-      if(!validId(message?.id)||!message.author?.role)return;
-      messages.set(message.id,message);
-      currentId=message.id;
+    function state(id){
+      if(!validId(id))return null;
+      if(!messages.has(id)){
+        // Metadata only, never retain assistant message text.
+        messages.set(id,{id,role:null,recipient:null,channel:null,
+          status:null,endTurn:null,isComplete:null,hidden:false,finalMarker:false});
+        if(messages.size>64)messages.delete(messages.keys().next().value);
+      }
+      return messages.get(id);
     }
-    // These are the same nested ChatGPT delta shapes handled by Session Handoff.
+    const statusOf=value=>typeof value==="string"?value:
+      typeof value?.type==="string"?value.type:null;
+
+    function readMetadata(item,metadata){
+      if(!metadata||typeof metadata!=="object")return;
+      if(typeof metadata.channel==="string")item.channel=metadata.channel;
+      if(typeof metadata.is_complete==="boolean")item.isComplete=metadata.is_complete;
+      if(typeof metadata.is_visually_hidden_from_conversation==="boolean")
+        item.hidden=metadata.is_visually_hidden_from_conversation;
+    }
+    function takeMessage(message){
+      const item=state(message?.id);
+      if(!item)return;
+      currentId=item.id;
+      if(typeof message.author?.role==="string")item.role=message.author.role;
+      if(typeof message.recipient==="string")item.recipient=message.recipient;
+      if(typeof message.channel==="string")item.channel=message.channel;
+      if(Object.hasOwn(message,"status"))item.status=statusOf(message.status);
+      if(Object.hasOwn(message,"end_turn"))item.endTurn=message.end_turn;
+      readMetadata(item,message.metadata);
+    }
     function applyOperation(op){
       if(!op||typeof op.p!=="string")return;
-      if(op.p===""&&op.v?.message){takeMessage(op.v.message);return;}
-      if(!op.p.startsWith("/message/")||!currentId)return;
-      const message=messages.get(currentId);
-      if(!message)return;
-      const keys=op.p.slice(9).split("/").map(key=>
-        key.replace(/~1/g,"/").replace(/~0/g,"~"));
-      if(!["content","author","recipient","channel","metadata","end_turn","status"].includes(keys[0])||
-         keys.length>8||keys.some(key=>
-           ["__proto__","constructor","prototype"].includes(key)))return;
-      let parent=message;
-      for(let i=0;i<keys.length-1;i++){
-        const key=keys[i];
-        if(parent[key]==null)parent[key]=/^\d+$/.test(keys[i+1])?[]:{};
-        if(!parent[key]||typeof parent[key]!=="object")return;
-        parent=parent[key];
+      if((op.p===""&&op.v?.message)||op.p==="/message"&&op.v?.id){
+        takeMessage(op.v?.message||op.v);return;
       }
-      const key=keys[keys.length-1];
-      if(op.o==="append"){
-        if(typeof op.v==="string")
-          parent[key]=(typeof parent[key]==="string"?parent[key]:"")+op.v;
-        else if(Array.isArray(parent[key]))parent[key].push(op.v);
-      }else if(op.o==="add"&&key==="-"&&Array.isArray(parent)){
-        parent.push(op.v);
-      }else if(op.o==="add"||op.o==="replace"){
-        parent[key]=op.v;
+      if(!op.p.startsWith("/message/")||!currentId)return;
+      const item=state(currentId);
+      if(!item)return;
+      const path=op.p.slice("/message/".length).split("/").map(part=>
+        part.replace(/~1/g,"/").replace(/~0/g,"~"));
+      if(path.some(part=>["__proto__","prototype","constructor"].includes(part)))
+        return;
+      const field=path[0],sub=path[1];
+      if(op.o==="remove"){
+        if(field==="metadata"&&sub==="is_visually_hidden_from_conversation")
+          item.hidden=false;
+        else if(field==="metadata"&&sub==="is_complete")item.isComplete=null;
+        else if(field==="metadata"&&sub==="channel")item.channel=null;
+        return;
+      }
+      if(!["replace","add","append"].includes(op.o))return;
+      // ChatGPT sends status and end_turn together in a final "patch" packet.
+      if(field==="status"&&path.length===1)item.status=statusOf(op.v);
+      else if(field==="end_turn"&&path.length===1)item.endTurn=op.v;
+      else if(field==="author"){
+        if(sub==="role"&&typeof op.v==="string")item.role=op.v;
+        else if(path.length===1&&typeof op.v?.role==="string")
+          item.role=op.v.role;
+      }else if(field==="recipient"&&path.length===1&&typeof op.v==="string")
+        item.recipient=op.v;
+      else if(field==="channel"&&path.length===1&&typeof op.v==="string")
+        item.channel=op.v;
+      else if(field==="metadata"){
+        if(path.length===1)readMetadata(item,op.v);
+        else if(sub==="channel"&&typeof op.v==="string")item.channel=op.v;
+        else if(sub==="is_complete"&&typeof op.v==="boolean")item.isComplete=op.v;
+        else if(sub==="is_visually_hidden_from_conversation"&&
+                typeof op.v==="boolean")item.hidden=op.v;
       }
     }
     function publishFinal(){
       if(published)return;
-      const finals=[...messages.values()].filter(message=>{
-        const channel=message.channel||message.metadata?.channel;
-        const status=typeof message.status==="string"?
-          message.status:message.status?.type;
-        return message.author?.role==="assistant"&&
-          (!message.recipient||message.recipient==="all")&&
-          (!channel||channel==="final")&&message.end_turn===true&&
-          (status==null||status==="finished_successfully")&&
-          message.metadata?.is_complete!==false&&
-          message.metadata?.is_visually_hidden_from_conversation!==true;
-      });
-      const final=finals[finals.length-1];
-      if(!final)return;
+      const selected=[...messages.values()].filter(item=>
+        (item.finalMarker||item.role==="assistant")&&
+        (item.role===null||item.role==="assistant")&&
+        (!item.recipient||item.recipient==="all")&&
+        (!item.channel||item.channel==="final")&&
+        item.status==="finished_successfully"&&item.endTurn===true&&
+        item.isComplete!==false&&!item.hidden
+      );
+      const final=selected.at(-1);
+      const id=validId(conversation)?conversation:conversationId();
+      if(!final||!validId(id))return;
       published=true;
       document.dispatchEvent(new CustomEvent("gpt-tweaks:notifications:completed",{
-        detail:JSON.stringify({
-          id:final.id,
-          conversation:validId(conversation)?conversation:conversationId()
-        })
+        detail:JSON.stringify({id:final.id,conversation:id})
       }));
     }
     function handle(raw){
-      if(!raw||raw==="[DONE]")return;
+      if(!raw||raw==="[DONE]"){publishFinal();return;}
       let packet;
       try{packet=JSON.parse(raw);}catch{return;}
       if(validId(packet?.conversation_id))conversation=packet.conversation_id;
       if(validId(packet?.v?.conversation_id))conversation=packet.v.conversation_id;
+
+      // A final_channel_token marker identifies the actual final assistant
+      // message even when the SSE excerpt lacks its full initialization.
+      if(packet?.type==="message_marker"&&validId(packet.message_id)&&
+         packet.marker==="final_channel_token"&&packet.event==="first"){
+        finalMarkerId=packet.message_id;
+        const item=state(finalMarkerId);
+        item.finalMarker=true;
+        currentId=item.id;
+      }
       if(packet?.message)takeMessage(packet.message);
       if(packet?.v?.message)takeMessage(packet.v.message);
       if(Array.isArray(packet?.v))
         for(const op of packet.v)applyOperation(op);
       else if(packet?.o)applyOperation(packet);
       publishFinal();
+
+      if(packet?.type==="message_stream_complete"&&!published){
+        // One metadata-only diagnostic per completed stream, with no text or
+        // IDs, to distinguish missing initial messages from missing patches.
+        const item=messages.get(finalMarkerId)||
+          [...messages.values()].at(-1);
+        console.warn("[GPT Tweaks] Final stream completed without a verified notification",{
+          marker:!!finalMarkerId,role:item?.role||null,
+          channel:item?.channel||null,status:item?.status||null,
+          endTurn:item?.endTurn??null,conversationKnown:validId(conversation)
+        });
+      }
     }
     function line(value){
       if(value.endsWith("\r"))value=value.slice(0,-1);
       if(!value){
         if(dataLines.length)handle(dataLines.join("\n"));
         dataLines=[];
-      }else if(value.startsWith("data:"))dataLines.push(value.slice(5).trimStart());
+      }else if(value.startsWith("data:"))
+        dataLines.push(value.slice(5).trimStart());
     }
     try{
       while(true){
@@ -130,7 +184,7 @@
       if(buffer)line(buffer);
       line("");
     }catch{
-      // A transport abort does not invalidate an already verified final reply.
+      // Transport aborts may follow a successfully completed final reply.
     }finally{
       void reader.cancel().catch(()=>{});
       try{reader.releaseLock();}catch{}
