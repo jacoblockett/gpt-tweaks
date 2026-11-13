@@ -21,6 +21,7 @@
       dayCount:Number.isSafeInteger(stored.dayCount)?stored.dayCount:0,
       lastAt:Number.isFinite(stored.lastAt)?stored.lastAt:0,
       blockedUntil:Number.isFinite(stored.blockedUntil)?stored.blockedUntil:0,
+      strikes:Number.isSafeInteger(stored.strikes)?stored.strikes:0,
       lease:stored.lease&&typeof stored.lease==="object"?stored.lease:null
     };
     if(now-state.hourStart>=hourMs||now<state.hourStart){
@@ -30,9 +31,17 @@
       state.dayStart=now;state.dayCount=0;
     }
     if(state.lease?.expires<=now)state.lease=null;
+    const rateLimited=()=>{
+      // A repeated 429 after a prior cooldown doubles the quiet period.
+      // Repeated native errors within one cooldown do not extend it forever.
+      if(state.blockedUntil<=now){
+        state.strikes=Math.min(state.strikes+1,6);
+        state.blockedUntil=now+Math.min(dayMs,cooldownMs*2**(state.strikes-1));
+      }
+    };
     let response;
     if(message.action==="throttle"){
-      state.blockedUntil=Math.max(state.blockedUntil,now+cooldownMs);
+      rateLimited();
       state.lease=null;
       response={ok:true,blockedUntil:state.blockedUntil};
     }else if(message.action==="acquire"){
@@ -54,8 +63,8 @@
         return {ok:false,error:"History request lease expired"};
       }
       state.lease=null;
-      if(message.status===429)
-        state.blockedUntil=Math.max(state.blockedUntil,now+cooldownMs);
+      if(message.status===429)rateLimited();
+      else if(message.status>=200&&message.status<400)state.strikes=0;
       response={ok:true};
     }else return {ok:false,error:"Unknown history guard action"};
     await chrome.storage.local.set({[key]:state});
