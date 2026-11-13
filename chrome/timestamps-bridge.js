@@ -6,13 +6,16 @@
     if(sender?.id!==chrome.runtime.id||!Number.isInteger(sender.tab?.id))return false;
     try{return new URL(sender.url).origin==="https://chatgpt.com";}catch{return false;}
   };
+  // Serialize writes so concurrent user/assistant completions cannot erase
+  // one another by reading the same previous storage snapshot.
+  let writes=Promise.resolve();
   chrome.runtime.onMessage.addListener((message,sender,reply)=>{
     if(message?.type!=="gpt-tweaks:timestamps"||!["read","save"].includes(message.action))
       return false;
     if(!authorized(sender)||!validId(message.conversation)){
       reply({ok:false,error:"Unauthorized timestamp request"});return false;
     }
-    (async()=>{
+    const run=async()=>{
       const key=prefix+message.conversation;
       const stored=(await chrome.storage.local.get(key))[key]||{};
       if(message.action==="read")return {ok:true,entries:stored};
@@ -28,7 +31,10 @@
         await chrome.storage.local.set({[key]:stored});
       }
       return {ok:true};
-    })().then(reply,error=>reply({ok:false,error:String(error)}));
+    };
+    const operation=message.action==="save"?
+      (writes=writes.catch(()=>{}).then(run)):run();
+    operation.then(reply,error=>reply({ok:false,error:String(error)}));
     return true;
   });
 })();
