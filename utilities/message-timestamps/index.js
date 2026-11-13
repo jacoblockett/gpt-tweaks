@@ -157,7 +157,14 @@
         const current=entry(id,"assistant");
         if(!current||!current.node.closest('[data-talvt-turn-state="complete"]'))
           return;
+        // Fire a separate event only for newly completed, rendered replies.
+        // Notifications own their focus and preference checks.
+        const fresh=!times.has(id);
         record(id,"assistant",Date.now(),true);
+        if(fresh)document.dispatchEvent(new CustomEvent(
+          "gpt-tweaks:timestamps:completed",{
+            detail:JSON.stringify({id,conversation:active})
+          }));
         pendingFinals.delete(id);
         schedule();
       },75);
