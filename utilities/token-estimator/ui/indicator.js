@@ -119,6 +119,8 @@
       for (const [id, entry] of observedEntries) entries.set(id, entry);
       for (const [id, entry] of streamEntries) entries.set(id, entry);
       const estimate = core.metrics([...entries.values()]);
+      host.title=complete?"Token estimate from cached conversation history":
+        "Partial estimate: only locally cached messages and history loaded by ChatGPT; no extension background history requests";
       const pending = !!activeId && initialDiscovery && !complete && !lastError;
       const failed = !!activeId && !!lastError && !complete && estimate.records === 0;
       loading.style.display = pending ? '' : 'none';
