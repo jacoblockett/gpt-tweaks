@@ -20,7 +20,8 @@
          String(init?.method||input?.method||"GET").toUpperCase()!=="POST")return null;
       const body=typeof init?.body==="string"?JSON.parse(init.body):null;
       if(!Array.isArray(body?.messages))return null;
-      return validId(body.conversation_id)?body.conversation_id:conversationId();
+      return {conversation:validId(body.conversation_id)?
+        body.conversation_id:conversationId()};
     }catch{return null;}
   }
 
@@ -137,23 +138,10 @@
   }
 
   window.fetch=function(...args){
-    const conversation=generation(args[0],args[1]);
-    // null can represent an initial new conversation, but the request can
-    // still be recognized from the URL/body and its SSE supplies the ID.
-    const isGeneration=conversation!==null||(()=>{
-      try{
-        const raw=typeof args[0]==="string"||args[0] instanceof URL?
-          args[0]:args[0]?.url;
-        const url=new URL(raw,location.href);
-        return url.origin===location.origin&&
-          ["/backend-api/f/conversation","/backend-api/conversation"].includes(url.pathname)&&
-          String(args[1]?.method||args[0]?.method||"GET").toUpperCase()==="POST"&&
-          typeof args[1]?.body==="string"&&
-          Array.isArray(JSON.parse(args[1].body)?.messages);
-      }catch{return false;}
-    })();
+    const request=generation(args[0],args[1]);
     const result=nativeFetch(...args);
-    if(isGeneration)void result.then(response=>observe(response,conversation)).catch(()=>{});
+    if(request)void result.then(response=>observe(response,request.conversation))
+      .catch(()=>{});
     return result;
   };
 })();
