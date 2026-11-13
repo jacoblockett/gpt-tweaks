@@ -54,23 +54,28 @@
     const method = String(init?.method || input?.method || 'GET').toUpperCase();
     return {url, method};
   }
-  function captureResponse(id, before, response) {
-    // A 429 on a native request also pauses all extension-created requests.
-    // It does not alter ChatGPT's own fetch.
+  function publishPage(id,before,raw){
+    const data={...summarize(raw),before};
+    let pages=nativePages.get(id);
+    if(!pages){pages=new Map();nativePages.set(id,pages);}
+    pages.set(before||"",data);
+    while(pages.size>32)pages.delete(pages.keys().next().value);
+    while(nativePages.size>8)nativePages.delete(nativePages.keys().next().value);
+    publish("native",{id,response:data});
+  }
+  // Explicitly user-requested history retrieval also supplies cached
+  // metadata to both passive features without another network request.
+  history.observePage((id,before,page)=>{
+    try{publishPage(id,before,page);}catch{}
+  });
+  function captureResponse(id,before,response){
     if(response?.status===429)document.dispatchEvent(
       new Event("gpt-tweaks:history:rate-limited"));
-    if (!response?.ok || !response.clone) return;
-    const copy = response.clone();
-    setTimeout(async () => {
-      try {
-        const data = {...summarize(await copy.json()),before};
-        let pages=nativePages.get(id);
-        if(!pages){pages=new Map();nativePages.set(id,pages);}
-        pages.set(before||"",data);
-        while(pages.size>32)pages.delete(pages.keys().next().value);
-        while(nativePages.size>8)nativePages.delete(nativePages.keys().next().value);
-        publish("native",{id,response:data});
-      } catch (_) { /* The app owns this response; never interfere with it. */ }
+    if(!response?.ok||!response.clone)return;
+    const copy=response.clone();
+    setTimeout(async()=>{
+      try{publishPage(id,before,await copy.json());}
+      catch{ /* Never affect ChatGPT's own response. */ }
     },0);
   }
 
