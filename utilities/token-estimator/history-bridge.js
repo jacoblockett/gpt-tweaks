@@ -273,8 +273,21 @@
 
   // The isolated script can arrive after the initial network response.
   document.addEventListener('ct-v1-bridge-ready', () => {
-    // User timestamps still need passive native pages when tokens are disabled.
-    for(const [id,pages] of nativePages)
-      for(const response of pages.values())publish("native",{id,response});
+    // Replay a contiguous native pagination chain in newest-to-oldest order.
+    // Unknown page ordering is still useful to timestamps, but must not
+    // convince the estimator it has a complete chain.
+    for(const [id,pages] of nativePages){
+      const emitted=new Set();
+      let cursor="";
+      while(pages.has(cursor)&&!emitted.has(cursor)){
+        const page=pages.get(cursor);
+        publish("native",{id,response:page});
+        emitted.add(cursor);
+        cursor=page.page_info.has_previous_page?page.page_info.start_cursor:null;
+        if(!cursor)break;
+      }
+      for(const [before,page] of pages)
+        if(!emitted.has(before))publish("native",{id,response:page});
+    }
   });
 })();
