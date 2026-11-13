@@ -54,96 +54,8 @@
           .map(m=>m.id),at:Date.now()};
     }catch{return null;}
   }
-  async function observe(response,request){
-    if(!response?.body||!/text\/event-stream/i.test(
-      response.headers?.get("content-type")||""))return;
-    let copy;
-    try{copy=response.clone();}catch{return;}
-    const reader=copy.body.getReader(),decoder=new TextDecoder();
-    const messages=new Map();
-    let currentId=null,conversation=request.conversation,buffer="",dataLines=[],ended=false;
-    let finalPublished=false;
-    const take=m=>{
-      if(!validId(m?.id)||!m.author?.role)return;
-      messages.set(m.id,m);
-      currentId=m.id;
-    };
-    const operation=op=>{
-      if(!op||typeof op.p!=="string")return;
-      if(op.p===""&&op.v?.message){take(op.v.message);return;}
-      if(!op.p.startsWith("/message/")||!currentId)return;
-      const parts=op.p.slice(9).split("/");
-      if(!parts.length||parts.length>2||
-         !["end_turn","status","channel","recipient","metadata"].includes(parts[0])||
-         (parts.length===2&&!(parts[0]==="metadata"&&
-           ["channel","is_complete","is_visually_hidden_from_conversation"].includes(parts[1]))&&
-          !(parts[0]==="status"&&parts[1]==="type")))return;
-      const m=messages.get(currentId);
-      if(!m||!["add","replace"].includes(op.o))return;
-      if(parts.length===1)m[parts[0]]=op.v;
-      else{
-        if(!m[parts[0]]||typeof m[parts[0]]!=="object")m[parts[0]]={};
-        m[parts[0]][parts[1]]=op.v;
-      }
-    };
-    // ChatGPT may keep a generation stream open or abort its transport after
-    // sending a successful final end_turn. Do not require network EOF to
-    // publish a verified final reply; the isolated side still waits for the
-    // completed turn and its rendered action controls.
-    const publishFinal=()=>{
-      if(finalPublished)return;
-      const completed=[...messages.values()].filter(m=>{
-        const status=typeof m.status==="string"?m.status:m.status?.type;
-        const channel=m.channel||m.metadata?.channel;
-        return m.author?.role==="assistant"&&(!m.recipient||m.recipient==="all")&&
-          (!channel||channel==="final")&&m.end_turn===true&&
-          (status==null||status==="finished_successfully")&&
-          m.metadata?.is_complete!==false&&
-          m.metadata?.is_visually_hidden_from_conversation!==true;
-      });
-      const final=completed[completed.length-1];
-      if(!final)return;
-      finalPublished=true;
-      publish("final",{id:final.id,conversation});
-    };
-    const handle=raw=>{
-      if(!raw||raw==="[DONE]")return;
-      let p;
-      try{p=JSON.parse(raw);}catch{return;}
-      if(validId(p?.conversation_id))conversation=p.conversation_id;
-      if(validId(p?.v?.conversation_id))conversation=p.v.conversation_id;
-      if(p?.message)take(p.message);
-      if(p?.v?.message)take(p.v.message);
-      if(Array.isArray(p?.v))for(const op of p.v)operation(op);
-      else if(p?.o)operation(p);
-      publishFinal();
-    };
-    const line=s=>{
-      if(s.endsWith("\r"))s=s.slice(0,-1);
-      if(!s){if(dataLines.length)handle(dataLines.join("\n"));dataLines=[];}
-      else if(s.startsWith("data:"))dataLines.push(s.slice(5).trimStart());
-    };
-    try{
-      while(true){
-        const {value,done}=await reader.read();
-        if(done){ended=true;break;}
-        buffer+=decoder.decode(value,{stream:true});
-        let pos;
-        while((pos=buffer.indexOf("\n"))!==-1){
-          line(buffer.slice(0,pos));buffer=buffer.slice(pos+1);
-        }
-        if(buffer.length>8000000)return;
-      }
-      buffer+=decoder.decode();
-      if(buffer)line(buffer);
-      line("");
-    }catch{return;}
-    finally{
-      if(!ended)void reader.cancel().catch(()=>{});
-      try{reader.releaseLock();}catch{}
-    }
-    if(ended)publishFinal();
-  }
+  // Timestamps only observe outgoing user messages; completion detection
+  // belongs to utilities/notifications/stream-bridge.js.
   window.fetch=function(...args){
     const request=generation(args[0],args[1]);
     const result=originalFetch(...args);
@@ -151,7 +63,6 @@
       if(!response?.ok)return;
       for(const id of request.users)
         publish("submitted",{id,conversation:request.conversation,at:request.at});
-      void observe(response,request);
     }).catch(()=>{});
     return result;
   };
