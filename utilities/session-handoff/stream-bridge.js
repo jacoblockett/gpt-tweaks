@@ -7,7 +7,7 @@
   window.__gptTweaksHandoffStream=true;
 
   const nativeFetch=window.fetch.bind(window);
-  const marker="GPT Tweaks session handoff request.";
+  const marker="Session transfer request: summarize this conversation for continuation in a new chat; do not perform any tasks.";
   let armed=null;
   const validModel=value=>typeof value==="string"&&/^[a-z0-9][a-z0-9._-]{0,99}$/i.test(value);
 
