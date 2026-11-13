@@ -11,10 +11,6 @@
   pointer-events: none;
   user-select: none;
 }
-.flex-row-reverse > .gtg-message-timestamp {
-  margin-inline-start: 0;
-  margin-inline-end: 0;
-}
 @media print {
   .gtg-message-timestamp { display: none; }
 }
